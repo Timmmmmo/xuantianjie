@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="theme-color" content="#070b12">
+<meta name="format-detection" content="telephone=no,email=no,address=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="玄天劫">
+<meta name="description" content="玄天劫 · 刷不完的怪 —— 单人修真幸存者手游，无尽妖潮，飞剑自动索敌。">
+<title>玄天劫 · 刷不完的怪</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <canvas id="game"></canvas>
+  <div id="bgLayer" class="bg-layer"></div>
+
+  <!-- 全屏触摸摇杆感应区（HUD 之下、技能按钮之下） -->
+  <div id="joyZone" class="joy-zone"></div>
+
+  <!-- HUD -->
+  <div id="hud" class="hidden">
+    <div class="hud-top">
+      <div class="hud-glass">
+        <div class="stat hp">
+          <span class="stat-icon hp-icon"></span>
+          <div class="bar"><div id="hpFill" class="fill hp-fill"></div><div class="bar-shine"></div></div>
+          <span id="hpText" class="val">100/100</span>
+        </div>
+        <div class="stat mp">
+          <span class="stat-icon mp-icon"></span>
+          <div class="bar"><div id="mpFill" class="fill mp-fill"></div><div class="bar-shine"></div></div>
+          <span id="mpText" class="val">50/50</span>
+        </div>
+        <div class="stat-row">
+          <span class="chip wave"><i class="chip-ico ci-wave"></i>第 <b id="waveText">0</b> 波</span>
+          <span class="chip kills"><i class="chip-ico ci-kill"></i>斩 <b id="killText">0</b></span>
+          <span class="chip time" id="timeText">0:00</span>
+          <span class="chip coin"><i class="chip-ico ci-coin"></i>灵石 <b id="coinText">0</b></span>
+        </div>
+        <div class="wave-track" aria-hidden="true"><div id="waveFill" class="wave-fill"></div></div>
+      </div>
+    </div>
+
+    <div id="bossBar" class="boss-bar hidden">
+      <div class="boss-bar-name" id="bossBarName">九尾妖王</div>
+      <div class="boss-bar-track"><div id="bossBarFill" class="boss-bar-fill"></div></div>
+    </div>
+
+    <div id="comboBadge" class="combo-badge hidden">
+      <div class="combo-ring"></div>
+      <span id="comboNum">0</span>
+      <span class="combo-label">连杀</span>
+    </div>
+
+    <div class="hud-bottom">
+      <div class="xp-wrap">
+        <div class="level-badge">境界 <span id="levelText">1</span> · <span id="titleText">炼气</span> · <span id="weaponHint">飞剑</span></div>
+        <div class="xp-bar"><div id="xpFill" class="xp-fill"></div><div class="bar-shine"></div></div>
+      </div>
+      <div class="controls">
+        <div id="joystick" class="joystick idle">
+          <div class="joy-base"></div>
+          <div id="joyKnob" class="joy-knob"></div>
+        </div>
+        <div class="skills">
+          <button id="btnSkill1" class="skill-btn skill-q" type="button">
+            <svg class="skill-ico" viewBox="0 0 48 48" aria-hidden="true">
+              <path d="M8 30 Q24 8 40 30" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+              <path d="M14 34 Q24 18 34 34" fill="none" stroke="currentColor" stroke-width="2" opacity="0.7"/>
+              <circle cx="24" cy="36" r="3" fill="currentColor"/>
+            </svg>
+            <span class="skill-name">剑气</span>
+            <span class="skill-cd" id="cd1"></span>
+            <span class="skill-cost">◆ 20</span>
+          </button>
+          <button id="btnSkill2" class="skill-btn skill-w" type="button">
+            <svg class="skill-ico" viewBox="0 0 48 48" aria-hidden="true">
+              <path d="M10 32c6-10 10-16 14-20 4 4 8 10 14 20" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+              <path d="M18 34c3-5 5-8 6-10 1 2 3 5 6 10" fill="none" stroke="currentColor" stroke-width="2" opacity="0.75"/>
+              <path d="M8 38h32" stroke="currentColor" stroke-width="2" opacity="0.5" stroke-linecap="round"/>
+            </svg>
+            <span class="skill-name">御风</span>
+            <span class="skill-cd" id="cd2"></span>
+            <span class="skill-cost">◆ 15</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Level up -->
+  <div id="levelModal" class="modal hidden">
+    <div class="modal-card level-card">
+      <div class="modal-ornament"></div>
+      <h2>悟道突破</h2>
+      <p class="modal-sub">选择一项领悟，增强道途</p>
+      <div id="levelChoices" class="choices"></div>
+    </div>
+  </div>
+
+  <!-- 暂停 -->
+  <div id="pauseScreen" class="screen pause-screen hidden">
+    <div class="start-fade"></div>
+    <div class="start-inner">
+      <div class="subtitle">道法暂歇</div>
+      <div class="pause-tip">已自动暂停，回到页面继续</div>
+      <div class="btn-row">
+        <button id="btnResume" class="btn-primary"><span>继续战斗</span></button>
+        <button id="btnPauseHome" class="btn-ghost">返回山门</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Start -->
+  <div id="startScreen" class="screen start-screen">
+    <div class="start-fade"></div>
+    <div class="start-inner">
+      <div class="title-block">
+        <div class="title-kicker">无尽妖潮 · 单人修真</div>
+        <div class="title-row">
+          <div class="title-glow">玄天劫</div>
+          <div class="title-seal" aria-hidden="true">劫</div>
+        </div>
+        <div class="title-rule"></div>
+        <div class="mode-chips">
+          <span class="mode-chip">无尽模式</span>
+          <span class="mode-chip gold">灵石养成</span>
+          <span class="mode-chip violet">三修开局</span>
+        </div>
+      </div>
+      <div class="records records-coin">
+        <span class="rec"><em>灵石</em><b id="metaCoins">0</b></span>
+        <span class="rec"><em>最高波</em><b id="bestWave">0</b></span>
+        <span class="rec"><em>最高连杀</em><b id="bestCombo">0</b></span>
+      </div>
+      <div class="char-row" id="charRow"></div>
+      <div class="btn-row">
+        <button id="btnShop" class="btn-ghost btn-shop"><span class="btn-ico">灵</span>灵石商店</button>
+        <button id="btnStart" class="btn-primary"><span>踏入战场</span></button>
+      </div>
+      <div class="quick-row">
+        <button id="btnFullscreen" class="mini-btn" type="button">全屏</button>
+        <button id="btnSound" class="mini-btn" type="button">音效 开</button>
+      </div>
+      <div class="controls-hint">拖动屏幕任意位置移动 · 飞剑自动索敌 · 剑气 / 御风清场</div>
+    </div>
+  </div>
+
+  <!-- Shop -->
+  <div id="shopScreen" class="screen shop-screen hidden">
+    <div class="start-inner shop-inner">
+      <div class="subtitle shop-title">灵石商店 · 永久强化</div>
+      <div class="records"><span class="rec"><em>持有灵石</em><b id="shopCoins">0</b></span></div>
+      <div id="shopList" class="shop-list"></div>
+      <button id="btnShopBack" class="btn-primary"><span>返回山门</span></button>
+    </div>
+  </div>
+
+  <!-- Game over -->
+  <div id="overScreen" class="screen over-screen hidden">
+    <div class="start-fade"></div>
+    <div class="start-inner">
+      <div class="title-row over-title-row">
+        <div class="title-glow over">道消形散</div>
+        <div class="title-seal over-seal" aria-hidden="true">终</div>
+      </div>
+      <div class="subtitle" id="overTitle">炼气境</div>
+      <div class="over-stats">
+        <div class="ostat"><span>撑过波次</span><b id="overWave">0</b></div>
+        <div class="ostat"><span>斩妖数</span><b id="overKills">0</b></div>
+        <div class="ostat"><span>存活</span><b id="overTime">0s</b></div>
+        <div class="ostat"><span>峰值连杀</span><b id="overCombo">0</b></div>
+        <div class="ostat"><span>境界</span><b id="overLevel">1</b></div>
+        <div class="ostat gold-card"><span>获得灵石</span><b id="overCoins">+0</b></div>
+      </div>
+      <div class="over-msg" id="overMsg"></div>
+      <div class="btn-row">
+        <button id="btnRetry" class="btn-primary"><span>再战一局</span></button>
+        <button id="btnHome" class="btn-ghost">返回山门</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+</div>
+<script src="game.js"></script>
+</body>
+</html>

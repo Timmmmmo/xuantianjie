@@ -59,6 +59,22 @@
       <span class="combo-label">连杀</span>
     </div>
 
+    <div id="nodeHud" class="node-hud hidden">
+      <div class="node-hud-ring"><span id="nodeHudIco">焰</span></div>
+      <div class="node-hud-body">
+        <div class="node-hud-top"><b id="nodeHudName">烈焰剑阵</b><span id="nodeHudBuff">攻击 +25%</span></div>
+        <div class="node-hud-bar"><div id="nodeHudFill" class="node-hud-fill"></div></div>
+      </div>
+    </div>
+
+    <div id="jobHud" class="job-hud hidden">
+      <span id="jobHudIco" class="job-hud-ico">剑</span>
+      <div class="job-hud-body">
+        <b id="jobHudPath">剑道</b>
+        <span id="jobHudBranch">未择法门</span>
+      </div>
+    </div>
+
     <div class="hud-bottom">
       <div class="xp-wrap">
         <div class="level-badge">境界 <span id="levelText">1</span> · <span id="titleText">炼气</span> · <span id="weaponHint">飞剑</span></div>
@@ -102,6 +118,16 @@
       <h2>悟道突破</h2>
       <p class="modal-sub">选择一项领悟，增强道途</p>
       <div id="levelChoices" class="choices"></div>
+    </div>
+  </div>
+
+  <!-- 转职 -->
+  <div id="jobModal" class="modal hidden">
+    <div class="modal-card level-card job-card">
+      <div class="modal-ornament"></div>
+      <h2 id="jobTitle">择道</h2>
+      <p class="modal-sub" id="jobSub">三途择一 · 道途自此分野</p>
+      <div id="jobChoices" class="choices"></div>
     </div>
   </div>
 

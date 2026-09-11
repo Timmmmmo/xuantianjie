@@ -17,6 +17,10 @@ const ui = {
   comboBadge: $("comboBadge"), comboNum: $("comboNum"),
   bossBar: $("bossBar"), bossBarName: $("bossBarName"), bossBarFill: $("bossBarFill"),
   levelModal: $("levelModal"), levelChoices: $("levelChoices"),
+  jobModal: $("jobModal"), jobChoices: $("jobChoices"),
+  jobTitle: $("jobTitle"), jobSub: $("jobSub"),
+  jobHud: $("jobHud"), jobHudIco: $("jobHudIco"),
+  jobHudPath: $("jobHudPath"), jobHudBranch: $("jobHudBranch"),
   startScreen: $("startScreen"), overScreen: $("overScreen"),
   shopScreen: $("shopScreen"), shopList: $("shopList"), shopCoins: $("shopCoins"),
   pauseScreen: $("pauseScreen"), btnResume: $("btnResume"), btnPauseHome: $("btnPauseHome"),
@@ -33,6 +37,8 @@ const ui = {
   btnSkill1: $("btnSkill1"), btnSkill2: $("btnSkill2"),
   cd1: $("cd1"), cd2: $("cd2"),
   levelBadge: document.querySelector(".level-badge"),
+  nodeHud: $("nodeHud"), nodeHudIco: $("nodeHudIco"), nodeHudName: $("nodeHudName"),
+  nodeHudBuff: $("nodeHudBuff"), nodeHudFill: $("nodeHudFill"),
 };
 
 // ---------- Audio ----------
@@ -385,6 +391,198 @@ function readMove() {
   return { x, y };
 }
 
+// ---------- 剑阵守卫（Sword Formation Nodes） ----------
+// 站入剑阵 → 充能 → 阵成；站在阵中获得增益 + 阵法自动袭敌；
+// 离开后阵法「余威」维持数秒，逼迫玩家在「走位安全」与「守阵收益」之间取舍。
+const NODE_R = 78;
+const NODE_CHARGE_TIME = 1.1;   // 站入后充满所需秒数
+const NODE_HOLD = 5.0;          // 离阵后余威维持秒数
+const NODE_LAYOUT = [
+  { x: 260, y: -260 },
+  { x: 260, y: 260 },
+  { x: -260, y: 260 },
+  { x: -260, y: -260 },
+];
+const NODE_DEFS = [
+  { id: "fire",    name: "烈焰剑阵", ico: "焰", color: "#fb923c", rgb: "251,146,60",  buff: "攻击 +25%", effect: "阵内妖物持续燃烧" },
+  { id: "frost",   name: "玄冰剑阵", ico: "冰", color: "#7dd3fc", rgb: "125,211,252", buff: "受击 -20%",  effect: "阵内妖物大幅减速" },
+  { id: "thunder", name: "天雷剑阵", ico: "雷", color: "#c084fc", rgb: "192,132,252", buff: "移速 +18%",   effect: "阵内周期落雷" },
+  { id: "spirit",  name: "聚灵剑阵", ico: "灵", color: "#86efac", rgb: "134,239,172", buff: "经验 +35%",   effect: "阵内持续回血回灵" },
+];
+
+function initNodes() {
+  G.nodes = NODE_DEFS.map((def, i) => ({
+    id: def.id, def,
+    x: NODE_LAYOUT[i].x, y: NODE_LAYOUT[i].y,
+    r: NODE_R, charge: 0, active: false, holdT: 0,
+    strikeCD: 0, burnCD: 0, glow: 0,
+  }));
+  G.nodeInside = null; G.nodeActive = false; G.nodeHoldT = 0;
+  G.nodeAtkMul = 1; G.nodeXpMul = 1; G.nodeDmgTakenMul = 1; G.nodeMoveMul = 1;
+}
+
+function applyNodeAura(n, dt, standing) {
+  if (n.id === "fire") {
+    n.burnCD -= dt;
+    if (n.burnCD > 0) return;
+    n.burnCD = 0.5;
+    for (const e of G.enemies) {
+      if (e.dead) continue;
+      if (dist(e.x, e.y, n.x, n.y) > n.r) continue;
+      e.burn = Math.max(e.burn || 0, 1.4);
+      e.burnDmg = Math.max(e.burnDmg || 0, 4 + G.wave * 1.0);
+    }
+  } else if (n.id === "frost") {
+    for (const e of G.enemies) {
+      if (e.dead) continue;
+      if (dist(e.x, e.y, n.x, n.y) > n.r) continue;
+      e.slow = Math.max(e.slow || 0, 0.45);
+      e.slowMul = 0.45;
+    }
+  } else if (n.id === "thunder") {
+    n.strikeCD -= dt;
+    if (n.strikeCD > 0) return;
+    n.strikeCD = 1.0;
+    let target = null, best = 1e9;
+    for (const e of G.enemies) {
+      if (e.dead) continue;
+      const d = dist(e.x, e.y, n.x, n.y);
+      if (d < n.r + 50 && d < best) { best = d; target = e; }
+    }
+    if (!target) return;
+    G.particles.push({
+      x: target.x, y: target.y, vx: 0, vy: 0, life: 0.22, max: 0.22,
+      color: "#c084fc", size: 5, ring: { r0: 4, r1: 36 },
+    });
+    burst(target.x, target.y, "#c084fc", 8, 170, 3);
+    applyHit(target, G.atk * 1.7 * playerDamageMult());
+    AudioSys.hit();
+  } else if (n.id === "spirit") {
+    if (standing) {
+      G.hp = Math.min(G.hpMax, G.hp + 3.5 * dt);
+      G.mp = Math.min(G.mpMax, G.mp + 5 * dt);
+    }
+  }
+}
+
+function updateNodes(dt) {
+  let insideId = null;
+  for (const n of G.nodes) {
+    const inside = dist(G.px, G.py, n.x, n.y) < n.r + G.pr * 0.3;
+    if (inside) {
+      n.charge = Math.min(1, n.charge + dt / NODE_CHARGE_TIME);
+      if (n.charge >= 1) {
+        if (!n.active) {
+          n.active = true; n.glow = 1;
+          toast(`${n.def.name} · 阵成`, "cyan");
+          AudioSys.level();
+          burst(n.x, n.y, n.def.color, 20, 200, 4);
+          G.particles.push({
+            x: n.x, y: n.y, vx: 0, vy: 0, life: 0.5, max: 0.5,
+            color: n.def.color, size: 4, ring: { r0: 8, r1: n.r + 24 },
+          });
+        }
+        n.holdT = NODE_HOLD + (G.nodeHoldBonus || 0);
+        insideId = n.id;
+      }
+    } else if (n.active) {
+      n.holdT -= dt;
+      if (n.holdT <= 0) { n.active = false; n.charge = 0; n.holdT = 0; }
+    } else if (n.charge > 0) {
+      n.charge = Math.max(0, n.charge - dt * 0.6);
+    }
+
+    if (n.glow > 0) n.glow = Math.max(0, n.glow - dt * 1.8);
+    if (n.active) applyNodeAura(n, dt, insideId === n.id);
+  }
+
+  // 玩家增益只在自己站在「已激活」的阵上时才生效
+  let atkMul = 1, xpMul = 1, dmgMul = 1, moveMul = 1;
+  if (insideId) {
+    const n = G.nodes.find((x) => x.id === insideId);
+    if (n && n.active) {
+      if (n.id === "fire") atkMul = 1.25;
+      else if (n.id === "frost") dmgMul = 0.8;
+      else if (n.id === "thunder") moveMul = 1.18;
+      else if (n.id === "spirit") xpMul = 1.35;
+      G.nodeHoldT = n.holdT;
+    }
+  }
+  G.nodeInside = insideId;
+  G.nodeActive = !!insideId;
+  G.nodeAtkMul = atkMul;
+  G.nodeXpMul = xpMul;
+  G.nodeDmgTakenMul = dmgMul;
+  G.nodeMoveMul = moveMul;
+}
+
+function drawNodes(camX, camY) {
+  if (!G.nodes || !G.nodes.length) return;
+  const t = G.time || 0;
+  for (const n of G.nodes) {
+    const sx = n.x - camX + view.w / 2;
+    const sy = n.y - camY + view.h / 2;
+    const R = n.r;
+    if (sx < -R - 90 || sy < -R - 90 || sx > view.w + R + 90 || sy > view.h + R + 90) continue;
+    const on = n.active;
+    ctx.save();
+    ctx.translate(sx, sy);
+
+    const glowR = R + 16 + (on ? 10 + Math.sin(t * 3 + n.x) * 6 : 0) + n.glow * 30;
+    const g = ctx.createRadialGradient(0, 0, R * 0.1, 0, 0, glowR);
+    g.addColorStop(0, `rgba(${n.def.rgb},${on ? 0.26 : 0.07 + n.charge * 0.1})`);
+    g.addColorStop(0.72, `rgba(${n.def.rgb},${on ? 0.12 : 0.03})`);
+    g.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(0, 0, glowR, 0, TAU); ctx.fill();
+
+    ctx.strokeStyle = `rgba(${n.def.rgb},${on ? 0.95 : 0.4})`;
+    ctx.lineWidth = on ? 3 : 2;
+    ctx.beginPath(); ctx.arc(0, 0, R, 0, TAU); ctx.stroke();
+
+    if (on) {
+      ctx.save();
+      ctx.rotate(t * 0.55);
+      ctx.setLineDash([10, 14]);
+      ctx.strokeStyle = `rgba(${n.def.rgb},0.6)`;
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(0, 0, R - 11, 0, TAU); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+      const pr = R * (0.5 + 0.09 * Math.sin(t * 3.2));
+      ctx.strokeStyle = `rgba(${n.def.rgb},0.3)`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(0, 0, pr, 0, TAU); ctx.stroke();
+    }
+
+    if (!on && n.charge > 0.01) {
+      ctx.strokeStyle = `rgba(${n.def.rgb},0.95)`;
+      ctx.lineWidth = 5;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.arc(0, 0, R + 7, -Math.PI / 2, -Math.PI / 2 + TAU * n.charge);
+      ctx.stroke();
+      ctx.lineCap = "butt";
+    }
+
+    ctx.globalAlpha = on ? 1 : 0.45 + n.charge * 0.35;
+    ctx.fillStyle = n.def.color;
+    ctx.font = `bold ${Math.round(R * 0.4)}px "STKaiti","KaiTi",serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(n.def.ico, 0, 3);
+
+    if (on) {
+      ctx.globalAlpha = 0.92;
+      ctx.fillStyle = "#e8e6d9";
+      ctx.font = 'bold 12px system-ui,"Microsoft YaHei",sans-serif';
+      ctx.fillText(n.def.name, 0, -R - 15);
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+}
+
 // ---------- Game state ----------
 const G = {
   state: "menu",
@@ -417,6 +615,12 @@ const G = {
   },
   charId: "sword",
   coinsRun: 0,
+  // 剑阵
+  nodes: [], nodeInside: null, nodeActive: false, nodeHoldT: 0, nodeBonus: 0,
+  nodeAtkMul: 1, nodeXpMul: 1, nodeDmgTakenMul: 1, nodeMoveMul: 1,
+  nodeHoldBonus: 0, dmgTakenMul: 1,
+  // 转职（3 系 × 3 分支）
+  jobStage: 0, jobPath: null, jobBranches: {},
 };
 
 function resetRun(charId) {
@@ -452,6 +656,11 @@ function resetRun(charId) {
   G.shieldHit = 0;
   G.combo = 0; G.comboTimer = 0; G.comboPeak = 0; G.comboMul = 1;
   G.coinsRun = 0;
+  G.nodeBonus = 0;
+  G.nodeHoldBonus = 0;
+  G.dmgTakenMul = 1;
+  G.jobStage = 0; G.jobPath = null; G.jobBranches = {};
+  initNodes();
   G.weapons = {
     sword: { lv: 1, evo: false },
     orbit: { lv: 1, evo: false },
@@ -488,6 +697,7 @@ const UPGRADE_ICO = {
   fire: "火", lightning: "电", frost: "冰", array: "阵", sword: "飞", orbitw: "环",
   e_fire: "燎", e_lightning: "霆", e_frost: "封", e_array: "归",
   e_sword: "光", e_orbit: "罡",
+  nodeR: "阵", nodeP: "心",
 };
 
 function buildUpgradePool() {
@@ -515,6 +725,8 @@ function buildUpgradePool() {
     { id: "chain", name: "紫电青霜", desc: "飞剑命中有 15% 弹射", tag: "飞剑", rare: true, apply: () => { G.chain += 0.15; } },
     { id: "size", name: "巨剑真形", desc: "飞剑体积 +20%，伤害 +10%", tag: "飞剑", rare: false, apply: () => { G.swordSize *= 1.2; G.atk *= 1.1; } },
     { id: "thorn", name: "荆棘罡气", desc: "反伤 +10%", tag: "生存", rare: true, apply: () => { G.thorns += 0.1; } },
+    { id: "nodeR", name: "阵纹扩张", desc: "剑阵范围 +15%", tag: "剑阵", rare: false, apply: () => { for (const n of G.nodes) n.r *= 1.15; } },
+    { id: "nodeP", name: "阵心通明", desc: "站在剑阵中伤害 +18%", tag: "剑阵", rare: true, apply: () => { G.nodeBonus = (G.nodeBonus || 0) + 0.18; } },
   ].map(withIco);
 
   // weapon level ups
@@ -585,6 +797,163 @@ function rollUpgrades() {
     if (picked.length >= 3) break;
   }
   return picked;
+}
+
+// ---------- 转职（3 系 × 3 分支） ----------
+// 设计意图：把「塔防的站位/流派决策」搬进幸存者。
+// 境界到 5 / 10 / 15 时，本应出的升级三选一，改为一次转职抉择：
+//   5 级「择道」→ 从 3 系里选一条道途
+//   10 级「择法」→ 在本道 3 个法门里择一精修
+//   15 级「精进」→ 再次择法（同法门可叠层至 Lv.2，也可改修他法）
+const JOB_LEVELS = [5, 10, 15];
+
+const JOB_PATHS = [
+  {
+    id: "sword", name: "剑道", ico: "剑", tagCls: "t-sword", color: "#7dd3fc",
+    desc: "以飞剑为锋 · 走位即杀伐",
+    branches: [
+      { id: "sword_multi", name: "万剑归流", ico: "分", desc: "环绕飞剑 +2 · 剑域半径 +16",
+        apply: () => { G.swordCount += 2; G.swordOrbit += 16; } },
+      { id: "sword_pierce", name: "破锋无相", ico: "破", desc: "飞剑穿透 +2 · 暴击率 +12%",
+        apply: () => { G.swordPierce += 2; G.crit = Math.min(0.7, G.crit + 0.12); } },
+      { id: "sword_qi", name: "剑气冲霄", ico: "气", desc: "剑气伤害 +50% · 范围 +25% · 扇形角 +35%",
+        apply: () => { G.aoeDamageMul *= 1.5; G.aoeRange *= 1.25; G.aoeAngle *= 1.35; } },
+    ],
+  },
+  {
+    id: "mage", name: "玄法", ico: "法", tagCls: "t-mp", color: "#c084fc",
+    desc: "引术法之力 · 焚天封地",
+    branches: [
+      { id: "mage_fire", name: "业火焚天", ico: "火", desc: "业火球 +1 级 · 攻击 +15%",
+        apply: () => { const w = G.weapons.fire; w.lv = w.lv === 0 ? 1 : Math.min(5, w.lv + 1); G.atk *= 1.15; } },
+      { id: "mage_thunder", name: "九霄雷法", ico: "电", desc: "紫电 +1 级 · 飞剑攻速 +15%",
+        apply: () => { const w = G.weapons.lightning; w.lv = w.lv === 0 ? 1 : Math.min(5, w.lv + 1); G.atkSpeed *= 1.15; } },
+      { id: "mage_frost", name: "玄冰封天", ico: "冰", desc: "寒冰锥 +1 级 · 受击伤害 -12%",
+        apply: () => { const w = G.weapons.frost; w.lv = w.lv === 0 ? 1 : Math.min(5, w.lv + 1); G.dmgTakenMul *= 0.88; } },
+    ],
+  },
+  {
+    id: "body", name: "体道", ico: "体", tagCls: "t-hp", color: "#86efac",
+    desc: "以身为炉 · 守阵不破",
+    branches: [
+      { id: "body_blood", name: "血战不灭", ico: "血", desc: "气血上限 +80 并回复 · 残血伤害 +25%",
+        apply: () => { G.hpMax += 80; G.hp = Math.min(G.hpMax, G.hp + 80); G.lowHpBonus += 0.25; } },
+      { id: "body_thorn", name: "荆棘铁壁", ico: "棘", desc: "立即获得 60 护盾（上限 +40）· 反伤 +10%",
+        apply: () => { G.shieldMax += 40; G.shield += 60; G.thorns += 0.10; } },
+      { id: "body_formation", name: "守阵天君", ico: "阵", desc: "剑阵范围 +25% · 站阵伤害 +20% · 余威 +2s",
+        apply: () => { for (const n of G.nodes) n.r *= 1.25; G.nodeBonus += 0.20; G.nodeHoldBonus += 2; } },
+    ],
+  },
+];
+
+const JOB_STAGES = [
+  { title: "择道", sub: "三途择一 · 道途自此分野" },
+  { title: "择法", sub: "于本道之内，择一法门精修" },
+  { title: "精进", sub: "再进一步 · 已修法门可叠层" },
+];
+
+function jobStage() { return G.jobStage || 0; }
+
+function jobPathOf(id) { return JOB_PATHS.find((p) => p.id === id) || null; }
+
+// 到了转职节点吗？（境界 ≥ 该阶段门槛）
+function shouldOfferJob() {
+  const s = jobStage();
+  return s < JOB_LEVELS.length && G.level >= JOB_LEVELS[s];
+}
+
+function jobSyncHud(flash) {
+  if (!ui.jobHud) return;
+  const p = jobPathOf(G.jobPath);
+  if (!p || !G.jobStage) { ui.jobHud.classList.add("hidden"); return; }
+  const parts = [];
+  for (const b of p.branches) {
+    const lv = G.jobBranches[b.id] || 0;
+    if (lv > 0) parts.push(b.name + (lv > 1 ? "·Lv." + lv : ""));
+  }
+  ui.jobHudIco.textContent = p.ico;
+  ui.jobHudIco.style.setProperty("--jc", p.color);
+  ui.jobHudPath.textContent = p.name;
+  ui.jobHudBranch.textContent = parts.join(" ＋ ") || "未择法门";
+  ui.jobHud.classList.remove("hidden");
+  if (flash) {
+    ui.jobHud.classList.remove("flash");
+    void ui.jobHud.offsetWidth;
+    ui.jobHud.classList.add("flash");
+  }
+}
+
+function openJobModal() {
+  const stage = Math.min(jobStage(), JOB_LEVELS.length - 1);
+  const info = JOB_STAGES[stage];
+  G.state = "job";
+  ui.jobTitle.textContent = info.title;
+  ui.jobSub.textContent = info.sub;
+  ui.jobChoices.innerHTML = "";
+
+  const opts = [];
+  if (stage === 0) {
+    for (const p of JOB_PATHS) {
+      const innate = p.id === G.charId;   // 与本命同源的道途，给个标识
+      opts.push({
+        ico: p.ico, cls: p.tagCls, rare: innate,
+        tag: innate ? "本命 · 道途" : "道途",
+        name: p.name, desc: p.desc,
+        pick: () => { G.jobPath = p.id; return p.name; },
+      });
+    }
+  } else {
+    const p = jobPathOf(G.jobPath) || JOB_PATHS[0];
+    if (!G.jobPath) G.jobPath = p.id;
+    for (const b of p.branches) {
+      const cur = G.jobBranches[b.id] || 0;
+      opts.push({
+        ico: b.ico, cls: p.tagCls, rare: cur > 0,
+        tag: cur > 0 ? `已修 Lv.${cur}` : "法门",
+        name: b.name,
+        desc: cur > 0 ? b.desc + "（再次择取叠层）" : b.desc,
+        pick: () => { G.jobBranches[b.id] = cur + 1; b.apply(); return p.name + " · " + b.name; },
+      });
+    }
+  }
+
+  burst(G.px, G.py, "#f0c14b", 24, 200, 4);
+  G.particles.push({
+    x: G.px, y: G.py, vx: 0, vy: 0,
+    life: 0.55, max: 0.55, color: "#fde68a", size: 4,
+    ring: { r0: 12, r1: 130 },
+  });
+
+  for (const o of opts) {
+    const btn = document.createElement("button");
+    btn.className = "choice-btn" + (o.rare ? " rare" : "");
+    btn.innerHTML = `
+      <div class="choice-ico ${o.cls}">${o.ico}</div>
+      <div class="choice-body">
+        <span class="c-tag ${o.cls}">${o.tag}</span>
+        <span class="c-name">${o.name}</span>
+        <span class="c-desc">${o.desc}</span>
+      </div>`;
+    btn.addEventListener("click", () => {
+      const label = o.pick();
+      G.jobStage = stage + 1;
+      jobSyncHud(true);
+      AudioSys.level();
+      toast(`转职 · ${label}`, "gold");
+      G.goldFlash = 0.6;
+      G.shake = Math.max(G.shake, 12);
+      burst(G.px, G.py, "#fde68a", 34, 250, 5);
+      ui.jobModal.classList.add("hidden");
+      G.state = "play";
+      refreshWeaponHint();
+      if (G.pendingLevel && G.pendingLevel > 0) {
+        G.pendingLevel -= 1;
+        setTimeout(() => openLevelUp(), 50);
+      }
+    });
+    ui.jobChoices.appendChild(btn);
+  }
+  ui.jobModal.classList.remove("hidden");
 }
 
 // ---------- Enemies ----------
@@ -706,6 +1075,7 @@ function hitStop(ms) {
 
 function damagePlayer(amount) {
   if (G.dashIFrame > 0 || G.invuln > 0) return;
+  amount *= (G.nodeDmgTakenMul || 1) * (G.dmgTakenMul || 1);   // 玄冰剑阵 / 转职：减伤
   if (G.shield > 0) {
     const abs = Math.min(G.shield, amount);
     G.shield -= abs;
@@ -743,6 +1113,9 @@ function damagePlayer(amount) {
 function playerDamageMult() {
   let m = 1;
   if (G.hp < G.hpMax * 0.4) m += G.lowHpBonus;
+  // 剑阵：站在阵上吃阵法增益，升级「阵心通明」再叠一层
+  m *= (G.nodeAtkMul || 1);
+  if (G.nodeActive) m *= (1 + (G.nodeBonus || 0));
   return m;
 }
 
@@ -766,7 +1139,7 @@ function killEnemy(e, byPlayer = true) {
   e.dead = true;
   G.kills += 1;
   onKillCombo();
-  const xp = Math.round(e.xp * G.xpMul * comboMul());
+  const xp = Math.round(e.xp * G.xpMul * comboMul() * (G.nodeXpMul || 1));
   gainXP(xp);
   if (G.lifesteal > 0) G.hp = Math.min(G.hpMax, G.hp + G.lifesteal);
   if (e.elite || e.boss) dropPickup(e.x, e.y, e.boss ? "boss" : "elite");
@@ -1127,6 +1500,8 @@ const TAG_CLASS = {
 };
 
 function openLevelUp() {
+  // 到转职境界：本次不给普通升级卡，改出转职抉择
+  if (shouldOfferJob()) { openJobModal(); return; }
   G.state = "level";
   pendingChoices = rollUpgrades();
   // gold burst on level
@@ -1199,7 +1574,12 @@ function startRun(charId) {
   ui.hud.classList.add("char-" + id);
   ui.comboBadge.classList.add("hidden");
   refreshWeaponHint();
+  jobSyncHud(false);
   toast(`${CHARS[id]?.name || "修士"} · 御剑清妖`);
+  clearTimeout(startRun._hint);
+  startRun._hint = setTimeout(() => {
+    if (G.state === "play") toast("站上剑阵 · 充能阵成 · 离阵余威尚存", "cyan");
+  }, 2200);
 }
 
 function endRun() {
@@ -1247,7 +1627,7 @@ function toast(msg, kind) {
 // ---------- Update ----------
 function update(dt) {
   if (G.state === "menu" || G.state === "over" || G.state === "shop" || G.state === "pause") return;
-  if (G.state === "level") return;
+  if (G.state === "level" || G.state === "job") return;
 
   // hit-stop
   if (G.hitStop > 0) {
@@ -1284,7 +1664,7 @@ function update(dt) {
   }
 
   const mv = readMove();
-  const speed = G.moveSpeed * (G.dashTimer > 0 ? G.dashSpeedMul : 1);
+  const speed = G.moveSpeed * (G.nodeMoveMul || 1) * (G.dashTimer > 0 ? G.dashSpeedMul : 1);
   G.px += mv.x * speed * dt;
   G.py += mv.y * speed * dt;
   const dFromOrigin = Math.hypot(G.px, G.py);
@@ -1292,6 +1672,8 @@ function update(dt) {
     const s = G.arenaR / dFromOrigin;
     G.px *= s; G.py *= s;
   }
+
+  updateNodes(dt);
 
   G.swordPhase += dt * (1.8 + G.atkSpeed * 0.5);
   const orbitCount = G.swordCount;
@@ -1482,6 +1864,21 @@ function updateHUD() {
   const low = G.hp / G.hpMax < 0.35;
   ui.hud.classList.toggle("low-hp", low);
 
+  // 剑阵状态提示
+  if (ui.nodeHud) {
+    const nd = G.nodeInside ? G.nodes.find((x) => x.id === G.nodeInside) : null;
+    if (nd && nd.active) {
+      ui.nodeHud.classList.remove("hidden");
+      ui.nodeHudIco.textContent = nd.def.ico;
+      ui.nodeHudName.textContent = nd.def.name;
+      ui.nodeHudBuff.textContent = nd.def.buff;
+      ui.nodeHud.style.setProperty("--nc", nd.def.color);
+      ui.nodeHudFill.style.width = `${Math.max(0, Math.min(1, nd.holdT / NODE_HOLD)) * 100}%`;
+    } else {
+      ui.nodeHud.classList.add("hidden");
+    }
+  }
+
   // boss top bar
   const boss = G.enemies.find((e) => e.boss && !e.dead);
   if (boss && ui.bossBar) {
@@ -1510,6 +1907,7 @@ function draw() {
   if (G.state === "menu" || G.state === "shop") {
     drawMenuAmbient();
   } else {
+    drawNodes(camX, camY);
     for (const p of G.pickups) drawPickup(p);
     // magnet tether when close
     for (const p of G.pickups) {
@@ -1565,7 +1963,7 @@ function draw() {
     ctx.fillRect(0, 0, w, h);
   }
   // combat vignette
-  if (G.state === "play" || G.state === "level") {
+  if (G.state === "play" || G.state === "level" || G.state === "job") {
     const hasBoss = G.enemies.some((e) => e.boss && !e.dead);
     const vg = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.35, w / 2, h / 2, Math.max(w, h) * 0.72);
     vg.addColorStop(0, "rgba(0,0,0,0)");
@@ -2753,6 +3151,7 @@ function showMenu() {
   ui.overScreen.classList.add("hidden");
   ui.shopScreen.classList.add("hidden");
   ui.levelModal.classList.add("hidden");
+  ui.jobModal.classList.add("hidden");
   ui.pauseScreen.classList.add("hidden");
   ui.comboBadge.classList.add("hidden");
   ui.startScreen.classList.remove("hidden");
@@ -2937,4 +3336,9 @@ requestAnimationFrame(frame);
 window.G = G;
 window.Meta = Meta;
 window.Quality = Quality;
+// 调试/无头测试钩子（无副作用）
+window.__XTJ__ = {
+  openLevelUp, openJobModal, jobSyncHud, shouldOfferJob, buildUpgradePool, rollUpgrades, gainXP,
+  JOB_PATHS, JOB_LEVELS, JOB_STAGES, NODE_HOLD,
+};
 })();

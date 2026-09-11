@@ -1834,3 +1834,105 @@ canvas#game {
   .start-screen .start-inner { transform: scale(0.96); }
 }
 
+/* ---------- 剑阵守卫 HUD ---------- */
+.node-hud {
+  position: absolute;
+  top: 30%;
+  left: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px 6px 6px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(12,18,28,0.9), rgba(8,12,20,0.72));
+  border: 1.5px solid var(--nc, #5ce1e6);
+  box-shadow: 0 0 18px rgba(92,225,230,0.2), inset 0 0 14px rgba(0,0,0,0.42);
+  pointer-events: none;
+  animation: nodeHudIn 0.22s ease-out;
+}
+.node-hud.hidden { display: none; }
+@keyframes nodeHudIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: none; } }
+.node-hud-ring {
+  width: 34px; height: 34px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; font-weight: 800;
+  color: var(--nc, #5ce1e6);
+  border: 2px solid var(--nc, #5ce1e6);
+  box-shadow: 0 0 12px var(--nc, #5ce1e6), inset 0 0 10px rgba(0,0,0,0.5);
+  background: radial-gradient(circle at 35% 30%, rgba(255,255,255,0.12), rgba(0,0,0,0.35));
+  font-family: "STKaiti", "KaiTi", serif;
+  flex: 0 0 auto;
+}
+.node-hud-body { display: flex; flex-direction: column; gap: 3px; min-width: 96px; }
+.node-hud-top { display: flex; align-items: baseline; gap: 6px; }
+.node-hud-top b { font-size: 12px; color: #e8e6d9; letter-spacing: 0.5px; }
+.node-hud-top span { font-size: 10px; color: var(--nc, #5ce1e6); font-weight: 700; }
+.node-hud-bar {
+  height: 5px; border-radius: 3px;
+  background: rgba(255,255,255,0.1);
+  overflow: hidden;
+}
+.node-hud-fill {
+  height: 100%; width: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--nc, #5ce1e6), rgba(255,255,255,0.85));
+  box-shadow: 0 0 8px var(--nc, #5ce1e6);
+  transition: width 0.1s linear;
+}
+.perf-low .node-hud { box-shadow: none; }
+
+/* ========== 转职（道途 HUD + 转职弹窗） ========== */
+.job-hud {
+  position: absolute;
+  top: calc(30% + 58px);
+  left: 12px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 12px 5px 5px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(28,22,10,0.9), rgba(10,12,20,0.74));
+  border: 1.5px solid rgba(240,193,75,0.5);
+  box-shadow: 0 0 16px rgba(240,193,75,0.2), inset 0 0 12px rgba(0,0,0,0.42);
+  pointer-events: none;
+  max-width: 64vw;
+  animation: nodeHudIn 0.22s ease-out;
+}
+.job-hud.hidden { display: none; }
+.job-hud-ico {
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 800;
+  font-family: "STKaiti", "KaiTi", serif;
+  color: var(--jc, #f0c14b);
+  border: 1.5px solid var(--jc, #f0c14b);
+  box-shadow: 0 0 10px var(--jc, #f0c14b), inset 0 0 8px rgba(0,0,0,0.5);
+  background: radial-gradient(circle at 35% 30%, rgba(255,255,255,0.14), rgba(0,0,0,0.4));
+  flex: 0 0 auto;
+}
+.job-hud-body { display: flex; flex-direction: column; line-height: 1.18; min-width: 0; }
+.job-hud-body b {
+  font-size: 11.5px; letter-spacing: 1px;
+  color: var(--gold-hi, #fde68a);
+  text-shadow: 0 0 8px rgba(240,193,75,0.45);
+}
+.job-hud-body span {
+  font-size: 10px; color: var(--muted, #8fa0b8);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.job-hud.flash { animation: jobPop 0.5s cubic-bezier(0.2, 1.4, 0.4, 1); }
+@keyframes jobPop { 0% { transform: scale(1); } 35% { transform: scale(1.13); } 100% { transform: scale(1); } }
+.perf-low .job-hud { box-shadow: none; }
+
+/* 转职弹窗：比升级卡更"重"一档 */
+.job-card {
+  border-color: rgba(240,193,75,0.55);
+  box-shadow: var(--shadow), 0 0 52px rgba(240,193,75,0.2);
+}
+.job-card .modal-ornament { width: 180px; }
+.job-card h2 { text-shadow: 0 0 26px rgba(240,193,75,0.7); }
+.job-card .choice-btn { border-color: rgba(240,193,75,0.3); }
+.job-card .choice-btn .c-name { font-size: 16px; letter-spacing: 1px; }
+

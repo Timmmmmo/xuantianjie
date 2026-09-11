@@ -39,6 +39,11 @@ const ui = {
   levelBadge: document.querySelector(".level-badge"),
   nodeHud: $("nodeHud"), nodeHudIco: $("nodeHudIco"), nodeHudName: $("nodeHudName"),
   nodeHudBuff: $("nodeHudBuff"), nodeHudFill: $("nodeHudFill"),
+  beastHud: $("beastHud"), beastHudIco: $("beastHudIco"), beastHudName: $("beastHudName"),
+  relicRow: $("relicRow"),
+  codexScreen: $("codexScreen"), codexProgress: $("codexProgress"),
+  codexArtifacts: $("codexArtifacts"), codexBeasts: $("codexBeasts"),
+  btnCodex: $("btnCodex"), btnCodexBack: $("btnCodexBack"),
 };
 
 // ---------- Audio ----------
@@ -123,9 +128,15 @@ const Meta = {
         bestCombo: d.bestCombo || 0,
         shop: d.shop || {},
         selectedChar: d.selectedChar || "sword",
+        codex: d.codex && typeof d.codex === "object" ? d.codex : { artifacts: {}, beasts: {} },
+        contract: d.contract || null,
       };
     } catch (_) {
-      return { coins: 0, bestWave: 0, bestKills: 0, bestTime: 0, bestCombo: 0, shop: {}, selectedChar: "sword" };
+      return {
+        coins: 0, bestWave: 0, bestKills: 0, bestTime: 0, bestCombo: 0,
+        shop: {}, selectedChar: "sword",
+        codex: { artifacts: {}, beasts: {} }, contract: null,
+      };
     }
   },
   save(d) {
@@ -168,6 +179,46 @@ const Meta = {
     this.save(d);
     return d;
   },
+  // ---- 图鉴 ----
+  recordArtifact(id) {
+    const d = this.load();
+    d.codex.artifacts[id] = (d.codex.artifacts[id] || 0) + 1;
+    this.save(d);
+    return d;
+  },
+  recordBeast(id) {
+    const d = this.load();
+    d.codex.beasts[id] = (d.codex.beasts[id] || 0) + 1;
+    this.save(d);
+    return d;
+  },
+  codexStats() {
+    const d = this.load();
+    return {
+      art: Object.keys(d.codex.artifacts).length,
+      beast: Object.keys(d.codex.beasts).length,
+      artTotal: ARTIFACTS.length,
+      beastTotal: BEASTS.length,
+    };
+  },
+  beastUnlocked(id) {
+    const def = BEAST_BY_ID[id];
+    if (!def) return false;
+    const d = this.load();
+    if (d.codex.beasts[id]) return true;
+    const u = def.unlock;
+    if (u.type === "wave") return d.bestWave >= u.need;
+    if (u.type === "kills") return d.bestKills >= u.need;
+    if (u.type === "relic") return Object.keys(d.codex.artifacts).length >= u.need;
+    return false;
+  },
+  toggleContract(id) {
+    const d = this.load();
+    d.contract = d.contract === id ? null : id;
+    if (d.contract) d.codex.beasts[id] = (d.codex.beasts[id] || 0) + 1;
+    this.save(d);
+    return d.contract;
+  },
 };
 
 // ---------- Characters ----------
@@ -176,6 +227,68 @@ const CHARS = {
   mage: { id: "mage", name: "法修", icon: "法", desc: "灵力充沛 技能冷却-20%", portrait: "assets/char-mage.png" },
   body: { id: "body", name: "体修", icon: "体", desc: "气血厚 受击反伤 移速稍慢", portrait: "assets/char-body.png" },
 };
+
+// ---------- 法宝 & 灵兽（图鉴收藏） ----------
+const TIER_KEY = { 凡: "fan", 灵: "ling", 宝: "bao", 仙: "xian" };
+
+// 法宝：局内由「法宝匣」开出，拾取即永久收录进图鉴
+const ARTIFACTS = [
+  { id: "qingfeng", name: "青锋剑匣", ico: "锋", tier: "凡", color: "#7dd3fc",
+    desc: "飞剑 +1 · 攻击 +12%",
+    apply: () => { G.swordCount += 1; G.atk *= 1.12; } },
+  { id: "xuanjia", name: "玄武宝甲", ico: "甲", tier: "凡", color: "#86efac",
+    desc: "护盾上限 +25 · 立即获得 40 护盾",
+    apply: () => { G.shieldMax += 25; G.shield += 40; } },
+  { id: "huoling", name: "火灵珠", ico: "焰", tier: "灵", color: "#fb923c",
+    desc: "攻击 +18% · 灼烧伤害翻倍",
+    apply: () => { G.atk *= 1.18; G.burnMul = (G.burnMul || 1) * 2; } },
+  { id: "leiyin", name: "雷音铃", ico: "雷", tier: "灵", color: "#c084fc",
+    desc: "飞剑攻速 +20% · 击杀有 12% 概率落雷",
+    apply: () => { G.atkSpeed *= 1.2; G.thunderProc = (G.thunderProc || 0) + 0.12; } },
+  { id: "hanshui", name: "寒水镜", ico: "镜", tier: "灵", color: "#93c5fd",
+    desc: "暴击率 +12% · 暴击伤害 +40%",
+    apply: () => { G.crit = Math.min(0.7, G.crit + 0.12); G.critMul += 0.4; } },
+  { id: "juling", name: "聚灵幡", ico: "幡", tier: "宝", color: "#5ce1e6",
+    desc: "经验 +30% · 灵力回复 +2/s",
+    apply: () => { G.xpMul *= 1.3; G.mpRegen += 2; } },
+  { id: "xueyu", name: "血玉葫芦", ico: "玉", tier: "宝", color: "#f87171",
+    desc: "击杀吸血 +3 · 气血上限 +50 并回复",
+    apply: () => { G.lifesteal += 3; G.hpMax += 50; G.hp = Math.min(G.hpMax, G.hp + 50); } },
+  { id: "tianji", name: "天机盘", ico: "机", tier: "仙", color: "#f0c14b",
+    desc: "攻击 / 攻速 / 移速 +10% · 暴击率 +6%",
+    apply: () => { G.atk *= 1.1; G.atkSpeed *= 1.1; G.moveSpeed *= 1.1; G.crit = Math.min(0.7, G.crit + 0.06); } },
+];
+const ARTIFACT_BY_ID = Object.fromEntries(ARTIFACTS.map((a) => [a.id, a]));
+const MAX_RELICS = 5;          // 单局法宝携带上限，满则化为护盾气血
+
+// 灵兽：图鉴条件达成后可「契约」，每局带 1 只，跟随作战
+const BEASTS = [
+  { id: "qingluan", name: "青鸾", ico: "鸾", tier: "凡", color: "#7dd3fc", kind: "bolt",
+    desc: "周期射出穿云风刃，命中最近敌及其后方",
+    unlock: { type: "wave", need: 5, text: "单局撑过第 5 波" },
+    cd: 1.15, mul: 0.85, pierce: 2 },
+  { id: "xuangui", name: "玄龟", ico: "龟", tier: "凡", color: "#86efac", kind: "ward",
+    desc: "每 6s 为你生出一层护盾",
+    unlock: { type: "kills", need: 300, text: "累计斩妖 300" },
+    cd: 6, shield: 22 },
+  { id: "huoqilin", name: "火麒麟", ico: "麟", tier: "灵", color: "#fb923c", kind: "aura",
+    desc: "身周烈焰环绕，持续灼烧靠近的妖物",
+    unlock: { type: "wave", need: 10, text: "单局撑过第 10 波" },
+    cd: 0.5, radius: 86, mul: 0.5, burn: true },
+  { id: "leipeng", name: "雷鹏", ico: "鹏", tier: "灵", color: "#c084fc", kind: "nova",
+    desc: "周期引落天雷，重创身周群妖",
+    unlock: { type: "wave", need: 15, text: "单局撑过第 15 波" },
+    cd: 2.6, radius: 150, mul: 1.6 },
+  { id: "baize", name: "白泽", ico: "泽", tier: "宝", color: "#5ce1e6", kind: "ward",
+    desc: "周期回复气血灵力，并让经验 +15%",
+    unlock: { type: "relic", need: 6, text: "图鉴收录 6 件法宝" },
+    cd: 5, heal: 0.06, mp: 8, xpMul: 0.15 },
+  { id: "zhulong", name: "烛龙", ico: "烛", tier: "仙", color: "#f0c14b", kind: "nova",
+    desc: "真龙吐息，横扫大范围妖潮",
+    unlock: { type: "wave", need: 25, text: "单局撑过第 25 波" },
+    cd: 3.4, radius: 230, mul: 2.6 },
+];
+const BEAST_BY_ID = Object.fromEntries(BEASTS.map((b) => [b.id, b]));
 
 // ---------- 设备识别 & 画质自适应 ----------
 const isTouch = ("ontouchstart" in window) || (navigator.maxTouchPoints || 0) > 0;
@@ -621,6 +734,9 @@ const G = {
   nodeHoldBonus: 0, dmgTakenMul: 1,
   // 转职（3 系 × 3 分支）
   jobStage: 0, jobPath: null, jobBranches: {},
+  // 法宝 & 灵兽
+  relics: [], pendingRelic: 0, beast: null,
+  burnMul: 1, thunderProc: 0,
 };
 
 function resetRun(charId) {
@@ -660,6 +776,8 @@ function resetRun(charId) {
   G.nodeHoldBonus = 0;
   G.dmgTakenMul = 1;
   G.jobStage = 0; G.jobPath = null; G.jobBranches = {};
+  G.relics = []; G.pendingRelic = 0; G.beast = null;
+  G.burnMul = 1; G.thunderProc = 0;
   initNodes();
   G.weapons = {
     sword: { lv: 1, evo: false },
@@ -686,6 +804,7 @@ function resetRun(charId) {
   }
   G._shopLuck = shop.luck;
   G._shopCoin = shop.coinMul;
+  spawnBeast();   // 契约的灵兽入场
 }
 
 // ---------- Upgrades ----------
@@ -946,14 +1065,237 @@ function openJobModal() {
       ui.jobModal.classList.add("hidden");
       G.state = "play";
       refreshWeaponHint();
-      if (G.pendingLevel && G.pendingLevel > 0) {
-        G.pendingLevel -= 1;
-        setTimeout(() => openLevelUp(), 50);
-      }
+      resolvePendingModal();
     });
     ui.jobChoices.appendChild(btn);
   }
   ui.jobModal.classList.remove("hidden");
+}
+
+// ---------- 法宝 & 灵兽 ----------
+function hexRgb(hex) {
+  const h = String(hex || "#ffffff").replace("#", "");
+  const full = h.length === 3 ? h.split("").map((c) => c + c).join("") : h;
+  const n = parseInt(full, 16) || 0;
+  return `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`;
+}
+
+// 契约的灵兽入场
+function spawnBeast() {
+  G.beast = null;
+  let id = null;
+  try { id = Meta.load().contract; } catch (_) {}
+  const def = BEAST_BY_ID[id];
+  if (!def) return;
+  G.beast = {
+    def, ang: -Math.PI / 2,
+    x: G.px + Math.cos(-Math.PI / 2) * 48,
+    y: G.py + Math.sin(-Math.PI / 2) * 48,
+    cd: def.cd * 0.6, hitFlash: 0,
+  };
+  if (def.xpMul) G.xpMul *= (1 + def.xpMul);
+}
+
+function updateBeasts(dt) {
+  const b = G.beast;
+  if (!b) return;
+  const def = b.def;
+  b.ang += dt * 0.9;
+  const tx = G.px + Math.cos(b.ang) * 48;
+  const ty = G.py + Math.sin(b.ang) * 48;
+  const k = Math.min(1, dt * 7);
+  b.x = lerp(b.x, tx, k);
+  b.y = lerp(b.y, ty, k);
+  if (b.hitFlash > 0) b.hitFlash = Math.max(0, b.hitFlash - dt * 3);
+
+  b.cd -= dt;
+  if (b.cd > 0) return;
+  const dmg = G.atk * def.mul * playerDamageMult();
+
+  if (def.kind === "bolt") {
+    const list = G.enemies
+      .filter((e) => !e.dead && dist(e.x, e.y, b.x, b.y) < 330)
+      .sort((p, q) => dist(p.x, p.y, b.x, b.y) - dist(q.x, q.y, b.x, b.y))
+      .slice(0, 1 + (def.pierce || 0));
+    if (!list.length) { b.cd = 0.25; return; }
+    b.hitFlash = 1;
+    for (const e of list) {
+      G.particles.push({
+        x: e.x, y: e.y, vx: 0, vy: 0, life: 0.2, max: 0.2,
+        color: def.color, size: 4, ring: { r0: 4, r1: 26 },
+      });
+      applyHit(e, dmg);
+    }
+    AudioSys.hit();
+  } else if (def.kind === "nova") {
+    const list = G.enemies.filter((e) => !e.dead && dist(e.x, e.y, b.x, b.y) < def.radius);
+    if (!list.length) { b.cd = 0.5; return; }
+    b.hitFlash = 1;
+    G.particles.push({
+      x: b.x, y: b.y, vx: 0, vy: 0, life: 0.36, max: 0.36,
+      color: def.color, size: 5, ring: { r0: 12, r1: def.radius },
+    });
+    burst(b.x, b.y, def.color, 14, 210, 4);
+    for (const e of list) applyHit(e, dmg);
+    G.shake = Math.max(G.shake, 4);
+    AudioSys.crit();
+  } else if (def.kind === "aura") {
+    const list = G.enemies.filter((e) => !e.dead && dist(e.x, e.y, b.x, b.y) < def.radius);
+    for (const e of list) {
+      applyHit(e, dmg);
+      if (def.burn && !e.dead) {
+        e.burn = Math.max(e.burn || 0, 1.0);
+        e.burnDmg = Math.max(e.burnDmg || 0, 3 + G.wave * 0.8);
+      }
+    }
+  } else if (def.kind === "ward") {
+    if (def.shield) { G.shieldMax = Math.max(G.shieldMax, 40); G.shield = Math.min(G.shieldMax, G.shield + def.shield); G.shieldHit = 0.3; }
+    if (def.heal && G.hp < G.hpMax) G.hp = Math.min(G.hpMax, G.hp + G.hpMax * def.heal);
+    if (def.mp) G.mp = Math.min(G.mpMax, G.mp + def.mp);
+    G.particles.push({
+      x: G.px, y: G.py, vx: 0, vy: 0, life: 0.4, max: 0.4,
+      color: def.color, size: 4, ring: { r0: G.pr + 8, r1: G.pr + 44 },
+    });
+    AudioSys.level();
+  }
+}
+
+function drawBeasts(camX, camY) {
+  const b = G.beast;
+  if (!b) return;
+  const sx = b.x - camX + view.w / 2;
+  const sy = b.y - camY + view.h / 2;
+  if (sx < -140 || sy < -140 || sx > view.w + 140 || sy > view.h + 140) return;
+  const def = b.def;
+  const t = G.time || 0;
+  ctx.save();
+  ctx.translate(sx, sy);
+
+  if (def.kind === "aura") {
+    const g = ctx.createRadialGradient(0, 0, 6, 0, 0, def.radius);
+    g.addColorStop(0, `rgba(${hexRgb(def.color)},0.22)`);
+    g.addColorStop(0.7, `rgba(${hexRgb(def.color)},0.07)`);
+    g.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(0, 0, def.radius, 0, TAU); ctx.fill();
+  }
+
+  const r = 13 + Math.sin(t * 3) * 1.2 + b.hitFlash * 2;
+  if (!_shadowOff) { ctx.shadowColor = def.color; ctx.shadowBlur = 14; }
+  ctx.strokeStyle = `rgba(${hexRgb(def.color)},0.85)`;
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(0, 0, r + 5, 0, TAU); ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  ctx.fillStyle = "rgba(4,16,24,0.92)";
+  ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU); ctx.fill();
+  ctx.strokeStyle = def.color;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU); ctx.stroke();
+
+  ctx.fillStyle = def.color;
+  ctx.font = 'bold 15px "STKaiti","KaiTi",serif';
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(def.ico, 0, 1);
+
+  ctx.globalAlpha = 0.9;
+  ctx.fillStyle = "#cbd5e1";
+  ctx.font = 'bold 10px system-ui,"Microsoft YaHei",sans-serif';
+  ctx.fillText(def.name, 0, -r - 12);
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
+function relicHudSync() {
+  if (!ui.relicRow) return;
+  ui.relicRow.innerHTML = "";
+  if (!G.relics.length) { ui.relicRow.classList.add("hidden"); return; }
+  ui.relicRow.classList.remove("hidden");
+  for (const r of G.relics) {
+    const el = document.createElement("span");
+    el.className = "relic-chip";
+    el.style.setProperty("--rc", r.color);
+    el.textContent = r.ico;
+    ui.relicRow.appendChild(el);
+  }
+}
+
+function beastHudSync() {
+  if (!ui.beastHud) return;
+  if (!G.beast) { ui.beastHud.classList.add("hidden"); return; }
+  ui.beastHud.classList.remove("hidden");
+  ui.beastHudIco.textContent = G.beast.def.ico;
+  ui.beastHudIco.style.setProperty("--bc", G.beast.def.color);
+  ui.beastHudName.textContent = G.beast.def.name;
+}
+
+// 法宝匣：从未持有的法宝里抽 3 件择一
+function openRelicModal() {
+  if (G.relics.length >= MAX_RELICS) {
+    G.hp = Math.min(G.hpMax, G.hp + G.hpMax * 0.15);
+    G.shield += 30;
+    toast("法宝已满 · 匣中灵力化为护盾与气血", "cyan");
+    burst(G.px, G.py, "#f0c14b", 20, 180, 4);
+    return;
+  }
+  const owned = new Set(G.relics.map((r) => r.id));
+  const pool = ARTIFACTS.filter((a) => !owned.has(a.id));
+  if (!pool.length) {
+    G.hp = Math.min(G.hpMax, G.hp + G.hpMax * 0.15);
+    G.shield += 30;
+    toast("法宝已尽收 · 匣中灵力化为护盾与气血", "cyan");
+    return;
+  }
+  const choices = shuffle(pool.slice()).slice(0, 3);
+
+  G.state = "job";        // 复用「抉择弹窗」暂停态
+  ui.jobTitle.textContent = "法宝匣";
+  ui.jobSub.textContent = "择一法宝 · 纳为己用";
+  ui.jobChoices.innerHTML = "";
+  burst(G.px, G.py, "#f0c14b", 24, 200, 4);
+
+  for (const a of choices) {
+    const btn = document.createElement("button");
+    btn.className = "choice-btn rare";
+    btn.innerHTML = `
+      <div class="choice-ico ${"tier-" + TIER_KEY[a.tier]}">${a.ico}</div>
+      <div class="choice-body">
+        <span class="c-tag ${"tier-" + TIER_KEY[a.tier]}">${a.tier}品 · 法宝</span>
+        <span class="c-name">${a.name}</span>
+        <span class="c-desc">${a.desc}</span>
+      </div>`;
+    btn.addEventListener("click", () => {
+      G.relics.push(a);
+      a.apply();
+      try { Meta.recordArtifact(a.id); } catch (_) {}
+      relicHudSync();
+      AudioSys.level();
+      toast(`得法宝 · ${a.name}`, "gold");
+      G.goldFlash = 0.55;
+      G.shake = Math.max(G.shake, 10);
+      burst(G.px, G.py, a.color, 30, 230, 5);
+      ui.jobModal.classList.add("hidden");
+      G.state = "play";
+      refreshWeaponHint();
+      resolvePendingModal();
+    });
+    ui.jobChoices.appendChild(btn);
+  }
+  ui.jobModal.classList.remove("hidden");
+}
+
+// 弹窗收尾：把排队的升级 / 法宝依次弹完
+function resolvePendingModal() {
+  if (G.pendingLevel && G.pendingLevel > 0) {
+    G.pendingLevel -= 1;
+    setTimeout(() => openLevelUp(), 50);
+    return;
+  }
+  if (G.pendingRelic && G.pendingRelic > 0) {
+    G.pendingRelic -= 1;
+    setTimeout(() => openRelicModal(), 50);
+  }
 }
 
 // ---------- Enemies ----------
@@ -1142,8 +1484,29 @@ function killEnemy(e, byPlayer = true) {
   const xp = Math.round(e.xp * G.xpMul * comboMul() * (G.nodeXpMul || 1));
   gainXP(xp);
   if (G.lifesteal > 0) G.hp = Math.min(G.hpMax, G.hp + G.lifesteal);
-  if (e.elite || e.boss) dropPickup(e.x, e.y, e.boss ? "boss" : "elite");
-  else if (Math.random() < 0.04) dropPickup(e.x, e.y, "orb");
+  if (e.boss) {
+    dropPickup(e.x, e.y, "boss");
+    dropPickup(e.x + rand(-26, 26), e.y + rand(-26, 26), "relic");
+  } else if (e.elite) {
+    dropPickup(e.x, e.y, "elite");
+    if (Math.random() < 0.12) dropPickup(e.x + rand(-20, 20), e.y + rand(-20, 20), "relic");
+  } else if (Math.random() < 0.04) {
+    dropPickup(e.x, e.y, "orb");
+  }
+  // 雷音铃：击杀概率落雷（限深度，避免连锁递归）
+  if (G.thunderProc > 0 && (G._thunderChain || 0) < 3 && Math.random() < G.thunderProc) {
+    const tgt = nearestEnemy(e.x, e.y, 260);
+    if (tgt) {
+      G.particles.push({
+        x: tgt.x, y: tgt.y, vx: 0, vy: 0, life: 0.24, max: 0.24,
+        color: "#c084fc", size: 5, ring: { r0: 4, r1: 40 },
+      });
+      burst(tgt.x, tgt.y, "#c084fc", 8, 180, 3);
+      G._thunderChain = (G._thunderChain || 0) + 1;
+      applyHit(tgt, G.atk * 1.6 * playerDamageMult());
+      G._thunderChain = (G._thunderChain || 0) - 1;
+    }
+  }
   burst(e.x, e.y, e.color, e.boss ? 28 : e.elite ? 16 : 8, e.boss ? 220 : 130, e.boss ? 5 : 3);
   if (e.elite || e.boss) {
     G.particles.push({
@@ -1194,7 +1557,8 @@ function gainXP(amount) {
 }
 
 function dropPickup(x, y, kind) {
-  G.pickups.push({ x, y, kind, r: kind === "boss" ? 14 : 10, life: 20, bob: rand(0, TAU) });
+  const big = kind === "boss" || kind === "relic";
+  G.pickups.push({ x, y, kind, r: big ? 14 : 10, life: 20, bob: rand(0, TAU) });
 }
 
 function collectPickup(p) {
@@ -1213,6 +1577,12 @@ function collectPickup(p) {
     toast("精英精魄入体 · 道行微进");
     burst(p.x, p.y, "#c084fc", 14, 160, 4);
     AudioSys.level();
+  } else if (p.kind === "relic") {
+    toast("开启法宝匣 · 择宝而纳", "gold");
+    burst(p.x, p.y, "#f0c14b", 22, 210, 4);
+    AudioSys.level();
+    if (G.state === "play") openRelicModal();
+    else G.pendingRelic = (G.pendingRelic || 0) + 1;
   } else if (p.kind === "boss") {
     G.hp = G.hpMax; G.mp = G.mpMax; G.shield += 30; G.atk *= 1.1;
     toast("斩灭大妖 · 气血回满，攻击大涨");
@@ -1535,10 +1905,7 @@ function openLevelUp() {
       ui.levelModal.classList.add("hidden");
       G.state = "play";
       refreshWeaponHint();
-      if (G.pendingLevel && G.pendingLevel > 0) {
-        G.pendingLevel -= 1;
-        setTimeout(() => openLevelUp(), 50);
-      }
+      resolvePendingModal();
     });
     ui.levelChoices.appendChild(btn);
   }
@@ -1575,6 +1942,8 @@ function startRun(charId) {
   ui.comboBadge.classList.add("hidden");
   refreshWeaponHint();
   jobSyncHud(false);
+  relicHudSync();
+  beastHudSync();
   toast(`${CHARS[id]?.name || "修士"} · 御剑清妖`);
   clearTimeout(startRun._hint);
   startRun._hint = setTimeout(() => {
@@ -1626,7 +1995,7 @@ function toast(msg, kind) {
 
 // ---------- Update ----------
 function update(dt) {
-  if (G.state === "menu" || G.state === "over" || G.state === "shop" || G.state === "pause") return;
+  if (G.state === "menu" || G.state === "over" || G.state === "shop" || G.state === "pause" || G.state === "codex") return;
   if (G.state === "level" || G.state === "job") return;
 
   // hit-stop
@@ -1674,6 +2043,7 @@ function update(dt) {
   }
 
   updateNodes(dt);
+  updateBeasts(dt);
 
   G.swordPhase += dt * (1.8 + G.atkSpeed * 0.5);
   const orbitCount = G.swordCount;
@@ -1723,7 +2093,7 @@ function update(dt) {
     // burn
     if (e.burn > 0) {
       e.burn -= dt;
-      e.burnDmgAcc = (e.burnDmgAcc || 0) + e.burnDmg * dt;
+      e.burnDmgAcc = (e.burnDmgAcc || 0) + e.burnDmg * dt * (G.burnMul || 1);
       if (e.burnDmgAcc >= 1) {
         const tick = Math.floor(e.burnDmgAcc);
         e.burnDmgAcc -= tick;
@@ -1904,7 +2274,7 @@ function draw() {
   ctx.translate(ox, oy);
   const camX = G.px, camY = G.py;
   drawBackground(camX, camY);
-  if (G.state === "menu" || G.state === "shop") {
+  if (G.state === "menu" || G.state === "shop" || G.state === "codex") {
     drawMenuAmbient();
   } else {
     drawNodes(camX, camY);
@@ -1915,7 +2285,7 @@ function draw() {
       if (d < 90 && d > 8) {
         const a = w2s(p.x, p.y);
         const b = w2s(G.px, G.py);
-        const col = p.kind === "boss" ? "251,191,36" : p.kind === "elite" ? "192,132,252" : "92,225,230";
+        const col = (p.kind === "boss" || p.kind === "relic") ? "251,191,36" : p.kind === "elite" ? "192,132,252" : "92,225,230";
         const alpha = (1 - d / 90) * 0.35;
         ctx.strokeStyle = `rgba(${col},${alpha})`;
         ctx.lineWidth = 1.5;
@@ -1931,6 +2301,7 @@ function draw() {
     for (const e of G.enemies) drawEnemy(e);
     drawOffscreenIndicators();
     for (const p of G.projectiles) drawProjectile(p);
+    drawBeasts(camX, camY);
     drawPlayer();
     // near arena edge: gold warning ring pulse
     const distEdge = Math.hypot(G.px, G.py);
@@ -2798,16 +3169,18 @@ function drawPickup(p) {
   let col = "#5ce1e6";
   if (p.kind === "elite") col = "#c084fc";
   if (p.kind === "boss") col = "#fbbf24";
+  if (p.kind === "relic") col = "#f0c14b";
+  const gold = p.kind === "boss" || p.kind === "relic";
 
   ctx.save();
-  // quality light pillar for elite/boss
+  // quality light pillar for elite/boss/relic
   if (p.kind !== "orb") {
-    const h = p.kind === "boss" ? 72 : 48;
-    const w = p.kind === "boss" ? 18 : 12;
+    const h = gold ? 72 : 48;
+    const w = gold ? 18 : 12;
     const g = ctx.createLinearGradient(s.x, s.y + bobY - h, s.x, s.y + bobY);
     g.addColorStop(0, "rgba(0,0,0,0)");
-    g.addColorStop(0.35, p.kind === "boss" ? "rgba(251,191,36,0.22)" : "rgba(192,132,252,0.2)");
-    g.addColorStop(1, p.kind === "boss" ? "rgba(251,191,36,0.05)" : "rgba(192,132,252,0.05)");
+    g.addColorStop(0.35, gold ? "rgba(251,191,36,0.22)" : "rgba(192,132,252,0.2)");
+    g.addColorStop(1, gold ? "rgba(251,191,36,0.05)" : "rgba(192,132,252,0.05)");
     ctx.fillStyle = g;
     ctx.beginPath();
     ctx.moveTo(s.x - w / 2, s.y + bobY);
@@ -2817,7 +3190,7 @@ function drawPickup(p) {
     ctx.closePath();
     ctx.fill();
     // ground ring
-    ctx.strokeStyle = p.kind === "boss" ? "rgba(251,191,36,0.45)" : "rgba(192,132,252,0.4)";
+    ctx.strokeStyle = gold ? "rgba(251,191,36,0.45)" : "rgba(192,132,252,0.4)";
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.ellipse(s.x, s.y + bobY + p.r * 0.6, p.r * 1.4, p.r * 0.45, 0, 0, TAU);
@@ -2835,6 +3208,39 @@ function drawPickup(p) {
   ctx.arc(0, 0, p.r * 2.4, 0, TAU);
   ctx.fill();
   ctx.globalAlpha = 1;
+
+  if (p.kind === "relic") {
+    // 法宝匣：金框宝箱 + 锁扣宝珠
+    const r = p.r * 1.3;
+    ctx.fillStyle = "rgba(30,21,8,0.96)";
+    ctx.strokeStyle = "#f0c14b";
+    ctx.lineWidth = 2;
+    ctx.shadowColor = "#f0c14b";
+    ctx.shadowBlur = 14;
+    ctx.beginPath();
+    ctx.rect(-r, -r * 0.7, r * 2, r * 1.5);
+    ctx.fill();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(-r, -r * 0.7);
+    ctx.quadraticCurveTo(0, -r * 1.6, r, -r * 0.7);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = "#fde68a";
+    ctx.beginPath();
+    ctx.arc(0, -r * 0.1, r * 0.24, 0, TAU);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(253,230,138,0.8)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(0, -r * 0.1 - r * 0.52); ctx.lineTo(0, -r * 0.1 + r * 0.52);
+    ctx.moveTo(-r * 0.52, -r * 0.1); ctx.lineTo(r * 0.52, -r * 0.1);
+    ctx.stroke();
+    ctx.restore();
+    return;
+  }
 
   if (p.kind === "orb") {
     // faceted spirit gem
@@ -3131,6 +3537,82 @@ function renderShop() {
   }
 }
 
+// ---------- 万宝图鉴 ----------
+function renderCodex() {
+  const m = Meta.load();
+  const st = Meta.codexStats();
+  if (ui.codexProgress) {
+    ui.codexProgress.textContent = `法宝 ${st.art}/${st.artTotal} · 灵兽 ${st.beast}/${st.beastTotal}`;
+  }
+
+  if (ui.codexArtifacts) {
+    ui.codexArtifacts.innerHTML = "";
+    for (const a of ARTIFACTS) {
+      const found = !!m.codex.artifacts[a.id];
+      const cell = document.createElement("div");
+      cell.className = "cx-cell tier-" + TIER_KEY[a.tier] + (found ? " found" : " locked");
+      cell.innerHTML = `
+        <div class="cx-ico">${found ? a.ico : "？"}</div>
+        <div class="cx-body">
+          <div class="cx-top"><b>${found ? a.name : "未收录"}</b><span class="cx-tier">${a.tier}品</span></div>
+          <div class="cx-desc">${found ? a.desc : "局内开启法宝匣即可收录"}</div>
+        </div>`;
+      ui.codexArtifacts.appendChild(cell);
+    }
+  }
+
+  if (ui.codexBeasts) {
+    ui.codexBeasts.innerHTML = "";
+    for (const b of BEASTS) {
+      const unlocked = Meta.beastUnlocked(b.id);
+      const contracted = m.contract === b.id;
+      const cell = document.createElement("div");
+      cell.className = "cx-cell beast tier-" + TIER_KEY[b.tier] +
+        (unlocked ? " found" : " locked") + (contracted ? " contracted" : "");
+      cell.innerHTML = `
+        <div class="cx-ico">${unlocked ? b.ico : "？"}</div>
+        <div class="cx-body">
+          <div class="cx-top"><b>${unlocked ? b.name : "未解锁"}</b><span class="cx-tier">${b.tier}品</span></div>
+          <div class="cx-desc">${unlocked ? b.desc : "解锁条件：" + b.unlock.text}</div>
+        </div>`;
+      if (unlocked) {
+        const btn = document.createElement("button");
+        btn.className = "cx-contract" + (contracted ? " on" : "");
+        btn.textContent = contracted ? "契约中" : "契约";
+        btn.addEventListener("click", (ev) => {
+          if (ev && ev.stopPropagation) ev.stopPropagation();
+          const now = Meta.toggleContract(b.id);
+          AudioSys.buy();
+          toast(now ? `已契约 · ${b.name}` : `解除契约 · ${b.name}`, now ? "gold" : "cyan");
+          renderCodex();
+          refreshMetaUI();
+        });
+        cell.appendChild(btn);
+      }
+      ui.codexBeasts.appendChild(cell);
+    }
+  }
+}
+
+function showCodex() {
+  G.state = "codex";
+  releaseJoystick();
+  releaseWakeLock();
+  ui.startScreen.classList.add("hidden");
+  ui.shopScreen.classList.add("hidden");
+  ui.overScreen.classList.add("hidden");
+  ui.hud.classList.add("hidden");
+  ui.comboBadge.classList.add("hidden");
+  ui.codexScreen.classList.remove("hidden");
+  setMenuBg(false);
+  renderCodex();
+}
+
+function hideCodex() {
+  ui.codexScreen.classList.add("hidden");
+  showMenu();
+}
+
 function refreshMetaUI() {
   const m = Meta.load();
   G._metaCoinsCached = m.coins;
@@ -3153,6 +3635,7 @@ function showMenu() {
   ui.levelModal.classList.add("hidden");
   ui.jobModal.classList.add("hidden");
   ui.pauseScreen.classList.add("hidden");
+  ui.codexScreen.classList.add("hidden");
   ui.comboBadge.classList.add("hidden");
   ui.startScreen.classList.remove("hidden");
   setMenuBg(true);
@@ -3265,6 +3748,8 @@ ui.btnShopBack.addEventListener("click", () => {
   ui.shopScreen.classList.add("hidden");
   showMenu();
 });
+ui.btnCodex.addEventListener("click", showCodex);
+ui.btnCodexBack.addEventListener("click", hideCodex);
 ui.btnResume.addEventListener("click", resumeGame);
 ui.btnPauseHome.addEventListener("click", () => {
   ui.pauseScreen.classList.add("hidden");
@@ -3340,5 +3825,8 @@ window.Quality = Quality;
 window.__XTJ__ = {
   openLevelUp, openJobModal, jobSyncHud, shouldOfferJob, buildUpgradePool, rollUpgrades, gainXP,
   JOB_PATHS, JOB_LEVELS, JOB_STAGES, NODE_HOLD,
+  openRelicModal, updateBeasts, spawnBeast, relicHudSync, beastHudSync, renderCodex, showCodex, hideCodex,
+  ARTIFACTS, ARTIFACT_BY_ID, BEASTS, BEAST_BY_ID, MAX_RELICS,
+  collectPickup, dropPickup, killEnemy, spawnEnemy, damagePlayer, updateHUD, ENEMY_TYPES,
 };
 })();

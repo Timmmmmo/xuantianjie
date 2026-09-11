@@ -1936,3 +1936,149 @@ canvas#game {
 .job-card .choice-btn { border-color: rgba(240,193,75,0.3); }
 .job-card .choice-btn .c-name { font-size: 16px; letter-spacing: 1px; }
 
+/* ========== 法宝 & 灵兽 ========== */
+.beast-hud {
+  position: absolute;
+  top: calc(30% + 100px);
+  left: 12px;
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 12px 4px 4px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(10,22,26,0.9), rgba(8,12,20,0.72));
+  border: 1.5px solid rgba(92,225,230,0.45);
+  box-shadow: 0 0 14px rgba(92,225,230,0.18), inset 0 0 10px rgba(0,0,0,0.4);
+  pointer-events: none;
+  animation: nodeHudIn 0.22s ease-out;
+}
+.beast-hud.hidden { display: none; }
+.beast-hud-ico {
+  width: 24px; height: 24px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 800;
+  font-family: "STKaiti", "KaiTi", serif;
+  color: var(--bc, #5ce1e6);
+  border: 1.5px solid var(--bc, #5ce1e6);
+  box-shadow: 0 0 9px var(--bc, #5ce1e6), inset 0 0 8px rgba(0,0,0,0.5);
+  background: radial-gradient(circle at 35% 30%, rgba(255,255,255,0.14), rgba(0,0,0,0.4));
+  flex: 0 0 auto;
+}
+.beast-hud-name { font-size: 11px; letter-spacing: 1px; color: #cbd5e1; }
+.perf-low .beast-hud { box-shadow: none; }
+
+.relic-row {
+  display: flex; gap: 6px; justify-content: center; flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+.relic-row.hidden { display: none; }
+.relic-chip {
+  width: 26px; height: 26px; border-radius: 8px;
+  display: grid; place-items: center;
+  font-size: 13px; font-weight: 700;
+  font-family: "STKaiti", "KaiTi", serif;
+  color: var(--rc, #f0c14b);
+  background: linear-gradient(150deg, rgba(20,28,42,0.92), rgba(10,14,22,0.9));
+  border: 1.5px solid var(--rc, #f0c14b);
+  box-shadow: 0 0 10px rgba(0,0,0,0.4), inset 0 0 8px rgba(255,255,255,0.05);
+  animation: relicIn 0.28s cubic-bezier(0.2, 1.5, 0.4, 1) both;
+}
+@keyframes relicIn {
+  from { opacity: 0; transform: scale(0.4) translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+.perf-low .relic-chip { box-shadow: none; }
+
+/* ========== 万宝图鉴 ========== */
+.codex-screen { background: #070b12; }
+.codex-inner {
+  overflow: auto;
+  pointer-events: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 10px;
+  gap: 10px;
+}
+.codex-title {
+  font-family: "STKaiti", "KaiTi", serif;
+  font-size: 30px; letter-spacing: 10px;
+  color: var(--gold-hi);
+  text-shadow: 0 0 26px rgba(240,193,75,0.5), 0 2px 4px rgba(0,0,0,0.8);
+}
+.codex-sub { font-size: 11.5px; color: var(--muted); letter-spacing: 1px; margin-top: -4px; }
+.codex-section { width: 100%; margin-top: 4px; }
+.codex-head {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 13px; letter-spacing: 3px; color: var(--text);
+  padding: 0 4px 7px;
+}
+.codex-head .codex-hint {
+  margin-left: auto; font-size: 10px; letter-spacing: 0;
+  color: var(--muted); font-style: normal;
+}
+.codex-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+.codex-dot.d-relic { background: var(--gold); box-shadow: 0 0 8px var(--gold); }
+.codex-dot.d-beast { background: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
+.codex-grid { display: flex; flex-direction: column; gap: 8px; }
+
+.cx-cell {
+  display: grid;
+  grid-template-columns: 42px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 9px 11px;
+  border-radius: 13px;
+  text-align: left;
+  background: linear-gradient(135deg, rgba(24,34,52,0.92), rgba(12,18,28,0.9));
+  border: 1px solid rgba(148,163,184,0.22);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+  animation: fadeUp 0.3s ease-out both;
+}
+.cx-cell.locked { opacity: 0.62; border-style: dashed; }
+.cx-cell.found.tier-fan { border-color: rgba(148,163,184,0.5); }
+.cx-cell.found.tier-ling { border-color: rgba(92,225,230,0.5); }
+.cx-cell.found.tier-bao { border-color: rgba(192,132,252,0.55); }
+.cx-cell.found.tier-xian {
+  border-color: rgba(240,193,75,0.6);
+  box-shadow: 0 0 18px rgba(240,193,75,0.14), 0 4px 12px rgba(0,0,0,0.25);
+}
+.cx-cell.contracted { border-color: rgba(240,193,75,0.75); }
+.cx-ico {
+  width: 42px; height: 42px; border-radius: 11px;
+  display: grid; place-items: center;
+  font-size: 19px; font-weight: 700;
+  font-family: "STKaiti", "KaiTi", serif;
+  color: #061018;
+  background: linear-gradient(145deg, #a5f3fc, #5ce1e6 45%, #0e7490);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.4);
+}
+.cx-cell.locked .cx-ico {
+  background: linear-gradient(145deg, #334155, #1e293b);
+  color: #64748b;
+  box-shadow: none;
+}
+.cx-cell.tier-bao .cx-ico { background: linear-gradient(145deg, #e9d5ff, #c084fc 45%, #6b21a8); }
+.cx-cell.tier-xian .cx-ico { background: linear-gradient(145deg, #fef3c7, #f0c14b 45%, #a16207); }
+.cx-body { min-width: 0; }
+.cx-top { display: flex; align-items: baseline; gap: 7px; }
+.cx-top b { font-size: 14px; color: var(--text); letter-spacing: 0.5px; }
+.cx-tier { font-size: 10px; color: var(--muted); letter-spacing: 1px; }
+.cx-desc { font-size: 11px; color: var(--muted); line-height: 1.45; margin-top: 2px; }
+.cx-contract {
+  padding: 7px 13px;
+  border-radius: 999px;
+  font-family: var(--font);
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: var(--cyan-hi);
+  background: linear-gradient(145deg, rgba(12,42,50,0.9), rgba(10,18,28,0.9));
+  border: 1px solid rgba(92,225,230,0.5);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: transform 0.1s, border-color 0.15s, color 0.15s;
+}
+.cx-contract:active { transform: scale(0.95); }
+.cx-contract.on {
+  color: #0b1020;
+  background: linear-gradient(135deg, var(--gold-hi), var(--gold));
+  border-color: var(--gold-hi);
+  box-shadow: 0 0 14px rgba(240,193,75,0.4);
+}
+

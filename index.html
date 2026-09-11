@@ -75,7 +75,13 @@
       </div>
     </div>
 
+    <div id="beastHud" class="beast-hud hidden">
+      <span id="beastHudIco" class="beast-hud-ico">鸾</span>
+      <span id="beastHudName" class="beast-hud-name">青鸾</span>
+    </div>
+
     <div class="hud-bottom">
+      <div id="relicRow" class="relic-row hidden"></div>
       <div class="xp-wrap">
         <div class="level-badge">境界 <span id="levelText">1</span> · <span id="titleText">炼气</span> · <span id="weaponHint">飞剑</span></div>
         <div class="xp-bar"><div id="xpFill" class="xp-fill"></div><div class="bar-shine"></div></div>
@@ -169,6 +175,7 @@
       <div class="char-row" id="charRow"></div>
       <div class="btn-row">
         <button id="btnShop" class="btn-ghost btn-shop"><span class="btn-ico">灵</span>灵石商店</button>
+        <button id="btnCodex" class="btn-ghost btn-codex"><span class="btn-ico">鉴</span>万宝图鉴</button>
         <button id="btnStart" class="btn-primary"><span>踏入战场</span></button>
       </div>
       <div class="quick-row">
@@ -186,6 +193,24 @@
       <div class="records"><span class="rec"><em>持有灵石</em><b id="shopCoins">0</b></span></div>
       <div id="shopList" class="shop-list"></div>
       <button id="btnShopBack" class="btn-primary"><span>返回山门</span></button>
+    </div>
+  </div>
+
+  <!-- Codex -->
+  <div id="codexScreen" class="screen codex-screen hidden">
+    <div class="start-inner codex-inner">
+      <div class="codex-title">万宝图鉴</div>
+      <div class="codex-sub">法宝局内开匣收录 · 灵兽解锁后可契约同行</div>
+      <div class="records"><span class="rec"><em>收录进度</em><b id="codexProgress">法宝 0/8 · 灵兽 0/6</b></span></div>
+      <div class="codex-section">
+        <div class="codex-head"><i class="codex-dot d-relic"></i>法宝</div>
+        <div id="codexArtifacts" class="codex-grid"></div>
+      </div>
+      <div class="codex-section">
+        <div class="codex-head"><i class="codex-dot d-beast"></i>灵兽<em class="codex-hint">每局可带 1 只</em></div>
+        <div id="codexBeasts" class="codex-grid"></div>
+      </div>
+      <button id="btnCodexBack" class="btn-primary"><span>返回山门</span></button>
     </div>
   </div>
 

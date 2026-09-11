@@ -44,6 +44,12 @@ const ui = {
   codexScreen: $("codexScreen"), codexProgress: $("codexProgress"),
   codexArtifacts: $("codexArtifacts"), codexBeasts: $("codexBeasts"),
   btnCodex: $("btnCodex"), btnCodexBack: $("btnCodexBack"),
+  // 铸器台
+  crystalRow: $("crystalRow"), forgeBtn: $("forgeBtn"), forgeBtnCount: $("forgeBtnCount"),
+  forgeModal: $("forgeModal"), forgeCrystals: $("forgeCrystals"),
+  forgeExclCount: $("forgeExclCount"), forgeOrdCount: $("forgeOrdCount"),
+  forgeExclusive: $("forgeExclusive"), forgeOrdinary: $("forgeOrdinary"),
+  btnForgeClose: $("btnForgeClose"),
 };
 
 // ---------- Audio ----------
@@ -289,6 +295,82 @@ const BEASTS = [
     cd: 3.4, radius: 230, mul: 2.6 },
 ];
 const BEAST_BY_ID = Object.fromEntries(BEASTS.map((b) => [b.id, b]));
+
+// ---------- 五行灵晶 & 铸器台 ----------
+// 灵感取自「人族无敌」：散落的灵石是有限资源，
+// 攒够同属性可铸「专属装备」——带特殊攻击效果；
+// 若图快，花两颗任意灵晶换「寻常装备」——只有普通数值效果。
+// 专属上限 2、寻常上限 3，灵晶总量有限 ⇒ 必须取舍。
+const ELEMENTS = [
+  { key: "jin", name: "金", ico: "锐", color: "#f1e9d2", attrs: "锋锐" },
+  { key: "mu", name: "木", ico: "生", color: "#86efac", attrs: "生发" },
+  { key: "shui", name: "水", ico: "寒", color: "#93c5fd", attrs: "寒凝" },
+  { key: "huo", name: "火", ico: "焚", color: "#fb923c", attrs: "焚灼" },
+  { key: "tu", name: "土", ico: "坚", color: "#d6a86a", attrs: "坚壁" },
+];
+const ELEM_BY_KEY = Object.fromEntries(ELEMENTS.map((e) => [e.key, e]));
+const ELEM_KEYS = ELEMENTS.map((e) => e.key);
+
+const EXCLUSIVE_COST = 3;   // 专属：3 颗同属性灵晶
+const ORDINARY_COST = 2;    // 寻常：2 颗任意灵晶
+const MAX_EXCLUSIVE = 2;    // 专属携带上限
+const MAX_ORDINARY = 3;     // 寻常携带上限
+
+// 专属装备：每件对应一行，铸成即获得「特殊攻击效果」
+const EXCLUSIVES = [
+  { id: "jinfeng", elem: "jin", name: "裂空金锋", ico: "锋", color: "#f1e9d2",
+    desc: "飞剑穿透 +2；命中时剑气迸溅，波及身周之敌",
+    fx: "cleave",
+    apply: () => { G.swordPierce += 2; G.forgeFx.cleave = 0.4; } },
+  { id: "wanteng", elem: "mu", name: "万藤长生", ico: "藤", color: "#86efac",
+    desc: "击杀吸血 +5；气血随时间自行滋长",
+    fx: "regen",
+    apply: () => { G.lifesteal += 5; G.forgeFx.regen = 1.8; } },
+  { id: "xuanbing", elem: "shui", name: "玄冰寒渊", ico: "寒", color: "#93c5fd",
+    desc: "攻击必附寒毒减速；对精英有几率冰封定身",
+    fx: "frost",
+    apply: () => { G.forgeFx.frost = true; } },
+  { id: "fentian", elem: "huo", name: "焚天炎狱", ico: "焚", color: "#fb923c",
+    desc: "攻击必附灼烧；灼烧伤害大幅提升",
+    fx: "burn",
+    apply: () => { G.forgeFx.burn = true; G.burnMul *= 2.5; } },
+  { id: "panshi", elem: "tu", name: "磐石不动", ico: "磐", color: "#d6a86a",
+    desc: "受击反伤 +18%；护盾上限 +20 并随时间再生",
+    fx: "shield",
+    apply: () => { G.thorns += 0.18; G.shieldMax += 20; G.forgeFx.shieldRegen = 3; } },
+];
+const EXCLUSIVE_BY_ID = Object.fromEntries(EXCLUSIVES.map((x) => [x.id, x]));
+
+// 寻常装备：只有普通攻击/属性效果，胜在便宜、随取随用
+const ORDINARIES = [
+  { id: "o_feng", name: "凡铁锋刃", ico: "锋", color: "#dfe6ef",
+    desc: "攻击 +15%（无特殊效果）", apply: () => { G.atk *= 1.15; } },
+  { id: "o_ji", name: "疾风护腕", ico: "疾", color: "#dfe6ef",
+    desc: "飞剑攻速 +12%（无特殊效果）", apply: () => { G.atkSpeed *= 1.12; } },
+  { id: "o_jia", name: "厚土重甲", ico: "甲", color: "#dfe6ef",
+    desc: "护盾上限 +30，立得 40 护盾（无特殊效果）", apply: () => { G.shieldMax += 30; G.shield += 40; } },
+  { id: "o_ling", name: "灵犀玉佩", ico: "暴", color: "#dfe6ef",
+    desc: "暴击率 +8%（无特殊效果）", apply: () => { G.crit = Math.min(0.7, G.crit + 0.08); } },
+  { id: "o_xing", name: "踏云靴", ico: "行", color: "#dfe6ef",
+    desc: "移速 +8%（无特殊效果）", apply: () => { G.moveSpeed *= 1.08; } },
+  { id: "o_xue", name: "赤血丹", ico: "血", color: "#dfe6ef",
+    desc: "气血上限 +60 并回复（无特殊效果）", apply: () => { G.hpMax += 60; G.hp = Math.min(G.hpMax, G.hp + 60); } },
+];
+const ORDINARY_BY_ID = Object.fromEntries(ORDINARIES.map((o) => [o.id, o]));
+
+function crystalTotal() {
+  return ELEM_KEYS.reduce((s, k) => s + (G.crystals[k] || 0), 0);
+}
+function waveElemKey() {
+  return ELEMENTS[(Math.max(1, G.wave) - 1) % ELEMENTS.length].key;
+}
+// 掉落属性：偏向当前波属性，但其余五行也会零星出现 ⇒ 天然逼出取舍
+function randElem() {
+  const wk = waveElemKey();
+  if (Math.random() < 0.45) return wk;
+  const rest = ELEM_KEYS.filter((k) => k !== wk);
+  return rest[Math.floor(Math.random() * rest.length)];
+}
 
 // ---------- 设备识别 & 画质自适应 ----------
 const isTouch = ("ontouchstart" in window) || (navigator.maxTouchPoints || 0) > 0;
@@ -737,6 +819,9 @@ const G = {
   // 法宝 & 灵兽
   relics: [], pendingRelic: 0, beast: null,
   burnMul: 1, thunderProc: 0,
+  // 五行灵晶 & 铸器（专属 × 寻常 的岔路）
+  crystals: { jin: 0, mu: 0, shui: 0, huo: 0, tu: 0 },
+  forged: [], ordinary: [], forgeFx: {}, pendingEssence: 0,
 };
 
 function resetRun(charId) {
@@ -778,6 +863,9 @@ function resetRun(charId) {
   G.jobStage = 0; G.jobPath = null; G.jobBranches = {};
   G.relics = []; G.pendingRelic = 0; G.beast = null;
   G.burnMul = 1; G.thunderProc = 0;
+  G.crystals = { jin: 0, mu: 0, shui: 0, huo: 0, tu: 0 };
+  G.forged = []; G.ordinary = []; G.forgeFx = {}; G.pendingEssence = 0;
+  G._forgeHinted = false;
   initNodes();
   G.weapons = {
     sword: { lv: 1, evo: false },
@@ -1295,7 +1383,202 @@ function resolvePendingModal() {
   if (G.pendingRelic && G.pendingRelic > 0) {
     G.pendingRelic -= 1;
     setTimeout(() => openRelicModal(), 50);
+    return;
   }
+  if (G.pendingEssence && G.pendingEssence > 0) {
+    G.pendingEssence -= 1;
+    setTimeout(() => openEssenceModal(), 50);
+  }
+}
+
+// ---------- 铸器台：专属 × 寻常 的岔路 ----------
+function crystalHudSync() {
+  if (!ui.crystalRow) return;
+  const total = crystalTotal();
+  if (total <= 0) { ui.crystalRow.classList.add("hidden"); return; }
+  ui.crystalRow.classList.remove("hidden");
+  ui.crystalRow.innerHTML = "";
+  for (const el of ELEMENTS) {
+    const n = G.crystals[el.key] || 0;
+    if (n <= 0) continue;
+    const chip = document.createElement("span");
+    chip.className = "crystal-chip";
+    chip.style.setProperty("--cc", el.color);
+    chip.innerHTML = `<b>${el.ico}</b><i>${n}</i>`;
+    ui.crystalRow.appendChild(chip);
+  }
+}
+
+function canForgeExclusive(def) { return (G.crystals[def.elem] || 0) >= EXCLUSIVE_COST; }
+function forgeableAny() {
+  if (G.forged.length < MAX_EXCLUSIVE && EXCLUSIVES.some(canForgeExclusive)) return true;
+  if (G.ordinary.length < MAX_ORDINARY && crystalTotal() >= ORDINARY_COST) return true;
+  return false;
+}
+
+function forgeBtnSync() {
+  if (!ui.forgeBtn) return;
+  ui.forgeBtnCount.textContent = crystalTotal();
+  ui.forgeBtn.classList.toggle("ready", forgeableAny());
+}
+
+function forgeHintCheck() {
+  if (G._forgeHinted || !forgeableAny()) return;
+  G._forgeHinted = true;
+  if (G.state === "play") toast("灵晶已足 · 可开铸器台", "gold");
+}
+
+// 花灵晶：优先从最少的一堆里取，尽量不拆散攒专属的进度
+function spendCrystals(n) {
+  const order = ELEM_KEYS.slice().sort((a, b) => (G.crystals[a] || 0) - (G.crystals[b] || 0));
+  let left = n;
+  for (const k of order) {
+    if (left <= 0) break;
+    const take = Math.min(G.crystals[k] || 0, left);
+    G.crystals[k] -= take;
+    left -= take;
+  }
+  return left === 0;
+}
+
+function renderForge() {
+  if (ui.forgeCrystals) {
+    ui.forgeCrystals.innerHTML = "";
+    for (const el of ELEMENTS) {
+      const n = G.crystals[el.key] || 0;
+      const chip = document.createElement("span");
+      chip.className = "forge-crystal" + (n > 0 ? " has" : "");
+      chip.style.setProperty("--cc", el.color);
+      chip.innerHTML = `<b>${el.name}</b><i>${n}</i>`;
+      ui.forgeCrystals.appendChild(chip);
+    }
+  }
+  if (ui.forgeExclCount) ui.forgeExclCount.textContent = `${G.forged.length}/${MAX_EXCLUSIVE}`;
+  if (ui.forgeOrdCount) ui.forgeOrdCount.textContent = `${G.ordinary.length}/${MAX_ORDINARY}`;
+
+  if (ui.forgeExclusive) {
+    ui.forgeExclusive.innerHTML = "";
+    const full = G.forged.length >= MAX_EXCLUSIVE;
+    for (const def of EXCLUSIVES) {
+      const owned = G.forged.includes(def.id);
+      const el = ELEM_BY_KEY[def.elem];
+      const have = G.crystals[def.elem] || 0;
+      const disabled = owned || full || have < EXCLUSIVE_COST;
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "forge-item f-excl tier-xian" + (owned ? " owned" : disabled ? " disabled" : " can");
+      btn.style.setProperty("--fc", def.color);
+      btn.innerHTML = `
+        <span class="fi-ico">${def.ico}</span>
+        <span class="fi-body">
+          <span class="fi-name">${def.name}<em>专属</em></span>
+          <span class="fi-desc">${def.desc}</span>
+        </span>
+        <span class="fi-cost">${owned ? "已铸" : `${el.name}晶 ${have}/${EXCLUSIVE_COST}`}</span>`;
+      if (!disabled) btn.addEventListener("click", () => forgeExclusive(def.id));
+      ui.forgeExclusive.appendChild(btn);
+    }
+  }
+
+  if (ui.forgeOrdinary) {
+    ui.forgeOrdinary.innerHTML = "";
+    const full = G.ordinary.length >= MAX_ORDINARY;
+    const total = crystalTotal();
+    for (const def of ORDINARIES) {
+      const disabled = full || total < ORDINARY_COST;
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "forge-item f-ord tier-fan" + (disabled ? " disabled" : " can");
+      btn.style.setProperty("--fc", "#cbd5e1");
+      btn.innerHTML = `
+        <span class="fi-ico">${def.ico}</span>
+        <span class="fi-body">
+          <span class="fi-name">${def.name}<em class="ord">寻常</em></span>
+          <span class="fi-desc">${def.desc}</span>
+        </span>
+        <span class="fi-cost">灵晶 ${ORDINARY_COST}</span>`;
+      if (!disabled) btn.addEventListener("click", () => forgeOrdinary(def.id));
+      ui.forgeOrdinary.appendChild(btn);
+    }
+  }
+}
+
+function forgeExclusive(id) {
+  const def = EXCLUSIVE_BY_ID[id];
+  if (!def) return;
+  if (G.forged.includes(id)) { toast("此宝已铸"); return; }
+  if (G.forged.length >= MAX_EXCLUSIVE) { toast("专属之位数已满"); return; }
+  if ((G.crystals[def.elem] || 0) < EXCLUSIVE_COST) { toast("灵晶不足"); return; }
+  G.crystals[def.elem] -= EXCLUSIVE_COST;
+  G.forged.push(id);
+  def.apply();
+  burst(G.px, G.py, def.color, 30, 230, 5);
+  G.goldFlash = Math.max(G.goldFlash || 0, 0.5);
+  G.shake = Math.max(G.shake, 8);
+  AudioSys.level();
+  toast(`铸成专属 · ${def.name}`, "gold");
+  crystalHudSync(); forgeBtnSync(); renderForge(); refreshWeaponHint();
+}
+
+function forgeOrdinary(id) {
+  const def = ORDINARY_BY_ID[id];
+  if (!def) return;
+  if (G.ordinary.length >= MAX_ORDINARY) { toast("寻常之位数已满"); return; }
+  if (!spendCrystals(ORDINARY_COST)) { toast("灵晶不足"); return; }
+  G.ordinary.push(id);
+  def.apply();
+  burst(G.px, G.py, "#dfe6ef", 16, 170, 4);
+  AudioSys.buy();
+  toast(`制成寻常 · ${def.name}`, "cyan");
+  crystalHudSync(); forgeBtnSync(); renderForge(); refreshWeaponHint();
+}
+
+function openForge() {
+  if (G.state !== "play") return;
+  G.state = "forge";
+  releaseJoystick();
+  renderForge();
+  ui.forgeModal.classList.remove("hidden");
+  AudioSys.buy();
+}
+
+function closeForge() {
+  ui.forgeModal.classList.add("hidden");
+  if (G.state === "forge") G.state = "play";
+  last = performance.now();
+  resolvePendingModal();
+}
+
+// 妖王灵髓：五行择一，直接得 3 颗
+function openEssenceModal() {
+  G.state = "job";
+  ui.jobTitle.textContent = "五行灵髓";
+  ui.jobSub.textContent = "择一行而取 · 得该属性灵晶 ×3";
+  ui.jobChoices.innerHTML = "";
+  for (const el of ELEMENTS) {
+    const ex = EXCLUSIVES.find((x) => x.elem === el.key);
+    const btn = document.createElement("button");
+    btn.className = "choice-btn rare";
+    btn.innerHTML = `
+      <div class="choice-ico tier-xian">${el.ico}</div>
+      <div class="choice-body">
+        <span class="c-tag tier-xian">${el.name}行 · 灵髓</span>
+        <span class="c-name">${el.name}晶 ×3</span>
+        <span class="c-desc">${el.attrs} · 铸「${ex.name}」所需</span>
+      </div>`;
+    btn.addEventListener("click", () => {
+      G.crystals[el.key] = (G.crystals[el.key] || 0) + 3;
+      burst(G.px, G.py, el.color, 26, 210, 4);
+      AudioSys.level();
+      toast(`${el.name}晶 +3`, "gold");
+      ui.jobModal.classList.add("hidden");
+      G.state = "play";
+      crystalHudSync(); forgeBtnSync(); forgeHintCheck();
+      resolvePendingModal();
+    });
+    ui.jobChoices.appendChild(btn);
+  }
+  ui.jobModal.classList.remove("hidden");
 }
 
 // ---------- Enemies ----------
@@ -1487,11 +1770,20 @@ function killEnemy(e, byPlayer = true) {
   if (e.boss) {
     dropPickup(e.x, e.y, "boss");
     dropPickup(e.x + rand(-26, 26), e.y + rand(-26, 26), "relic");
+    // 妖王陨落凝出「五行灵髓」——拾取后自选一行，是铸器路线的关键决策
+    dropPickup(e.x + rand(-34, 34), e.y + rand(-34, 34), "essence");
+    for (let i = 0; i < 2; i++) {
+      dropPickup(e.x + rand(-46, 46), e.y + rand(-46, 46), "crystal", { elem: randElem() });
+    }
   } else if (e.elite) {
     dropPickup(e.x, e.y, "elite");
     if (Math.random() < 0.12) dropPickup(e.x + rand(-20, 20), e.y + rand(-20, 20), "relic");
-  } else if (Math.random() < 0.04) {
-    dropPickup(e.x, e.y, "orb");
+    for (let i = 0; i < 2; i++) {
+      dropPickup(e.x + rand(-26, 26), e.y + rand(-26, 26), "crystal", { elem: randElem() });
+    }
+  } else {
+    if (Math.random() < 0.04) dropPickup(e.x, e.y, "orb");
+    if (Math.random() < 0.14) dropPickup(e.x, e.y, "crystal", { elem: randElem() });
   }
   // 雷音铃：击杀概率落雷（限深度，避免连锁递归）
   if (G.thunderProc > 0 && (G._thunderChain || 0) < 3 && Math.random() < G.thunderProc) {
@@ -1556,9 +1848,16 @@ function gainXP(amount) {
   if (shouldOpen) openLevelUp();
 }
 
-function dropPickup(x, y, kind) {
-  const big = kind === "boss" || kind === "relic";
-  G.pickups.push({ x, y, kind, r: big ? 14 : 10, life: 20, bob: rand(0, TAU) });
+function dropPickup(x, y, kind, data) {
+  const big = kind === "boss" || kind === "relic" || kind === "essence";
+  const p = {
+    x, y, kind,
+    r: big ? 14 : kind === "crystal" ? 9 : 10,
+    life: kind === "crystal" ? 26 : 20,
+    bob: rand(0, TAU),
+  };
+  if (data) Object.assign(p, data);
+  G.pickups.push(p);
 }
 
 function collectPickup(p) {
@@ -1566,6 +1865,14 @@ function collectPickup(p) {
     G.hp = Math.min(G.hpMax, G.hp + 12);
     G.mp = Math.min(G.mpMax, G.mp + 12);
     spawnFloater(p.x, p.y, "灵息", "#5ce1e6", 12);
+    AudioSys.hit();
+  } else if (p.kind === "crystal") {
+    const el = ELEM_BY_KEY[p.elem] || ELEMENTS[0];
+    G.crystals[el.key] = (G.crystals[el.key] || 0) + 1;
+    spawnFloater(p.x, p.y - 6, `${el.name}晶 +1`, el.color, 11);
+    burst(p.x, p.y, el.color, 5, 90, 2);
+    crystalHudSync();
+    forgeHintCheck();
     AudioSys.hit();
   } else if (p.kind === "elite") {
     pick([
@@ -1583,12 +1890,55 @@ function collectPickup(p) {
     AudioSys.level();
     if (G.state === "play") openRelicModal();
     else G.pendingRelic = (G.pendingRelic || 0) + 1;
+  } else if (p.kind === "essence") {
+    toast("妖王灵髓 · 择一行而取之", "gold");
+    burst(p.x, p.y, "#f0c14b", 26, 220, 4);
+    AudioSys.level();
+    if (G.state === "play") openEssenceModal();
+    else G.pendingEssence = (G.pendingEssence || 0) + 1;
   } else if (p.kind === "boss") {
     G.hp = G.hpMax; G.mp = G.mpMax; G.shield += 30; G.atk *= 1.1;
     toast("斩灭大妖 · 气血回满，攻击大涨");
     burst(p.x, p.y, "#fbbf24", 30, 220, 5);
     AudioSys.level();
     if (G.state === "play") openLevelUp();
+  }
+}
+
+// 专属装备的「特殊攻击效果」——寻常装备永远给不了这些
+function forgeOnHit(e, d) {
+  const fx = G.forgeFx;
+  if (!fx || e.dead) return;
+  // 火 · 焚天炎狱：必附灼烧
+  if (fx.burn) {
+    e.burn = Math.max(e.burn || 0, 2.2);
+    e.burnDmg = Math.max(e.burnDmg || 0, d * 0.35);
+  }
+  // 水 · 玄冰寒渊：减速 + 精英冰封
+  if (fx.frost) {
+    e.slow = Math.max(e.slow || 0, 1.5);
+    e.slowMul = Math.min(e.slowMul || 1, 0.5);
+    if ((e.elite || e.boss) && Math.random() < 0.12) {
+      e.slow = 1.5; e.slowMul = 0.12;
+      spawnFloater(e.x, e.y - e.r, "冰封", "#93c5fd", 12);
+    }
+  }
+  // 金 · 裂空金锋：剑气溅射（限深度，避免递归）
+  if (fx.cleave > 0 && (G._cleaveDepth || 0) < 1) {
+    G._cleaveDepth = (G._cleaveDepth || 0) + 1;
+    let n = 0;
+    for (const e2 of G.enemies) {
+      if (e2.dead || e2.id === e.id || n >= 2) continue;
+      if (dist(e.x, e.y, e2.x, e2.y) < 82) {
+        G.particles.push({
+          x: e.x, y: e.y, vx: 0, vy: 0, life: 0.12, max: 0.12,
+          color: "#f1e9d2", size: 2, line: { x: e2.x, y: e2.y },
+        });
+        applyHit(e2, d * fx.cleave);
+        n++;
+      }
+    }
+    G._cleaveDepth -= 1;
   }
 }
 
@@ -1605,6 +1955,7 @@ function applyHit(e, dmg, opts = {}) {
   e.flash = 0.1;
   if (opts.burn) { e.burn = opts.burn; e.burnDmg = opts.burnDmg; }
   if (opts.slow) { e.slow = opts.slow; e.slowMul = opts.slowMul || 0.55; }
+  forgeOnHit(e, d);   // 专属装备的特殊攻击效果
   // size by damage magnitude
   const mag = Math.min(1, Math.log10(1 + d) / 3.2);
   const size = isCrit ? 14 + mag * 8 : 11 + mag * 5;
@@ -1944,11 +2295,17 @@ function startRun(charId) {
   jobSyncHud(false);
   relicHudSync();
   beastHudSync();
+  crystalHudSync();
+  forgeBtnSync();
   toast(`${CHARS[id]?.name || "修士"} · 御剑清妖`);
   clearTimeout(startRun._hint);
   startRun._hint = setTimeout(() => {
     if (G.state === "play") toast("站上剑阵 · 充能阵成 · 离阵余威尚存", "cyan");
   }, 2200);
+  clearTimeout(startRun._hint2);
+  startRun._hint2 = setTimeout(() => {
+    if (G.state === "play") toast("斩妖落灵晶 · 攒三同属可铸专属", "gold");
+  }, 5200);
 }
 
 function endRun() {
@@ -1996,7 +2353,7 @@ function toast(msg, kind) {
 // ---------- Update ----------
 function update(dt) {
   if (G.state === "menu" || G.state === "over" || G.state === "shop" || G.state === "pause" || G.state === "codex") return;
-  if (G.state === "level" || G.state === "job") return;
+  if (G.state === "level" || G.state === "job" || G.state === "forge") return;
 
   // hit-stop
   if (G.hitStop > 0) {
@@ -2017,6 +2374,11 @@ function update(dt) {
   G.aoeCDLeft = Math.max(0, G.aoeCDLeft - dt);
   G.dashCDLeft = Math.max(0, G.dashCDLeft - dt);
   G.mp = Math.min(G.mpMax, G.mp + G.mpRegen * dt);
+  // 专属装备：气血滋长 / 护盾再生
+  if (G.forgeFx.regen) G.hp = Math.min(G.hpMax, G.hp + G.forgeFx.regen * dt);
+  if (G.forgeFx.shieldRegen && G.shieldMax > 0) {
+    G.shield = Math.min(G.shieldMax, G.shield + G.forgeFx.shieldRegen * dt);
+  }
 
   // combo decay
   if (G.comboTimer > 0) {
@@ -2285,7 +2647,9 @@ function draw() {
       if (d < 90 && d > 8) {
         const a = w2s(p.x, p.y);
         const b = w2s(G.px, G.py);
-        const col = (p.kind === "boss" || p.kind === "relic") ? "251,191,36" : p.kind === "elite" ? "192,132,252" : "92,225,230";
+        let col = (p.kind === "boss" || p.kind === "relic" || p.kind === "essence") ? "251,191,36"
+          : p.kind === "elite" ? "192,132,252" : "92,225,230";
+        if (p.kind === "crystal") col = hexRgb((ELEM_BY_KEY[p.elem] || ELEMENTS[0]).color);
         const alpha = (1 - d / 90) * 0.35;
         ctx.strokeStyle = `rgba(${col},${alpha})`;
         ctx.lineWidth = 1.5;
@@ -2334,7 +2698,7 @@ function draw() {
     ctx.fillRect(0, 0, w, h);
   }
   // combat vignette
-  if (G.state === "play" || G.state === "level" || G.state === "job") {
+  if (G.state === "play" || G.state === "level" || G.state === "job" || G.state === "forge") {
     const hasBoss = G.enemies.some((e) => e.boss && !e.dead);
     const vg = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.35, w / 2, h / 2, Math.max(w, h) * 0.72);
     vg.addColorStop(0, "rgba(0,0,0,0)");
@@ -3170,11 +3534,13 @@ function drawPickup(p) {
   if (p.kind === "elite") col = "#c084fc";
   if (p.kind === "boss") col = "#fbbf24";
   if (p.kind === "relic") col = "#f0c14b";
-  const gold = p.kind === "boss" || p.kind === "relic";
+  if (p.kind === "crystal") col = (ELEM_BY_KEY[p.elem] || ELEMENTS[0]).color;
+  if (p.kind === "essence") col = "#fde68a";
+  const gold = p.kind === "boss" || p.kind === "relic" || p.kind === "essence";
 
   ctx.save();
   // quality light pillar for elite/boss/relic
-  if (p.kind !== "orb") {
+  if (p.kind !== "orb" && p.kind !== "crystal") {
     const h = gold ? 72 : 48;
     const w = gold ? 18 : 12;
     const g = ctx.createLinearGradient(s.x, s.y + bobY - h, s.x, s.y + bobY);
@@ -3266,6 +3632,55 @@ function drawPickup(p) {
     ctx.strokeStyle = "rgba(196,241,255,0.7)";
     ctx.lineWidth = 1;
     ctx.stroke();
+    ctx.restore();
+    return;
+  }
+
+  if (p.kind === "crystal") {
+    // 五行灵晶：小颗菱形结晶
+    const r = p.r * 1.05;
+    ctx.rotate(Math.sin(p.bob * 0.6) * 0.25);
+    ctx.fillStyle = col;
+    ctx.shadowColor = col;
+    ctx.shadowBlur = 10;
+    ctx.beginPath();
+    ctx.moveTo(0, -r);
+    ctx.lineTo(r * 0.62, -r * 0.1);
+    ctx.lineTo(0, r);
+    ctx.lineTo(-r * 0.62, -r * 0.1);
+    ctx.closePath();
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = "rgba(255,255,255,0.6)";
+    ctx.beginPath();
+    ctx.moveTo(0, -r * 0.8);
+    ctx.lineTo(r * 0.26, -r * 0.16);
+    ctx.lineTo(-r * 0.26, -r * 0.16);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+    return;
+  }
+
+  if (p.kind === "essence") {
+    // 五行灵髓：五色流转的灵珠
+    const r = p.r * 1.15;
+    for (let i = 0; i < 5; i++) {
+      const a = p.bob * 0.8 + (i / 5) * TAU;
+      ctx.fillStyle = ELEMENTS[i].color;
+      ctx.globalAlpha = 0.85;
+      ctx.beginPath();
+      ctx.arc(Math.cos(a) * r * 0.5, Math.sin(a) * r * 0.5, r * 0.42, 0, TAU);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = "#fffbe8";
+    ctx.shadowColor = "#fde68a";
+    ctx.shadowBlur = 16;
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 0.42, 0, TAU);
+    ctx.fill();
+    ctx.shadowBlur = 0;
     ctx.restore();
     return;
   }
@@ -3636,6 +4051,7 @@ function showMenu() {
   ui.jobModal.classList.add("hidden");
   ui.pauseScreen.classList.add("hidden");
   ui.codexScreen.classList.add("hidden");
+  if (ui.forgeModal) ui.forgeModal.classList.add("hidden");
   ui.comboBadge.classList.add("hidden");
   ui.startScreen.classList.remove("hidden");
   setMenuBg(true);
@@ -3750,6 +4166,8 @@ ui.btnShopBack.addEventListener("click", () => {
 });
 ui.btnCodex.addEventListener("click", showCodex);
 ui.btnCodexBack.addEventListener("click", hideCodex);
+if (ui.forgeBtn) ui.forgeBtn.addEventListener("click", () => { AudioSys.init(); openForge(); });
+if (ui.btnForgeClose) ui.btnForgeClose.addEventListener("click", closeForge);
 ui.btnResume.addEventListener("click", resumeGame);
 ui.btnPauseHome.addEventListener("click", () => {
   ui.pauseScreen.classList.add("hidden");
@@ -3827,6 +4245,11 @@ window.__XTJ__ = {
   JOB_PATHS, JOB_LEVELS, JOB_STAGES, NODE_HOLD,
   openRelicModal, updateBeasts, spawnBeast, relicHudSync, beastHudSync, renderCodex, showCodex, hideCodex,
   ARTIFACTS, ARTIFACT_BY_ID, BEASTS, BEAST_BY_ID, MAX_RELICS,
+  ELEMENTS, ELEM_BY_KEY, EXCLUSIVES, EXCLUSIVE_BY_ID, ORDINARIES, ORDINARY_BY_ID,
+  EXCLUSIVE_COST, ORDINARY_COST, MAX_EXCLUSIVE, MAX_ORDINARY,
+  crystalTotal, crystalHudSync, forgeBtnSync, forgeableAny, canForgeExclusive, spendCrystals,
+  renderForge, openForge, closeForge, forgeExclusive, forgeOrdinary, openEssenceModal,
+  forgeOnHit,
   collectPickup, dropPickup, killEnemy, spawnEnemy, damagePlayer, updateHUD, ENEMY_TYPES,
 };
 })();

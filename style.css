@@ -2082,3 +2082,155 @@ canvas#game {
   box-shadow: 0 0 14px rgba(240,193,75,0.4);
 }
 
+/* ========== 铸器台（五行灵晶 · 专属 × 寻常） ========== */
+.forge-btn {
+  position: absolute;
+  top: 30%;
+  right: 12px;
+  display: flex; flex-direction: column; align-items: center; gap: 1px;
+  width: 58px;
+  padding: 6px 4px 5px;
+  border-radius: 14px;
+  background: linear-gradient(150deg, rgba(30,24,12,0.92), rgba(10,14,22,0.86));
+  border: 1.5px solid rgba(240,193,75,0.42);
+  box-shadow: 0 0 16px rgba(240,193,75,0.16), inset 0 0 12px rgba(0,0,0,0.45);
+  color: var(--gold-hi, #fde68a);
+  cursor: pointer;
+  pointer-events: auto;
+  z-index: 12;
+  font-family: inherit;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.1s, box-shadow 0.2s, border-color 0.2s;
+}
+.forge-btn:active { transform: scale(0.94); }
+.forge-btn-ico {
+  font-size: 18px; font-weight: 800; line-height: 1;
+  font-family: STKaiti, KaiTi, serif;
+  text-shadow: 0 0 12px rgba(240,193,75,0.55);
+}
+.forge-btn-label { font-size: 9px; letter-spacing: 1px; color: var(--muted, #8fa0b8); }
+.forge-btn-count { font-size: 11px; font-weight: 800; color: #5ce1e6; }
+.forge-btn.ready {
+  border-color: var(--gold-hi, #fde68a);
+  animation: forgePulse 1.6s ease-in-out infinite;
+}
+.forge-btn.ready .forge-btn-count { color: var(--gold-hi, #fde68a); }
+@keyframes forgePulse {
+  0%, 100% { box-shadow: 0 0 16px rgba(240,193,75,0.3); }
+  50% { box-shadow: 0 0 26px rgba(240,193,75,0.62); }
+}
+
+.crystal-row {
+  position: absolute;
+  top: calc(30% + 62px);
+  right: 12px;
+  display: flex; flex-direction: column; gap: 4px; align-items: flex-end;
+  pointer-events: none;
+}
+.crystal-row.hidden { display: none; }
+.crystal-chip {
+  display: flex; align-items: center; gap: 5px;
+  padding: 2px 8px 2px 5px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(12,18,28,0.9), rgba(8,12,20,0.74));
+  border: 1.5px solid var(--cc, #5ce1e6);
+  box-shadow: 0 0 10px rgba(0,0,0,0.4);
+  font-size: 11px;
+  animation: relicIn 0.24s cubic-bezier(0.2, 1.5, 0.4, 1) both;
+}
+.crystal-chip b {
+  font-family: STKaiti, KaiTi, serif;
+  font-size: 11px; font-weight: 800;
+  color: var(--cc, #5ce1e6);
+}
+.crystal-chip i { font-style: normal; font-weight: 800; color: #e8e6d9; }
+
+.forge-card { width: min(460px, 100%); border-color: rgba(240,193,75,0.5); }
+.forge-card h2 { text-shadow: 0 0 26px rgba(240,193,75,0.6); }
+.forge-crystals { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; margin-bottom: 10px; }
+.forge-crystal {
+  display: flex; align-items: center; gap: 5px;
+  padding: 3px 10px; border-radius: 999px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.12);
+  opacity: 0.5;
+}
+.forge-crystal.has {
+  opacity: 1;
+  border-color: var(--cc, #5ce1e6);
+  box-shadow: 0 0 12px rgba(0,0,0,0.35);
+}
+.forge-crystal b { font-family: STKaiti, KaiTi, serif; font-size: 12px; color: var(--cc, #cbd5e1); }
+.forge-crystal i { font-style: normal; font-size: 12px; font-weight: 800; color: #e8e6d9; }
+
+.forge-slots { display: flex; gap: 12px; justify-content: center; margin-bottom: 10px; font-size: 11.5px; color: var(--muted, #8fa0b8); }
+.forge-slot b { color: #e8e6d9; }
+.forge-slot.excl b { color: var(--gold-hi, #fde68a); }
+
+.forge-scroll {
+  max-height: 46vh; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  padding-right: 4px; margin-bottom: 12px;
+}
+.forge-sec-title {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11.5px; letter-spacing: 1px; color: var(--muted, #8fa0b8);
+  margin: 10px 2px 6px;
+}
+.forge-sec-title:first-child { margin-top: 0; }
+.forge-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+.forge-dot.d-excl { background: var(--gold-hi, #fde68a); box-shadow: 0 0 8px var(--gold-hi, #fde68a); }
+.forge-dot.d-ord { background: #94a3b8; box-shadow: 0 0 6px #94a3b8; }
+
+.forge-list { display: flex; flex-direction: column; gap: 7px; }
+.forge-item {
+  display: grid;
+  grid-template-columns: 40px 1fr auto;
+  align-items: center; gap: 10px;
+  width: 100%; text-align: left;
+  padding: 9px 11px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(20,28,42,0.9), rgba(10,14,22,0.86));
+  border: 1px solid rgba(255,255,255,0.09);
+  color: inherit; font-family: inherit;
+  cursor: default;
+  transition: transform 0.1s, border-color 0.15s;
+}
+.forge-item.can { cursor: pointer; border-color: var(--fc, #f0c14b); }
+.forge-item.can:active { transform: scale(0.98); }
+.forge-item.owned { border-color: rgba(240,193,75,0.55); background: linear-gradient(135deg, rgba(40,32,14,0.9), rgba(12,14,22,0.86)); }
+.forge-item.disabled { opacity: 0.42; }
+.fi-ico {
+  width: 40px; height: 40px; border-radius: 11px;
+  display: grid; place-items: center;
+  font-size: 17px; font-weight: 800;
+  font-family: STKaiti, KaiTi, serif;
+  color: var(--fc, #f0c14b);
+  border: 1.5px solid var(--fc, #f0c14b);
+  background: radial-gradient(circle at 35% 28%, rgba(255,255,255,0.12), rgba(0,0,0,0.4));
+}
+.fi-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.fi-name {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 13.5px; font-weight: 700; color: #e8e6d9; letter-spacing: 0.5px;
+}
+.fi-name em {
+  font-style: normal; font-size: 9.5px; letter-spacing: 1px;
+  padding: 1px 6px; border-radius: 999px;
+  background: rgba(240,193,75,0.18); color: var(--gold-hi, #fde68a);
+  border: 1px solid rgba(240,193,75,0.4);
+}
+.fi-name em.ord { background: rgba(148,163,184,0.16); color: #cbd5e1; border-color: rgba(148,163,184,0.4); }
+.fi-desc { font-size: 11px; color: var(--muted, #8fa0b8); line-height: 1.35; }
+.fi-cost { font-size: 10.5px; font-weight: 700; color: var(--fc, #f0c14b); white-space: nowrap; }
+.forge-item.disabled .fi-cost { color: #64748b; }
+.forge-close { width: 100%; }
+
+.perf-low .forge-btn { animation: none !important; box-shadow: none; }
+
+@media (max-width: 430px) {
+  .forge-scroll { max-height: 42vh; }
+  .forge-btn { width: 52px; }
+  .fi-desc { font-size: 10.5px; }
+  .forge-item { grid-template-columns: 36px 1fr auto; padding: 8px 9px; gap: 8px; }
+  .fi-ico { width: 36px; height: 36px; font-size: 15px; }
+}

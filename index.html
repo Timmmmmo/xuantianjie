@@ -80,6 +80,14 @@
       <span id="beastHudName" class="beast-hud-name">青鸾</span>
     </div>
 
+    <button id="forgeBtn" class="forge-btn" type="button">
+      <span class="forge-btn-ico">铸</span>
+      <span class="forge-btn-label">铸器台</span>
+      <span id="forgeBtnCount" class="forge-btn-count">0</span>
+    </button>
+
+    <div id="crystalRow" class="crystal-row hidden"></div>
+
     <div class="hud-bottom">
       <div id="relicRow" class="relic-row hidden"></div>
       <div class="xp-wrap">
@@ -134,6 +142,27 @@
       <h2 id="jobTitle">择道</h2>
       <p class="modal-sub" id="jobSub">三途择一 · 道途自此分野</p>
       <div id="jobChoices" class="choices"></div>
+    </div>
+  </div>
+
+  <!-- 铸器台 -->
+  <div id="forgeModal" class="modal hidden">
+    <div class="modal-card forge-card">
+      <div class="modal-ornament"></div>
+      <h2>铸器台</h2>
+      <p class="modal-sub">灵晶有限 · 攒专属，还是换寻常</p>
+      <div id="forgeCrystals" class="forge-crystals"></div>
+      <div class="forge-slots">
+        <span class="forge-slot excl">专属 <b id="forgeExclCount">0/2</b></span>
+        <span class="forge-slot ord">寻常 <b id="forgeOrdCount">0/3</b></span>
+      </div>
+      <div class="forge-scroll">
+        <div class="forge-sec-title"><i class="forge-dot d-excl"></i>专属装备 · 带特殊攻击效果</div>
+        <div id="forgeExclusive" class="forge-list"></div>
+        <div class="forge-sec-title"><i class="forge-dot d-ord"></i>寻常装备 · 仅有普通效果</div>
+        <div id="forgeOrdinary" class="forge-list"></div>
+      </div>
+      <button id="btnForgeClose" class="btn-primary forge-close" type="button"><span>收工 · 继续战斗</span></button>
     </div>
   </div>
 

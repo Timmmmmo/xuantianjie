@@ -52,7 +52,9 @@ const ui = {
   forgeMelt: $("forgeMelt"), forgeMeltWrap: $("forgeMeltWrap"),
   btnForgeClose: $("btnForgeClose"),
   forgeResonance: $("forgeResonance"),
+  forgeCores: $("forgeCores"),
   resHud: $("resHud"), resHudList: $("resHudList"),
+  coreHud: $("coreHud"), coreHudList: $("coreHudList"),
 };
 
 // ---------- Audio ----------
@@ -315,30 +317,62 @@ const ELEMENTS = [
 const ELEM_BY_KEY = Object.fromEntries(ELEMENTS.map((e) => [e.key, e]));
 const ELEM_KEYS = ELEMENTS.map((e) => e.key);
 
-// 每角色三系专属灵石：灵石带五行属性 ⇒ 顺带继承「相生相克」
+// 每派系 3 颗灵石 ——「着力收集所属派系」的资源池
+// school 字段表示派系归属；randStone() 按"本角色三派系权重 ×3"加权采样
 const CHAR_STONES = {
   sword: [
-    { key: "chifeng", name: "赤锋石", ico: "锋", elem: "huo", color: "#fb923c", attrs: "剑罡" },
-    { key: "jifeng", name: "疾风石", ico: "疾", elem: "mu", color: "#86efac", attrs: "御风" },
-    { key: "xuesha", name: "血煞石", ico: "煞", elem: "jin", color: "#e2c9a0", attrs: "血煞" },
+    { key: "chifeng",    name: "赤锋石", ico: "锋", elem: "huo",  color: "#fb923c", attrs: "剑罡", school: "赤锋" },
+    { key: "fengren",    name: "锋刃石", ico: "刃", elem: "huo",  color: "#f97316", attrs: "锋锐", school: "赤锋" },
+    { key: "lieyan",     name: "烈焰石", ico: "焰", elem: "huo",  color: "#ef4444", attrs: "炽焰", school: "赤锋" },
+    { key: "jifeng",     name: "疾风石", ico: "疾", elem: "mu",   color: "#86efac", attrs: "御风", school: "疾风" },
+    { key: "chuanyun",   name: "穿云石", ico: "穿", elem: "mu",   color: "#a7f3d0", attrs: "穿云", school: "疾风" },
+    { key: "cuiye",      name: "翠叶石", ico: "翠", elem: "mu",   color: "#4ade80", attrs: "青木", school: "疾风" },
+    { key: "xuesha",     name: "血煞石", ico: "煞", elem: "jin",  color: "#e2c9a0", attrs: "血煞", school: "血煞" },
+    { key: "baigu",      name: "白骨石", ico: "骨", elem: "jin",  color: "#d6d3d1", attrs: "白骨", school: "血煞" },
+    { key: "suijin",     name: "碎金石", ico: "碎", elem: "jin",  color: "#facc15", attrs: "碎金", school: "血煞" },
   ],
   mage: [
-    { key: "leiling", name: "雷灵石", ico: "雷", elem: "jin", color: "#e2c9a0", attrs: "雷霆" },
-    { key: "shuangjing", name: "霜晶石", ico: "霜", elem: "shui", color: "#93c5fd", attrs: "玄冰" },
-    { key: "fentianshi", name: "焚天石", ico: "焚", elem: "huo", color: "#fb923c", attrs: "焚天" },
+    { key: "leiling",    name: "雷灵石", ico: "雷", elem: "jin",  color: "#e2c9a0", attrs: "雷霆", school: "雷灵" },
+    { key: "tianlei",    name: "天雷石", ico: "天", elem: "jin",  color: "#fef08a", attrs: "天威", school: "雷灵" },
+    { key: "jinlei",     name: "金雷石", ico: "金", elem: "jin",  color: "#fde68a", attrs: "金雷", school: "雷灵" },
+    { key: "shuangjing", name: "霜晶石", ico: "霜", elem: "shui", color: "#93c5fd", attrs: "玄冰", school: "霜晶" },
+    { key: "bingpo",     name: "冰魄石", ico: "魄", elem: "shui", color: "#bae6fd", attrs: "冰魄", school: "霜晶" },
+    { key: "xuanshui",   name: "玄水石", ico: "玄", elem: "shui", color: "#7dd3fc", attrs: "玄水", school: "霜晶" },
+    { key: "fentianshi", name: "焚天石", ico: "焚", elem: "huo",  color: "#fb923c", attrs: "焚天", school: "焚天" },
+    { key: "zhuque",     name: "朱雀石", ico: "雀", elem: "huo",  color: "#f87171", attrs: "朱雀", school: "焚天" },
+    { key: "lihuo",      name: "离火石", ico: "离", elem: "huo",  color: "#fbbf24", attrs: "离火", school: "焚天" },
   ],
   body: [
-    { key: "xuantie", name: "玄铁石", ico: "铁", elem: "jin", color: "#e2c9a0", attrs: "铁骨" },
-    { key: "longxue", name: "龙血石", ico: "龙", elem: "huo", color: "#f87171", attrs: "龙血" },
-    { key: "panshishi", name: "磐石石", ico: "磐", elem: "tu", color: "#d6a86a", attrs: "磐石" },
+    { key: "xuantie",    name: "玄铁石", ico: "铁", elem: "jin",  color: "#e2c9a0", attrs: "铁骨", school: "玄铁" },
+    { key: "gengjin",    name: "庚金石", ico: "庚", elem: "jin",  color: "#e5e7eb", attrs: "庚金", school: "玄铁" },
+    { key: "yuntie",     name: "陨铁石", ico: "陨", elem: "jin",  color: "#94a3b8", attrs: "陨铁", school: "玄铁" },
+    { key: "longxue",    name: "龙血石", ico: "龙", elem: "huo",  color: "#f87171", attrs: "龙血", school: "龙血" },
+    { key: "zhulong",    name: "朱龙石", ico: "朱", elem: "huo",  color: "#ef4444", attrs: "朱龙", school: "龙血" },
+    { key: "yanxue",     name: "炎血石", ico: "炎", elem: "huo",  color: "#fbbf24", attrs: "炎血", school: "龙血" },
+    { key: "panshishi",  name: "磐石石", ico: "磐", elem: "tu",   color: "#d6a86a", attrs: "磐石", school: "磐石" },
+    { key: "houtu",      name: "厚土石", ico: "厚", elem: "tu",   color: "#a3a380", attrs: "厚土", school: "磐石" },
+    { key: "kunyuan",    name: "坤元石", ico: "坤", elem: "tu",   color: "#b08968", attrs: "坤元", school: "磐石" },
   ],
 };
 const STONE_BY_KEY = {};
-for (const cid in CHAR_STONES) for (const st of CHAR_STONES[cid]) STONE_BY_KEY[st.key] = st;
+const STONES_ALL = [];   // 全部 27 颗
+for (const cid in CHAR_STONES) {
+  for (const st of CHAR_STONES[cid]) {
+    STONE_BY_KEY[st.key] = st;
+    STONES_ALL.push(st);
+  }
+}
+const STONE_BY_SCHOOL = {};   // school → [stone...]
+for (const st of STONES_ALL) {
+  (STONE_BY_SCHOOL[st.school] = STONE_BY_SCHOOL[st.school] || []).push(st);
+}
+const SCHOOLS_ALL = Object.keys(STONE_BY_SCHOOL);   // 9 个派系
 
 const ORDINARY_COST = 2;    // 通用装备：2 颗任意专属灵石
 const MAX_GEMS = 2;         // 流派宝石的槽位 —— 三系只能取其二
 const MAX_ORDINARY = 3;     // 通用装备携带上限
+const MAX_SCHOOL_CORES = 2; // 派系核心的装备槽位 —— 9 个核心只能同时装 2 个
+const CORE_NEED_STONES = 5; // 解锁一个派系核心所需的同派系灵石数
 
 // —— 合成逻辑：三阶配方，越往上越贵，也越强 ——
 // 主石决定是哪一系宝石，配料（任意本角色灵石）决定能否升阶。
@@ -348,13 +382,14 @@ const GEM_TIERS = [
   { rank: 3, label: "圆满", main: 3, any: 2, desc: "再长出特殊攻击效果" },
 ];
 
-// —— 经济调参（手感校准集中在这里，方便一处改动全局生效）——
-// 10 分钟一局的实测目标：约 1 颗圆满宝石 + 1 颗化形/初凝（见 tests 经济探针）
-const DROP_MOB = 0.006;     // 小妖掉专属灵石概率
-const DROP_ELITE = 0;       // 精英额外掉几颗（精英本来就给「精英精魄」，不重复给）
-const DROP_BOSS = 1;        // 妖王必掉颗数（另有「灵石精魄」三选一）
-const ESSENCE_GAIN = 2;     // 灵石精魄择一所得颗数
+// —— 经济调参（手感校准集中在这里）——
+// 10 分钟目标：1 个派系核心（约 5 颗同派系）+ 1 颗流派宝石 + 余量做通用/淬体
+const DROP_MOB = 0.008;     // 小妖掉灵石概率（v2.0 提高）
+const DROP_ELITE = 0.3;     // 精英 30% 额外掉 1 颗
+const DROP_BOSS = 3;        // 妖王必掉 3 颗（v2.0 提高：凑派系核心）
+const ESSENCE_GAIN = 3;     // 灵石精魄择一所得颗数（v2.0 提高到 3）
 const MELT_COST = 2;        // 灵石淬体：宝石与通用皆满后，2 颗任意灵石的去处
+const SCH_PACK_DROP = 0.05; // 5% 概率掉「派系包」= 5 颗同派系（v2.0 新增，直接凑满核心）
 
 // 流派宝石：每角色三颗，各由一种专属灵石（主石）主导
 // apply(rank) 只施加「该阶新增」的那一份，逐阶调用即自然叠加
@@ -454,6 +489,226 @@ const ORDINARIES = [
 ];
 const ORDINARY_BY_ID = Object.fromEntries(ORDINARIES.map((o) => [o.id, o]));
 
+// ---------- 派系核心（v2.0） ----------
+// 攒齐 5 颗同派系灵石即可解锁；最多同时装备 2 个；效果是"永久被动 + 终极技能"
+const SCH_CORES = [
+  // 赤锋派（火）—— 焚天剑阵
+  { id: "sc_chifeng", school: "赤锋", elem: "huo", char: "sword",
+    name: "焚天剑阵", ico: "焚", color: "#fb923c",
+    desc: "每 8 秒释放 8 道剑气，攻击 ×200% 范围伤害（最远 240）",
+    onEquip() { G.schoolFx.fentian = true; },
+    onUnequip() { G.schoolFx.fentian = false; },
+    tick(dt) {
+      G._coreFireT = (G._coreFireT || 0) - dt;
+      if (G._coreFireT <= 0) {
+        G._coreFireT = 8;
+        AudioSys.skill();
+        const mv = readMove();
+        const baseAng = (Math.hypot(mv.x, mv.y) > 0.1) ? Math.atan2(mv.y, mv.x) : rand(0, TAU);
+        for (let i = 0; i < 8; i++) {
+          const ang = baseAng + (i / 8) * TAU;
+          G.projectiles.push({
+            kind: "sword", x: G.px, y: G.py,
+            vx: Math.cos(ang) * 520, vy: Math.sin(ang) * 520,
+            r: 10, dmg: G.atk * 2 * playerDamageMult(),
+            pierce: 999, life: 0.6, hitIds: new Set(),
+            color: "#fb923c", big: true,
+          });
+        }
+        burst(G.px, G.py, "#fb923c", 28, 220, 5);
+        G.shake = Math.max(G.shake, 5);
+        spawnFloater(G.px, G.py - G.pr - 18, "焚天剑阵", "#fb923c", 14, true);
+      }
+    } },
+  // 疾风派（木）—— 御风化神
+  { id: "sc_jifeng", school: "疾风", elem: "mu", char: "sword",
+    name: "御风化神", ico: "风", color: "#86efac",
+    desc: "永久移速 +20%、御风 CD -50%、受击免伤 5%",
+    onEquip() { G.schoolFx.yufeng = true; G.moveSpeed *= 1.20; G.dashCD *= 0.5; G.dmgTakenMul *= 0.95; },
+    onUnequip() { G.schoolFx.yufeng = false; G.moveSpeed /= 1.20; G.dashCD /= 0.5; G.dmgTakenMul /= 0.95; } },
+  // 血煞派（金）—— 血月当空
+  { id: "sc_xuesha", school: "血煞", elem: "jin", char: "sword",
+    name: "血月当空", ico: "血", color: "#f87171",
+    desc: "HP <30% 时全伤 ×2.0；击杀回血 +10",
+    onEquip() { G.schoolFx.xuesha = true; G.lifesteal += 10; },
+    onUnequip() { G.schoolFx.xuesha = false; G.lifesteal -= 10; },
+    damageMult(m) {
+      if (G.schoolFx.xuesha && G.hp < G.hpMax * 0.3) m *= 2.0;
+      return m;
+    } },
+  // 雷灵派（金）—— 九霄雷域
+  { id: "sc_leiling", school: "雷灵", elem: "jin", char: "mage",
+    name: "九霄雷域", ico: "雷", color: "#c084fc",
+    desc: "每秒对周围 200 范围造成攻击 ×30% 雷电伤害",
+    onEquip() { G.schoolFx.leiling = true; },
+    onUnequip() { G.schoolFx.leiling = false; },
+    tick(dt) {
+      G._coreLeiYuT = (G._coreLeiYuT || 0) + dt;
+      if (G._coreLeiYuT >= 1) {
+        G._coreLeiYuT -= 1;
+        const dmg = G.atk * 0.3 * playerDamageMult();
+        let hit = 0;
+        for (const e of G.enemies) {
+          if (e.dead) continue;
+          if (dist(e.x, e.y, G.px, G.py) < 200) {
+            applyHit(e, dmg);
+            hit++;
+            if (hit >= 8) break;
+          }
+        }
+        burst(G.px, G.py, "#c084fc", 6, 110, 2);
+      }
+    } },
+  // 霜晶派（水）—— 绝对零度
+  { id: "sc_shuangjing", school: "霜晶", elem: "shui", char: "mage",
+    name: "绝对零度", ico: "冻", color: "#93c5fd",
+    desc: "命中 50% 概率冰封 1.5 秒；受冰封目标受伤害 +30%",
+    onEquip() { G.schoolFx.shuangjing = true; },
+    onUnequip() { G.schoolFx.shuangjing = false; },
+    onHit(e) {
+      if (G.schoolFx.shuangjing && Math.random() < 0.5) {
+        e.slow = 1.5; e.slowMul = 0.0;
+        e.frozen = Math.max(e.frozen || 0, 1.5);
+        spawnFloater(e.x, e.y - e.r, "冻结", "#93c5fd", 12);
+        burst(e.x, e.y, "#bae6fd", 6, 80, 2);
+      }
+    } },
+  // 焚天派（火）—— 朱雀降世
+  { id: "sc_fentianshi", school: "焚天", elem: "huo", char: "mage",
+    name: "朱雀降世", ico: "雀", color: "#fb923c",
+    desc: "灼烧伤害 ×3；灼烧扩散到周围敌人（200 范围）",
+    onEquip() { G.schoolFx.fentianshi = true; G.burnMul *= 3; },
+    onUnequip() { G.schoolFx.fentianshi = false; G.burnMul /= 3; },
+    onHit(e, d) {
+      if (G.schoolFx.fentianshi && e.burn) {
+        for (const e2 of G.enemies) {
+          if (e2.dead || e2.id === e.id) continue;
+          if (dist(e2.x, e2.y, e.x, e.y) < 200) {
+            e2.burn = Math.max(e2.burn || 0, 1.5);
+            e2.burnDmg = Math.max(e2.burnDmg || 0, d * 0.2);
+          }
+        }
+      }
+    } },
+  // 玄铁派（金）—— 金刚不坏
+  { id: "sc_xuantie", school: "玄铁", elem: "jin", char: "body",
+    name: "金刚不坏", ico: "铁", color: "#cbd5e1",
+    desc: "护盾上限 ×2，再生 +5/s；受击 30% 完全免伤",
+    onEquip() {
+      G.schoolFx.xuantie = true;
+      G.shieldMax *= 2; G.shield = Math.min(G.shieldMax, G.shield * 2);
+      G.gemFx.shieldRegen = (G.gemFx.shieldRegen || 0) + 5;
+    },
+    onUnequip() {
+      G.schoolFx.xuantie = false;
+      G.shieldMax = Math.ceil(G.shieldMax / 2);
+      G.shield = Math.min(G.shieldMax, G.shield);
+      G.gemFx.shieldRegen = Math.max(0, (G.gemFx.shieldRegen || 0) - 5);
+    },
+    tick(dt) {
+      // 装备时：每帧给玩家 +5/s 护盾回复（叠加在 gemFx.shieldRegen 之外，这里靠 shieldRegen 已经包含）
+    },
+    damageTaken(a) {
+      if (G.schoolFx.xuantie && Math.random() < 0.3) return 0;
+      return a;
+    } },
+  // 龙血派（火）—— 浴火重生
+  { id: "sc_longxue", school: "龙血", elem: "huo", char: "body",
+    name: "浴火重生", ico: "龙", color: "#f87171",
+    desc: "HP 归零时满血复活一次（每局限一次）",
+    onEquip() { G.schoolFx.longxue = true; G._coreDiedOnce = false; },
+    onUnequip() { G.schoolFx.longxue = false; },
+    onDeathCheck() {
+      if (G.schoolFx.longxue && !G._coreDiedOnce) {
+        G._coreDiedOnce = true;
+        G.hp = G.hpMax; G.shield = G.shieldMax; G.invuln = 2;
+        burst(G.px, G.py, "#f87171", 36, 260, 6);
+        G.shake = Math.max(G.shake, 10);
+        AudioSys.level();
+        spawnFloater(G.px, G.py - G.pr - 18, "浴火重生", "#f87171", 16, true);
+        toast("浴火重生 · 复活一次", "violet");
+        return true;   // 取消死亡
+      }
+      return false;
+    } },
+  // 磐石派（土）—— 镇岳之势
+  { id: "sc_panshishi", school: "磐石", elem: "tu", char: "body",
+    name: "镇岳之势", ico: "磐", color: "#d6a86a",
+    desc: "受击反伤 50%；每次受击护盾 +5（上限 100）",
+    onEquip() {
+      G.schoolFx.panshishi = true;
+      G.thorns = (G.thorns || 0) + 0.5;
+    },
+    onUnequip() {
+      G.schoolFx.panshishi = false;
+      G.thorns = Math.max(0, (G.thorns || 0) - 0.5);
+    },
+    tick(dt) {
+      G._coreFenshiT = (G._coreFenshiT || 0);
+    } },
+];
+const SCH_CORE_BY_ID = Object.fromEntries(SCH_CORES.map((c) => [c.id, c]));
+const SCH_CORE_BY_SCHOOL = Object.fromEntries(SCH_CORES.map((c) => [c.school, c]));
+
+// 当前角色的所有派系核心
+function coresOfChar() { return SCH_CORES.filter((c) => c.char === G.charId); }
+function coresEquipped() { return (G.cores || []).map((id) => SCH_CORE_BY_ID[id]).filter(Boolean); }
+function coresHasSlot() { return (G.cores || []).length < MAX_SCHOOL_CORES; }
+function canUnlockCore(school) {
+  const def = SCH_CORE_BY_SCHOOL[school];
+  if (!def || def.char !== G.charId) return false;
+  if (G.schoolUnlocked && G.schoolUnlocked[school]) return false;
+  return countSchool(school) >= CORE_NEED_STONES;
+}
+function unlockCore(school) {
+  if (!canUnlockCore(school)) return false;
+  const def = SCH_CORE_BY_SCHOOL[school];
+  if (!spendSchool(school, CORE_NEED_STONES)) return false;   // 真正花掉 5 颗同派系灵石
+  G.schoolUnlocked[school] = true;
+  // 自动装上（如果槽位有空）；满了就放进"未装备"池，玩家可手动换上
+  if (coresHasSlot()) {
+    equipCore(def.id);
+  }
+  burst(G.px, G.py, def.color, 32, 240, 5);
+  G.shake = Math.max(G.shake, 8);
+  AudioSys.level();
+  G.goldFlash = Math.max(G.goldFlash || 0, 0.4);
+  spawnFloater(G.px, G.py - G.pr - 22, `觉醒 · ${def.name}`, def.color, 18, true);
+  toast(`派系核心觉醒 · ${def.name}`, "violet");
+  return true;
+}
+function equipCore(id) {
+  const def = SCH_CORE_BY_ID[id];
+  if (!def || def.char !== G.charId) return false;
+  if (!G.schoolUnlocked[def.school]) return false;
+  if ((G.cores || []).includes(id)) return true;   // 已装备
+  if ((G.cores || []).length >= MAX_SCHOOL_CORES) return false;
+  G.cores.push(id);
+  if (def.onEquip) def.onEquip();
+  return true;
+}
+function unequipCore(id) {
+  const def = SCH_CORE_BY_ID[id];
+  if (!def) return false;
+  const i = (G.cores || []).indexOf(id);
+  if (i < 0) return false;
+  G.cores.splice(i, 1);
+  if (def.onUnequip) def.onUnequip();
+  return true;
+}
+function spendSchool(school, n) {
+  // 从同派系多颗灵石中花掉 n 颗（解锁/淬体用），优先花「非主石」即不破坏你在攒的宝石主石
+  const arr = (STONE_BY_SCHOOL[school] || []).slice();
+  arr.sort((a, b) => stoneAt(a.key) - stoneAt(b.key));
+  let left = n;
+  for (const st of arr) {
+    if (left <= 0) break;
+    const take = Math.min(stoneAt(st.key), left);
+    if (take > 0) { G.stones[st.key] -= take; left -= take; }
+  }
+  return left === 0;
+}
+
 // 当前角色的三系专属灵石
 function stonesOf(charId) { return CHAR_STONES[charId || G.charId] || CHAR_STONES.sword; }
 function stoneKeys() { return stonesOf().map((s) => s.key); }
@@ -462,15 +717,29 @@ function stoneTotal() {
   return stoneKeys().reduce((s, k) => s + (st[k] || 0), 0);
 }
 function stoneAt(key) { return (G.stones && G.stones[key]) || 0; }
+function schoolOf(key) { const s = STONE_BY_KEY[key]; return s ? s.school : null; }
+function schoolElem(school) { const arr = STONE_BY_SCHOOL[school]; return arr && arr[0] ? arr[0].elem : null; }
+function countSchool(school) {
+  const arr = STONE_BY_SCHOOL[school] || [];
+  let n = 0;
+  for (const st of arr) n += stoneAt(st.key);
+  return n;
+}
 function gemsOf(charId) { return GEMS.filter((g) => g.char === (charId || G.charId)); }
 function gemSlotsUsed() { return Object.keys(G.gems || {}).length; }
 function waveElemKey() {
   return ELEMENTS[(Math.max(1, G.wave) - 1) % ELEMENTS.length].key;
 }
-// 三系均分掉落 —— 天生不让你三系通吃；想专精，得靠妖王「精魄」自己偏过去
+// 加权掉落：本角色 3 派系 9 颗权重 ×3，其他 6 派系 18 颗权重 ×1
+// ⇒ 本派系实际占比 ≈ 9×3 / (9×3 + 18×1) = 60%
 function randStone() {
-  const ks = stoneKeys();
-  return ks[Math.floor(Math.random() * ks.length)];
+  const pool = [];
+  const my = new Set(stoneKeys());
+  for (const st of STONES_ALL) {
+    const w = my.has(st.key) ? 3 : 1;
+    for (let i = 0; i < w; i++) pool.push(st.key);
+  }
+  return pool[Math.floor(Math.random() * pool.length)];
 }
 
 // ---------- 五行相生相克 ----------
@@ -1015,9 +1284,12 @@ function resetRun(charId) {
   G.relics = []; G.pendingRelic = 0; G.beast = null;
   G.burnMul = 1; G.thunderProc = 0;
   G.stones = {};
-  for (const k of stoneKeys()) G.stones[k] = 0;
+  for (const st of STONES_ALL) G.stones[st.key] = 0;   // 全部 27 颗都可拾取
   G.gems = {}; G.ordinary = []; G.gemFx = {}; G.pendingEssence = 0;
+  G.cores = []; G.schoolUnlocked = {}; G.schoolFx = {};
+  G._coreFireT = 0; G._coreZhenboT = 0; G._coreLeiYuT = 0; G._coreFenshiT = 0; G._coreBingfengT = 0; G._coreDiedOnce = false;
   G.meltCount = 0; G.hasteT = 0; G.regenT = 0;
+  G._schoolHinted = null;
   G._forgeHinted = false;
   G.resonance = recomputeResonance();
   initNodes();
@@ -1561,6 +1833,16 @@ function stoneHudSync() {
   }
 }
 
+// 派系凑齐 5 颗自动弹醒
+function schoolHintCheck(school) {
+  if (!school) return;
+  if (G._schoolHinted === school) return;
+  if (canUnlockCore(school)) {
+    G._schoolHinted = school;
+    toast(`${school}派系灵石已足 · 可开炼宝台启核心`, "gold");
+  }
+}
+
 // 一颗宝石的当前进度（下一阶配方 / 主石存量 / 能否凝成）
 function gemProgress(def) {
   const r = G.gems[def.id] || 0;
@@ -1724,6 +2006,7 @@ function renderForge() {
   }
 
   renderResonance();
+  renderCores();
 }
 
 // 共鸣面板：四条共鸣实时展示（locked/active），位于熔晶淬体下方
@@ -1784,6 +2067,59 @@ function resHudSync() {
   if (onNames.length === 0) { ui.resHud.classList.add("hidden"); return; }
   ui.resHud.classList.remove("hidden");
   ui.resHudList.innerHTML = onNames.map((n) => `<span class="res-chip">${n.replace(/^[··]*/, "")}</span>`).join("");
+}
+
+// 派系核心面板：9 派系格子 + 2 装备槽位（v2.0 新增）
+function renderCores() {
+  if (!ui.forgeCores) return;
+  ui.forgeCores.innerHTML = "";
+  const cores = coresOfChar();
+  const equipped = new Set(G.cores || []);
+  const unlocked = G.schoolUnlocked || {};
+  for (const def of cores) {
+    const on = equipped.has(def.id);
+    const isOn = !!unlocked[def.school];
+    const have = countSchool(def.school);
+    const can = canUnlockCore(def.school);
+    const slotsLeft = MAX_SCHOOL_CORES - equipped.size;
+    const btn = document.createElement("div");
+    btn.className = "res-card core-card" + (on ? " on" : isOn ? " off" : can ? " ready" : "");
+    btn.style.setProperty("--cc", def.color);
+    btn.innerHTML = `
+      <span class="res-ico">${def.ico}</span>
+      <span class="res-body">
+        <span class="res-name">${def.name}<em class="el" style="color:${def.color}">${def.school}派系 · ${ELEM_BY_KEY[def.elem].name}行</em></span>
+        <span class="res-desc">${on ? "已装备 · " + def.desc : isOn ? "已觉醒 · 未装备" + (slotsLeft > 0 ? "" : "（槽位满）") : `需 ${def.school}派系灵石 ${have}/${CORE_NEED_STONES}`}</span>
+      </span>
+      <span class="res-state">${on ? "装" : isOn ? "备" : can ? "启" : "集"}</span>`;
+    btn.addEventListener("click", () => {
+      if (on) { unequipCore(def.id); toast(`卸下 · ${def.name}`, "cyan"); }
+      else if (isOn) {
+        if (slotsLeft <= 0) { toast("核心槽位已满（" + MAX_SCHOOL_CORES + " 席）"); return; }
+        if (equipCore(def.id)) toast(`装备 · ${def.name}`, "violet");
+      }
+      else if (can) {
+        if (unlockCore(def.school)) {
+          stoneHudSync(); forgeBtnSync(); renderForge();
+          return;
+        }
+      } else {
+        toast(`${def.school}派系灵石尚差 ${CORE_NEED_STONES - have} 颗`);
+      }
+      stoneHudSync(); forgeBtnSync(); renderForge();
+    });
+    ui.forgeCores.appendChild(btn);
+  }
+  coreHudSync();
+}
+
+// 派系核心 HUD chip：装备的派系核心名
+function coreHudSync() {
+  if (!ui.coreHud || !ui.coreHudList) return;
+  const cores = coresEquipped();
+  if (!cores.length) { ui.coreHud.classList.add("hidden"); return; }
+  ui.coreHud.classList.remove("hidden");
+  ui.coreHudList.innerHTML = cores.map((c) => `<span class="core-chip" style="--cc:${c.color}">${c.ico} ${c.name}</span>`).join("");
 }
 
 // 凝练：主石决定是哪一系，配料决定能到哪一阶
@@ -1943,32 +2279,38 @@ function closeForge() {
   resolvePendingModal();
 }
 
-// 妖王精魄：本角色三系择一，直接得 2 颗 —— 全流程最重的那个决策点
+// 妖王精魄：本角色三派系择一，直接得 ESSENCE_GAIN 颗同派系灵石 —— 全流程最重的那个决策点
 function openEssenceModal() {
   G.state = "job";
   const weNow = ELEM_BY_KEY[waveElemKey()];
+  const mySchools = [...new Set(stonesOf().map((s) => s.school))];
   ui.jobTitle.textContent = "灵石精魄";
-  ui.jobSub.textContent = `本命三系择一 · 每系专属灵石 ×${ESSENCE_GAIN} · 当前 ${weNow.name}行妖潮`;
+  ui.jobSub.textContent = `本角色三派系择一 · 每派系灵石 ×${ESSENCE_GAIN} · 当前 ${weNow.name}行妖潮`;
   ui.jobChoices.innerHTML = "";
-  for (const st of stonesOf()) {
-    const gem = gemsOf().find((g) => g.stone === st.key);
+  for (const sch of mySchools) {
+    const arr = STONE_BY_SCHOOL[sch] || [];
+    const gem = gemsOf().find((g) => STONE_BY_KEY[g.stone] && STONE_BY_KEY[g.stone].school === sch);
+    const have = countSchool(sch);
+    const readyCore = have >= CORE_NEED_STONES;
     const btn = document.createElement("button");
     btn.className = "choice-btn rare";
+    btn.style.setProperty("--bc", arr[0] && arr[0].color);
     btn.innerHTML = `
-      <div class="choice-ico tier-xian" style="color:${st.color}">${st.ico}</div>
+      <div class="choice-ico tier-xian" style="color:${arr[0] && arr[0].color}">${arr[0] && arr[0].ico}</div>
       <div class="choice-body">
-        <span class="c-tag tier-xian">${st.attrs}系 · 精魄</span>
-        <span class="c-name">${st.name} ×${ESSENCE_GAIN}</span>
-        <span class="c-desc">凝「${gem.name}」 · ${elemMatchText(st.elem)}</span>
+        <span class="c-tag tier-xian">${sch}派系 · 精魄</span>
+        <span class="c-name">${arr.map((s) => s.name).join(" / ")} ×${ESSENCE_GAIN}</span>
+        <span class="c-desc">${gem ? `凝「${gem.name}」 · ${elemMatchText(arr[0].elem)}` : "无对应宝石，可直接凑派系核心"}${readyCore ? " · 已可启核心！" : ""}</span>
       </div>`;
     btn.addEventListener("click", () => {
-      G.stones[st.key] = stoneAt(st.key) + ESSENCE_GAIN;
-      burst(G.px, G.py, st.color, 26, 210, 4);
+      for (const st of arr) G.stones[st.key] = stoneAt(st.key) + ESSENCE_GAIN;
+      burst(G.px, G.py, arr[0].color, 26, 210, 4);
       AudioSys.level();
-      toast(`${st.name} +${ESSENCE_GAIN}`, "gold");
+      toast(`${sch}派系灵石 +${ESSENCE_GAIN}`, "gold");
       ui.jobModal.classList.add("hidden");
       G.state = "play";
       stoneHudSync(); forgeBtnSync(); forgeHintCheck();
+      schoolHintCheck(sch);
       resolvePendingModal();
     });
     ui.jobChoices.appendChild(btn);
@@ -2112,6 +2454,11 @@ function knockEnemies(cx, cy, radius, force) {
 
 function damagePlayer(amount) {
   if (G.dashIFrame > 0 || G.invuln > 0) return;
+  // 派系核心：装备中核心的 damageTaken 钩子（如玄铁 30% 完全免伤）
+  for (const c of coresEquipped()) {
+    if (c.damageTaken) amount = c.damageTaken(amount);
+    if (amount <= 0) return;
+  }
   amount *= (G.nodeDmgTakenMul || 1) * (G.dmgTakenMul || 1);   // 玄冰剑阵 / 转职：减伤
   const hadShield = G.shield > 0;
   if (G.shield > 0) {
@@ -2165,7 +2512,15 @@ function damagePlayer(amount) {
       }
     }
   }
-  if (G.hp <= 0) { G.hp = 0; endRun(); }
+  if (G.hp <= 0) {
+    // 派系核心 onDeathCheck：龙血核心「浴火重生」满血复活一次
+    let revived = false;
+    for (const c of coresEquipped()) {
+      if (c.onDeathCheck && c.onDeathCheck()) { revived = true; break; }
+    }
+    if (revived) return;
+    G.hp = 0; endRun();
+  }
 }
 
 // 御风圆满：御风之后短时间攻速大涨
@@ -2181,6 +2536,10 @@ function playerDamageMult() {
   if (G.gemFx && G.gemFx.rage && G.hp < G.hpMax * 0.45) m += 0.25;
   // 本命归一（共鸣）—— 凝出第一颗宝石即永久获得
   if (G.resonance && G.resonance.benPlayerMul) m += G.resonance.benPlayerMul;
+  // 派系核心：每个核心可叠加一个 damageMult 钩子（血月当空等）
+  for (const c of coresEquipped()) {
+    if (c.damageMult) m = c.damageMult(m);
+  }
   // 剑阵：站在阵上吃阵法增益，升级「阵心通明」再叠一层
   m *= (G.nodeAtkMul || 1);
   if (G.nodeActive) m *= (1 + (G.nodeBonus || 0));
@@ -2218,11 +2577,31 @@ function killEnemy(e, byPlayer = true) {
     for (let i = 0; i < DROP_BOSS; i++) {
       dropPickup(e.x + rand(-46, 46), e.y + rand(-46, 46), "stone", { stone: randStone() });
     }
+    // 妖王必出「派系包」—— 5 颗同派系，凑派系核心的关键一跳
+    {
+      const mySchools = [...new Set(stonesOf().map((s) => s.school))];
+      const s = pick(mySchools);
+      const arr = STONE_BY_SCHOOL[s];
+      for (let i = 0; i < 5; i++) {
+        dropPickup(e.x + rand(-50, 50), e.y + rand(-50, 50), "stone", { stone: pick(arr).key });
+      }
+      toast(`妖王赐福 · ${s}派系灵石 ×5`, "gold");
+    }
   } else if (e.elite) {
     dropPickup(e.x, e.y, "elite");
     if (Math.random() < 0.12) dropPickup(e.x + rand(-20, 20), e.y + rand(-20, 20), "relic");
-    for (let i = 0; i < DROP_ELITE; i++) {
+    if (Math.random() < DROP_ELITE) {
       dropPickup(e.x + rand(-26, 26), e.y + rand(-26, 26), "stone", { stone: randStone() });
+    }
+    // 派系包（5% 概率）：5 颗同派系
+    if (Math.random() < SCH_PACK_DROP) {
+      const mySchools = [...new Set(stonesOf().map((s) => s.school))];
+      const s = pick(mySchools);
+      const arr = STONE_BY_SCHOOL[s];
+      for (let i = 0; i < 5; i++) {
+        dropPickup(e.x + rand(-34, 34), e.y + rand(-34, 34), "stone", { stone: pick(arr).key });
+      }
+      toast(`派系包 · ${s}灵石 ×5`, "gold");
     }
   } else {
     if (Math.random() < 0.04) dropPickup(e.x, e.y, "orb");
@@ -2316,6 +2695,7 @@ function collectPickup(p) {
     burst(p.x, p.y, st.color, 5, 90, 2);
     stoneHudSync();
     forgeHintCheck();
+    schoolHintCheck(st.school);   // 派系核心凑齐时弹醒
     AudioSys.hit();
   } else if (p.kind === "elite") {
     pick([
@@ -2424,6 +2804,8 @@ function applyHit(e, dmg, opts = {}) {
   }
   // 玄冰圆满：已受寒毒影响者额外受伤
   if (G.gemFx.deepFreeze && (e.slow || 0) > 0) d *= 1.25;
+  // 霜晶核心：受冰封目标额外受 30% 伤害
+  if (G.schoolFx.shuangjing && (e.frozen || 0) > 0) d *= 1.30;
   // 共鸣 · 跨阶归一：圆满特效（含溅射/暴击溅血/落雷引线等）整段再 ×1.5
   const kuaJieOn = !!(G.resonance && G.resonance.kuaJie);
   if (kuaJieOn) d *= 1.5;
@@ -2438,6 +2820,10 @@ function applyHit(e, dmg, opts = {}) {
   if (opts.burn) { e.burn = opts.burn; e.burnDmg = opts.burnDmg; }
   if (opts.slow) { e.slow = opts.slow; e.slowMul = opts.slowMul || 0.55; }
   gemOnHit(e, d);                    // 流派宝石的特殊攻击效果
+  // 派系核心 onHit：朱雀灼烧扩散、绝对零度冻结等
+  for (const c of coresEquipped()) {
+    if (c.onHit) c.onHit(e, d);
+  }
   if (isCrit) gemOnCrit(e, d);       // 血剑流：暴击溅血爆裂
   if (kuaJieOn) spawnFloater(e.x, e.y - e.r - 12, "跨阶 ×1.5", "#a78bfa", 12);
   // size by damage magnitude
@@ -2878,6 +3264,11 @@ function update(dt) {
       spawnFloater(G.px, G.py - G.pr - 10, `+${Math.round(heal)}`, "#86efac", 12);
       burst(G.px, G.py, "#86efac", 10, 120, 3);
     }
+  }
+
+  // 派系核心 tick（每帧调用所有装备的核心）
+  for (const c of coresEquipped()) {
+    if (c.tick) c.tick(dt);
   }
 
   // combo decay
@@ -4766,11 +5157,15 @@ window.__XTJ__ = {
   openRelicModal, updateBeasts, spawnBeast, relicHudSync, beastHudSync, renderCodex, showCodex, hideCodex,
   ARTIFACTS, ARTIFACT_BY_ID, BEASTS, BEAST_BY_ID, MAX_RELICS,
   ELEMENTS, ELEM_BY_KEY, ORDINARIES, ORDINARY_BY_ID, ORDINARY_COST, MAX_ORDINARY,
-  CHAR_STONES, STONE_BY_KEY, GEMS, GEM_BY_ID, GEM_TIERS, MAX_GEMS,
-  stonesOf, stoneKeys, stoneTotal, stoneAt, gemsOf, gemSlotsUsed, randStone,
-  stoneHudSync, forgeBtnSync, forgeableAny, canCraft, spendStones, gemProgress, nextGemStoneKey,
-  renderForge, openForge, closeForge, craftGem, forgeOrdinary, openEssenceModal,
-  gemsMaxed, canMelt, meltStones, MELT_COST,
+  CHAR_STONES, STONE_BY_KEY, STONES_ALL, STONE_BY_SCHOOL, SCHOOLS_ALL,
+  GEMS, GEM_BY_ID, GEM_TIERS, MAX_GEMS,
+  SCH_CORES, SCH_CORE_BY_ID, SCH_CORE_BY_SCHOOL, MAX_SCHOOL_CORES, CORE_NEED_STONES,
+  stonesOf, stoneKeys, stoneTotal, stoneAt, schoolOf, countSchool, gemsOf, gemSlotsUsed, randStone,
+  canUnlockCore, unlockCore, equipCore, unequipCore, spendSchool,
+  coresEquipped, coresHasSlot, coresOfChar,
+  stoneHudSync, schoolHintCheck, forgeBtnSync, forgeableAny, canCraft, spendStones, gemProgress, nextGemStoneKey,
+  renderForge, renderCores, coreHudSync, openForge, closeForge, craftGem, forgeOrdinary, openEssenceModal,
+  gemsMaxed, canMelt, meltStones, MELT_COST, SCH_PACK_DROP,
   gemOnHit, gemOnCrit, atkSpeedNow, knockEnemies, playerDamageMult,
   ELEM_OVERCOME, ELEM_GENERATE, PATH_ELEMS, elemRelation, bestElemRelation, elemMulVs, elemMatchText, waveElemKey,
   REL_BEAT, REL_LOSE, REL_FED, REL_DRAIN,

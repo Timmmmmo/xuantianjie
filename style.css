@@ -2120,15 +2120,15 @@ canvas#game {
   50% { box-shadow: 0 0 26px rgba(240,193,75,0.62); }
 }
 
-.crystal-row {
+.stone-row {
   position: absolute;
   top: calc(30% + 62px);
   right: 12px;
   display: flex; flex-direction: column; gap: 4px; align-items: flex-end;
   pointer-events: none;
 }
-.crystal-row.hidden { display: none; }
-.crystal-chip {
+.stone-row.hidden { display: none; }
+.stone-chip {
   display: flex; align-items: center; gap: 5px;
   padding: 2px 8px 2px 5px;
   border-radius: 999px;
@@ -2138,12 +2138,12 @@ canvas#game {
   font-size: 11px;
   animation: relicIn 0.24s cubic-bezier(0.2, 1.5, 0.4, 1) both;
 }
-.crystal-chip b {
+.stone-chip b {
   font-family: STKaiti, KaiTi, serif;
   font-size: 11px; font-weight: 800;
   color: var(--cc, #5ce1e6);
 }
-.crystal-chip i { font-style: normal; font-weight: 800; color: #e8e6d9; }
+.stone-chip i { font-style: normal; font-weight: 800; color: #e8e6d9; }
 
 .forge-card { width: min(460px, 100%); border-color: rgba(240,193,75,0.5); }
 .forge-card h2 { text-shadow: 0 0 26px rgba(240,193,75,0.6); }
@@ -2262,3 +2262,38 @@ canvas#game {
 
 .forge-dot.d-melt { background: #5ce1e6; box-shadow: 0 0 6px #5ce1e6; }
 .forge-item.f-melt { border-color: rgba(92,225,230,0.5); }
+
+/* ========== 角色专属灵石 · 流派宝石（v1.8） ========== */
+.stone-chip.empty { opacity: 0.4; }
+.stone-chip.hot {
+  border-color: var(--gold-hi, #fde68a);
+  box-shadow: 0 0 12px rgba(240,193,75,0.35);
+}
+.stone-chip.hot i { color: var(--gold-hi, #fde68a); }
+
+.forge-crystal b { font-size: 11px; letter-spacing: 0.5px; }
+
+/* 宝石阶数：初凝 · 化形 · 圆满 */
+.fi-pips { display: flex; align-items: center; gap: 4px; margin: 3px 0 2px; }
+.fi-pips b { font-size: 10.5px; font-weight: 700; color: var(--fc, #f0c14b); letter-spacing: 1px; }
+.fi-pips .gp {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.22);
+}
+.fi-pips .gp.on {
+  background: var(--fc, #f0c14b);
+  box-shadow: 0 0 7px var(--fc, #f0c14b);
+  border-color: transparent;
+}
+.forge-item.disabled .fi-pips .gp.on { box-shadow: none; opacity: 0.7; }
+.forge-item.owned .fi-pips b { color: var(--gold-hi, #fde68a); }
+
+/* 卡片上多一行「流派名」小签 */
+.fi-name em.school {
+  background: rgba(92,225,230,0.14);
+  color: #5ce1e6;
+  border-color: rgba(92,225,230,0.4);
+}
+
+.char-stones { font-size: 10px; letter-spacing: 0.3px; color: #7f93ab; opacity: 0.9; white-space: nowrap; }

@@ -81,12 +81,12 @@
     </div>
 
     <button id="forgeBtn" class="forge-btn" type="button">
-      <span class="forge-btn-ico">铸</span>
-      <span class="forge-btn-label">铸器台</span>
+      <span class="forge-btn-ico">宝</span>
+      <span class="forge-btn-label">炼宝台</span>
       <span id="forgeBtnCount" class="forge-btn-count">0</span>
     </button>
 
-    <div id="crystalRow" class="crystal-row hidden"></div>
+    <div id="stoneRow" class="stone-row hidden"></div>
 
     <div class="hud-bottom">
       <div id="relicRow" class="relic-row hidden"></div>
@@ -149,20 +149,20 @@
   <div id="forgeModal" class="modal hidden">
     <div class="modal-card forge-card">
       <div class="modal-ornament"></div>
-      <h2>铸器台</h2>
-      <p class="modal-sub">灵晶有限 · 攒专属，还是换寻常</p>
-      <div id="forgeCrystals" class="forge-crystals"></div>
+      <h2>炼宝台</h2>
+      <p class="modal-sub">本命三系灵石 · 只够凝两颗宝石，想好走哪一系</p>
+      <div id="forgeStones" class="forge-crystals"></div>
       <div class="forge-slots">
-        <span class="forge-slot excl">专属 <b id="forgeExclCount">0/2</b></span>
-        <span class="forge-slot ord">寻常 <b id="forgeOrdCount">0/3</b></span>
+        <span class="forge-slot excl">流派宝石 <b id="forgeGemCount">0/2</b></span>
+        <span class="forge-slot ord">通用装备 <b id="forgeOrdCount">0/3</b></span>
       </div>
       <div class="forge-scroll">
-        <div class="forge-sec-title"><i class="forge-dot d-excl"></i>专属装备 · 带特殊攻击效果</div>
-        <div id="forgeExclusive" class="forge-list"></div>
-        <div class="forge-sec-title"><i class="forge-dot d-ord"></i>寻常装备 · 仅有普通效果</div>
+        <div class="forge-sec-title"><i class="forge-dot d-excl"></i>流派宝石 · 属性与技能大增，圆满另有特效</div>
+        <div id="forgeGems" class="forge-list"></div>
+        <div class="forge-sec-title"><i class="forge-dot d-ord"></i>通用装备 · 只有普通攻击效果</div>
         <div id="forgeOrdinary" class="forge-list"></div>
         <div id="forgeMeltWrap" class="hidden">
-          <div class="forge-sec-title"><i class="forge-dot d-melt"></i>熔晶淬体 · 两处皆满后的去处</div>
+          <div class="forge-sec-title"><i class="forge-dot d-melt"></i>灵石淬体 · 宝石与通用皆满后的去处</div>
           <div id="forgeMelt" class="forge-list"></div>
         </div>
       </div>
@@ -196,8 +196,8 @@
         <div class="title-rule"></div>
         <div class="mode-chips">
           <span class="mode-chip">无尽模式</span>
-          <span class="mode-chip gold">灵石养成</span>
-          <span class="mode-chip violet">三修开局</span>
+          <span class="mode-chip gold">本命灵石</span>
+          <span class="mode-chip violet">三系择二</span>
         </div>
       </div>
       <div class="records records-coin">

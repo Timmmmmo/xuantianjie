@@ -44,11 +44,11 @@ const ui = {
   codexScreen: $("codexScreen"), codexProgress: $("codexProgress"),
   codexArtifacts: $("codexArtifacts"), codexBeasts: $("codexBeasts"),
   btnCodex: $("btnCodex"), btnCodexBack: $("btnCodexBack"),
-  // 铸器台
-  crystalRow: $("crystalRow"), forgeBtn: $("forgeBtn"), forgeBtnCount: $("forgeBtnCount"),
-  forgeModal: $("forgeModal"), forgeCrystals: $("forgeCrystals"),
-  forgeExclCount: $("forgeExclCount"), forgeOrdCount: $("forgeOrdCount"),
-  forgeExclusive: $("forgeExclusive"), forgeOrdinary: $("forgeOrdinary"),
+  // 炼宝台
+  stoneRow: $("stoneRow"), forgeBtn: $("forgeBtn"), forgeBtnCount: $("forgeBtnCount"),
+  forgeModal: $("forgeModal"), forgeStones: $("forgeStones"),
+  forgeGemCount: $("forgeGemCount"), forgeOrdCount: $("forgeOrdCount"),
+  forgeGems: $("forgeGems"), forgeOrdinary: $("forgeOrdinary"),
   forgeMelt: $("forgeMelt"), forgeMeltWrap: $("forgeMeltWrap"),
   btnForgeClose: $("btnForgeClose"),
 };
@@ -297,11 +297,12 @@ const BEASTS = [
 ];
 const BEAST_BY_ID = Object.fromEntries(BEASTS.map((b) => [b.id, b]));
 
-// ---------- 五行灵晶 & 铸器台 ----------
-// 灵感取自「人族无敌」：散落的灵石是有限资源，
-// 攒够同属性可铸「专属装备」——带特殊攻击效果；
-// 若图快，花两颗任意灵晶换「寻常装备」——只有普通数值效果。
-// 专属上限 2、寻常上限 3，灵晶总量有限 ⇒ 必须取舍。
+// ---------- 角色专属灵石 & 流派宝石 ----------
+// 灵感取自「人族无敌RPG」的装备合成：灵石是**角色绑定的有限资源**，
+// 每个角色三系，各由一种专属灵石主导。攒够同一系的主石，按配方凝出
+// 「流派宝石」——属性与技能大增，甚至长出特殊攻击效果；
+// 若图快，也可花两颗任意灵石换「通用装备」，那就只有普通攻击效果。
+// 槽位只有两个 ⇒ 三条路只能取其二，这是本系统的核心取舍。
 const ELEMENTS = [
   { key: "jin", name: "金", ico: "锐", color: "#f1e9d2", attrs: "锋锐" },
   { key: "mu", name: "木", ico: "生", color: "#86efac", attrs: "生发" },
@@ -312,44 +313,127 @@ const ELEMENTS = [
 const ELEM_BY_KEY = Object.fromEntries(ELEMENTS.map((e) => [e.key, e]));
 const ELEM_KEYS = ELEMENTS.map((e) => e.key);
 
-const EXCLUSIVE_COST = 3;   // 专属：3 颗同属性灵晶
-const ORDINARY_COST = 2;    // 寻常：2 颗任意灵晶
-const MAX_EXCLUSIVE = 2;    // 专属携带上限
-const MAX_ORDINARY = 3;     // 寻常携带上限
+// 每角色三系专属灵石：灵石带五行属性 ⇒ 顺带继承「相生相克」
+const CHAR_STONES = {
+  sword: [
+    { key: "chifeng", name: "赤锋石", ico: "锋", elem: "huo", color: "#fb923c", attrs: "剑罡" },
+    { key: "jifeng", name: "疾风石", ico: "疾", elem: "mu", color: "#86efac", attrs: "御风" },
+    { key: "xuesha", name: "血煞石", ico: "煞", elem: "jin", color: "#e2c9a0", attrs: "血煞" },
+  ],
+  mage: [
+    { key: "leiling", name: "雷灵石", ico: "雷", elem: "jin", color: "#e2c9a0", attrs: "雷霆" },
+    { key: "shuangjing", name: "霜晶石", ico: "霜", elem: "shui", color: "#93c5fd", attrs: "玄冰" },
+    { key: "fentianshi", name: "焚天石", ico: "焚", elem: "huo", color: "#fb923c", attrs: "焚天" },
+  ],
+  body: [
+    { key: "xuantie", name: "玄铁石", ico: "铁", elem: "jin", color: "#e2c9a0", attrs: "铁骨" },
+    { key: "longxue", name: "龙血石", ico: "龙", elem: "huo", color: "#f87171", attrs: "龙血" },
+    { key: "panshishi", name: "磐石石", ico: "磐", elem: "tu", color: "#d6a86a", attrs: "磐石" },
+  ],
+};
+const STONE_BY_KEY = {};
+for (const cid in CHAR_STONES) for (const st of CHAR_STONES[cid]) STONE_BY_KEY[st.key] = st;
+
+const ORDINARY_COST = 2;    // 通用装备：2 颗任意专属灵石
+const MAX_GEMS = 2;         // 流派宝石的槽位 —— 三系只能取其二
+const MAX_ORDINARY = 3;     // 通用装备携带上限
+
+// —— 合成逻辑：三阶配方，越往上越贵，也越强 ——
+// 主石决定是哪一系宝石，配料（任意本角色灵石）决定能否升阶。
+const GEM_TIERS = [
+  { rank: 1, label: "初凝", main: 2, any: 0, desc: "属性大增" },
+  { rank: 2, label: "化形", main: 2, any: 1, desc: "属性 + 技能增益" },
+  { rank: 3, label: "圆满", main: 3, any: 2, desc: "再长出特殊攻击效果" },
+];
 
 // —— 经济调参（手感校准集中在这里，方便一处改动全局生效）——
-// 10 分钟一局的实测目标：约 1~2 件专属 + 1~2 件寻常（见 _smoke.js 经济探针）
-const ELEM_BIAS = 0.45;     // 掉落偏向「当前波属性」的概率
-const DROP_MOB = 0.015;     // 小妖掉灵晶概率
-const DROP_ELITE = 0;       // 精英额外掉几颗（精英本来就给「精英精魄」，不再重复给灵晶）
-const DROP_BOSS = 1;        // 妖王必掉颗数
-const ESSENCE_GAIN = 2;     // 灵髓择一所得颗数
-const MELT_COST = 2;        // 熔晶淬体：专属与寻常皆满后，2 颗任意灵晶的去处
+// 10 分钟一局的实测目标：约 1 颗圆满宝石 + 1 颗化形/初凝（见 tests 经济探针）
+const DROP_MOB = 0.006;     // 小妖掉专属灵石概率
+const DROP_ELITE = 0;       // 精英额外掉几颗（精英本来就给「精英精魄」，不重复给）
+const DROP_BOSS = 1;        // 妖王必掉颗数（另有「灵石精魄」三选一）
+const ESSENCE_GAIN = 2;     // 灵石精魄择一所得颗数
+const MELT_COST = 2;        // 灵石淬体：宝石与通用皆满后，2 颗任意灵石的去处
 
-// 专属装备：每件对应一行，铸成即获得「特殊攻击效果」
-const EXCLUSIVES = [
-  { id: "jinfeng", elem: "jin", name: "裂空金锋", ico: "锋", color: "#f1e9d2",
-    desc: "飞剑穿透 +2；命中时剑气迸溅，波及身周之敌",
-    fx: "cleave",
-    apply: () => { G.swordPierce += 2; G.forgeFx.cleave = 0.4; } },
-  { id: "wanteng", elem: "mu", name: "万藤长生", ico: "藤", color: "#86efac",
-    desc: "击杀吸血 +5；气血随时间自行滋长",
-    fx: "regen",
-    apply: () => { G.lifesteal += 5; G.forgeFx.regen = 1.8; } },
-  { id: "xuanbing", elem: "shui", name: "玄冰寒渊", ico: "寒", color: "#93c5fd",
-    desc: "攻击必附寒毒减速；对精英有几率冰封定身",
-    fx: "frost",
-    apply: () => { G.forgeFx.frost = true; } },
-  { id: "fentian", elem: "huo", name: "焚天炎狱", ico: "焚", color: "#fb923c",
-    desc: "攻击必附灼烧；灼烧伤害大幅提升",
-    fx: "burn",
-    apply: () => { G.forgeFx.burn = true; G.burnMul *= 2.5; } },
-  { id: "panshi", elem: "tu", name: "磐石不动", ico: "磐", color: "#d6a86a",
-    desc: "受击反伤 +18%；护盾上限 +20 并随时间再生",
-    fx: "shield",
-    apply: () => { G.thorns += 0.18; G.shieldMax += 20; G.forgeFx.shieldRegen = 3; } },
+// 流派宝石：每角色三颗，各由一种专属灵石（主石）主导
+// apply(rank) 只施加「该阶新增」的那一份，逐阶调用即自然叠加
+const GEMS = [
+  // ---- 剑修 ----
+  { id: "gem_jiangang", char: "sword", stone: "chifeng", elem: "huo", name: "裂天剑罡", ico: "罡",
+    color: "#fb923c", school: "剑罡流",
+    tierText: ["飞剑穿透 +1 · 攻击 +10%", "剑气范围 +25% · 剑气冷却 -15%", "飞剑 +1 · 命中溅射剑气（40% 伤害）"],
+    apply: (r) => {
+      if (r === 1) { G.swordPierce += 1; G.atk *= 1.1; }
+      else if (r === 2) { G.aoeRange *= 1.25; G.aoeCD *= 0.85; }
+      else { G.swordCount += 1; G.gemFx.cleave = 0.4; }
+    } },
+  { id: "gem_yufeng", char: "sword", stone: "jifeng", elem: "mu", name: "流云御风", ico: "云",
+    color: "#86efac", school: "御风流",
+    tierText: ["攻速 +12% · 移速 +8%", "御风冷却 -30%", "御风后 3s 攻速 +30%"],
+    apply: (r) => {
+      if (r === 1) { G.atkSpeed *= 1.12; G.moveSpeed *= 1.08; }
+      else if (r === 2) { G.dashCD *= 0.7; }
+      else { G.gemFx.dashHaste = 0.3; }
+    } },
+  { id: "gem_xuejian", char: "sword", stone: "xuesha", elem: "jin", name: "噬血剑心", ico: "血",
+    color: "#f87171", school: "血剑流",
+    tierText: ["暴击率 +8% · 暴击伤害 +25%", "击杀吸血 +3", "暴击时溅血爆裂（50% 伤害）"],
+    apply: (r) => {
+      if (r === 1) { G.crit = Math.min(0.7, G.crit + 0.08); G.critMul += 0.25; }
+      else if (r === 2) { G.lifesteal += 3; }
+      else { G.gemFx.critBurst = 0.5; }
+    } },
+  // ---- 法修 ----
+  { id: "gem_leiting", char: "mage", stone: "leiling", elem: "jin", name: "九霄雷印", ico: "雷",
+    color: "#c084fc", school: "雷霆流",
+    tierText: ["灵力上限 +25 · 回灵 +1/s", "技能冷却 -15%", "击杀 20% 概率落雷"],
+    apply: (r) => {
+      if (r === 1) { G.mpMax += 25; G.mp = G.mpMax; G.mpRegen += 1; }
+      else if (r === 2) { G.aoeCD *= 0.85; G.dashCD *= 0.85; }
+      else { G.thunderProc = (G.thunderProc || 0) + 0.2; }
+    } },
+  { id: "gem_xuanbing", char: "mage", stone: "shuangjing", elem: "shui", name: "太阴冰魄", ico: "魄",
+    color: "#93c5fd", school: "玄冰流",
+    tierText: ["命中必附寒毒减速 · 寒毒加深", "对精英有 15% 概率冰封", "受寒毒影响者额外受 25% 伤害"],
+    apply: (r) => {
+      if (r === 1) { G.gemFx.chill = true; }
+      else if (r === 2) { G.gemFx.freezeChance = 0.15; }
+      else { G.gemFx.deepFreeze = true; }
+    } },
+  { id: "gem_fentian", char: "mage", stone: "fentianshi", elem: "huo", name: "焚天赤篆", ico: "篆",
+    color: "#fb923c", school: "焚天流",
+    tierText: ["灼烧伤害 ×1.8", "命中 25% 概率附带灼烧", "命中必附灼烧 · 灼烧伤害再 ×1.6"],
+    apply: (r) => {
+      if (r === 1) { G.burnMul *= 1.8; }
+      else if (r === 2) { G.gemFx.burnChance = 0.25; }
+      else { G.gemFx.burn = true; G.burnMul *= 1.6; }
+    } },
+  // ---- 体修 ----
+  { id: "gem_tiegu", char: "body", stone: "xuantie", elem: "jin", name: "玄铁不坏", ico: "铁",
+    color: "#cbd5e1", school: "铁骨流",
+    tierText: ["护盾上限 +30 · 护盾再生", "受击减伤 10%", "护盾破碎时爆发冲击波"],
+    apply: (r) => {
+      if (r === 1) { G.shieldMax += 30; G.shield += 30; G.gemFx.shieldRegen = (G.gemFx.shieldRegen || 0) + 2.5; }
+      else if (r === 2) { G.dmgTakenMul *= 0.9; }
+      else { G.gemFx.shieldBreak = true; }
+    } },
+  { id: "gem_longxue", char: "body", stone: "longxue", elem: "huo", name: "龙血战体", ico: "龙",
+    color: "#f87171", school: "龙血流",
+    tierText: ["气血上限 +60 · 击杀回血 +2", "气血低于 45% 时攻击 +25%", "每 8s 回复 8% 气血"],
+    apply: (r) => {
+      if (r === 1) { G.hpMax += 60; G.hp = Math.min(G.hpMax, G.hp + 60); G.lifesteal += 2; }
+      else if (r === 2) { G.gemFx.rage = true; }
+      else { G.gemFx.regenPct = 0.08; }
+    } },
+  { id: "gem_panshi", char: "body", stone: "panshishi", elem: "tu", name: "磐石镇岳", ico: "磐",
+    color: "#d6a86a", school: "磐石流",
+    tierText: ["受击反伤 +15%", "护盾上限 +20", "受击 25% 概率震波（范围伤害）"],
+    apply: (r) => {
+      if (r === 1) { G.thorns += 0.15; }
+      else if (r === 2) { G.shieldMax += 20; }
+      else { G.gemFx.quake = 0.25; }
+    } },
 ];
-const EXCLUSIVE_BY_ID = Object.fromEntries(EXCLUSIVES.map((x) => [x.id, x]));
+const GEM_BY_ID = Object.fromEntries(GEMS.map((g) => [g.id, g]));
 
 // 寻常装备：只有普通攻击/属性效果，胜在便宜、随取随用
 const ORDINARIES = [
@@ -368,18 +452,23 @@ const ORDINARIES = [
 ];
 const ORDINARY_BY_ID = Object.fromEntries(ORDINARIES.map((o) => [o.id, o]));
 
-function crystalTotal() {
-  return ELEM_KEYS.reduce((s, k) => s + (G.crystals[k] || 0), 0);
+// 当前角色的三系专属灵石
+function stonesOf(charId) { return CHAR_STONES[charId || G.charId] || CHAR_STONES.sword; }
+function stoneKeys() { return stonesOf().map((s) => s.key); }
+function stoneTotal() {
+  const st = G.stones || {};
+  return stoneKeys().reduce((s, k) => s + (st[k] || 0), 0);
 }
+function stoneAt(key) { return (G.stones && G.stones[key]) || 0; }
+function gemsOf(charId) { return GEMS.filter((g) => g.char === (charId || G.charId)); }
+function gemSlotsUsed() { return Object.keys(G.gems || {}).length; }
 function waveElemKey() {
   return ELEMENTS[(Math.max(1, G.wave) - 1) % ELEMENTS.length].key;
 }
-// 掉落属性：偏向当前波属性，但其余五行也会零星出现 ⇒ 天然逼出取舍
-function randElem() {
-  const wk = waveElemKey();
-  if (Math.random() < ELEM_BIAS) return wk;
-  const rest = ELEM_KEYS.filter((k) => k !== wk);
-  return rest[Math.floor(Math.random() * rest.length)];
+// 三系均分掉落 —— 天生不让你三系通吃；想专精，得靠妖王「精魄」自己偏过去
+function randStone() {
+  const ks = stoneKeys();
+  return ks[Math.floor(Math.random() * ks.length)];
 }
 
 // ---------- 五行相生相克 ----------
@@ -402,12 +491,15 @@ function elemRelation(atkElem, defElem) {
   if (ELEM_GENERATE[atkElem] === defElem) return REL_DRAIN;
   return REL_SAME;
 }
-// 多件专属时取「最优那一行」；若全是被克，就老实吃下减益
+// 多颗宝石时取「最优那一行」；若全是被克，就老实吃下减益
+// 五行由「流派宝石」的灵石属性决定，通用装备不参与
 function bestElemRelation(defElem) {
-  if (!G.forged || !G.forged.length || !defElem) return REL_SAME;
+  if (!defElem) return REL_SAME;
+  const ids = Object.keys(G.gems || {});
+  if (!ids.length) return REL_SAME;
   let best = null;
-  for (const id of G.forged) {
-    const d = EXCLUSIVE_BY_ID[id];
+  for (const id of ids) {
+    const d = GEM_BY_ID[id];
     if (!d) continue;
     const r = elemRelation(d.elem, defElem);
     if (!best || r.mul > best.mul) best = r;
@@ -869,9 +961,10 @@ const G = {
   // 法宝 & 灵兽
   relics: [], pendingRelic: 0, beast: null,
   burnMul: 1, thunderProc: 0,
-  // 五行灵晶 & 铸器（专属 × 寻常 的岔路）
-  crystals: { jin: 0, mu: 0, shui: 0, huo: 0, tu: 0 },
-  forged: [], ordinary: [], forgeFx: {}, pendingEssence: 0,
+  // 角色专属灵石 & 流派宝石（三系择二的岔路）
+  stones: { chifeng: 0, jifeng: 0, xuesha: 0 },
+  gems: {}, ordinary: [], gemFx: {}, pendingEssence: 0,
+  meltCount: 0, hasteT: 0, regenT: 0,
 };
 
 function resetRun(charId) {
@@ -913,9 +1006,10 @@ function resetRun(charId) {
   G.jobStage = 0; G.jobPath = null; G.jobBranches = {};
   G.relics = []; G.pendingRelic = 0; G.beast = null;
   G.burnMul = 1; G.thunderProc = 0;
-  G.crystals = { jin: 0, mu: 0, shui: 0, huo: 0, tu: 0 };
-  G.forged = []; G.ordinary = []; G.forgeFx = {}; G.pendingEssence = 0;
-  G.meltCount = 0;
+  G.stones = {};
+  for (const k of stoneKeys()) G.stones[k] = 0;
+  G.gems = {}; G.ordinary = []; G.gemFx = {}; G.pendingEssence = 0;
+  G.meltCount = 0; G.hasteT = 0; G.regenT = 0;
   G._forgeHinted = false;
   initNodes();
   G.weapons = {
@@ -1442,104 +1536,143 @@ function resolvePendingModal() {
   }
 }
 
-// ---------- 铸器台：专属 × 寻常 的岔路 ----------
-function crystalHudSync() {
-  if (!ui.crystalRow) return;
-  const total = crystalTotal();
-  if (total <= 0) { ui.crystalRow.classList.add("hidden"); return; }
-  ui.crystalRow.classList.remove("hidden");
-  ui.crystalRow.innerHTML = "";
-  for (const el of ELEMENTS) {
-    const n = G.crystals[el.key] || 0;
-    if (n <= 0) continue;
+// ---------- 炼宝台：专属灵石 → 流派宝石 / 通用装备 ----------
+function stoneHudSync() {
+  if (!ui.stoneRow) return;
+  ui.stoneRow.classList.remove("hidden");
+  ui.stoneRow.innerHTML = "";
+  const hot = nextGemStoneKey();
+  for (const st of stonesOf()) {
+    const n = stoneAt(st.key);
     const chip = document.createElement("span");
-    chip.className = "crystal-chip";
-    chip.style.setProperty("--cc", el.color);
-    chip.innerHTML = `<b>${el.ico}</b><i>${n}</i>`;
-    ui.crystalRow.appendChild(chip);
+    chip.className = "stone-chip" + (n > 0 ? " has" : " empty") + (st.key === hot ? " hot" : "");
+    chip.style.setProperty("--cc", st.color);
+    chip.innerHTML = `<b>${st.ico}</b><i>${n}</i>`;
+    ui.stoneRow.appendChild(chip);
   }
 }
 
-function canForgeExclusive(def) { return (G.crystals[def.elem] || 0) >= EXCLUSIVE_COST; }
+// 一颗宝石的当前进度（下一阶配方 / 主石存量 / 能否凝成）
+function gemProgress(def) {
+  const r = G.gems[def.id] || 0;
+  const tier = r >= 3 ? null : GEM_TIERS[r];
+  const main = stoneAt(def.stone);
+  return { r, tier, main, ratio: tier ? Math.min(1, main / tier.main) : 1 };
+}
+// 最接近凝成的那一系 —— 给 HUD 灵石芯片点个灯，省得玩家自己数
+function nextGemStoneKey() {
+  let best = null, bestRatio = -1;
+  for (const def of gemsOf()) {
+    const p = gemProgress(def);
+    if (p.r >= 3) continue;
+    if (p.r === 0 && gemSlotsUsed() >= MAX_GEMS) continue;
+    if (p.ratio > bestRatio) { bestRatio = p.ratio; best = def.stone; }
+  }
+  return best;
+}
+function canCraft(def) {
+  const r = G.gems[def.id] || 0;
+  if (r >= 3) return false;
+  if (r === 0 && gemSlotsUsed() >= MAX_GEMS) return false;
+  const t = GEM_TIERS[r];
+  return stoneAt(def.stone) >= t.main && stoneTotal() >= t.main + t.any;
+}
+function gemsMaxed() {
+  const ids = Object.keys(G.gems || {});
+  return ids.length >= MAX_GEMS && ids.every((id) => (G.gems[id] || 0) >= 3);
+}
 function canMelt() {
-  return G.forged.length >= MAX_EXCLUSIVE && G.ordinary.length >= MAX_ORDINARY &&
-    crystalTotal() >= MELT_COST;
+  return gemsMaxed() && G.ordinary.length >= MAX_ORDINARY && stoneTotal() >= MELT_COST;
 }
 function forgeableAny() {
-  if (G.forged.length < MAX_EXCLUSIVE && EXCLUSIVES.some(canForgeExclusive)) return true;
-  if (G.ordinary.length < MAX_ORDINARY && crystalTotal() >= ORDINARY_COST) return true;
+  if (gemsOf().some(canCraft)) return true;
+  if (G.ordinary.length < MAX_ORDINARY && stoneTotal() >= ORDINARY_COST) return true;
   return canMelt();
 }
 
 function forgeBtnSync() {
   if (!ui.forgeBtn) return;
-  ui.forgeBtnCount.textContent = crystalTotal();
+  ui.forgeBtnCount.textContent = stoneTotal();
   ui.forgeBtn.classList.toggle("ready", forgeableAny());
 }
 
 function forgeHintCheck() {
   if (G._forgeHinted || !forgeableAny()) return;
   G._forgeHinted = true;
-  if (G.state === "play") toast("灵晶已足 · 可开铸器台", "gold");
+  if (G.state === "play") toast("灵石已足 · 可开炼宝台", "gold");
 }
 
-// 花灵晶：优先从最少的一堆里取，尽量不拆散攒专属的进度
-function spendCrystals(n) {
-  const order = ELEM_KEYS.slice().sort((a, b) => (G.crystals[a] || 0) - (G.crystals[b] || 0));
+// 花灵石：先掏散料者，主石留到最后 —— 尽量不拆散你正在攒的那一系
+function spendStones(n, exceptKey) {
+  const order = stoneKeys().slice().sort((a, b) => {
+    const ea = a === exceptKey ? 1 : 0, eb = b === exceptKey ? 1 : 0;
+    if (ea !== eb) return ea - eb;
+    return stoneAt(a) - stoneAt(b);
+  });
   let left = n;
   for (const k of order) {
     if (left <= 0) break;
-    const take = Math.min(G.crystals[k] || 0, left);
-    G.crystals[k] -= take;
+    const take = Math.min(stoneAt(k), left);
+    G.stones[k] -= take;
     left -= take;
   }
   return left === 0;
 }
 
 function renderForge() {
-  if (ui.forgeCrystals) {
-    ui.forgeCrystals.innerHTML = "";
-    for (const el of ELEMENTS) {
-      const n = G.crystals[el.key] || 0;
+  // 灵石库存（本角色三系）
+  if (ui.forgeStones) {
+    ui.forgeStones.innerHTML = "";
+    for (const st of stonesOf()) {
+      const n = stoneAt(st.key);
       const chip = document.createElement("span");
       chip.className = "forge-crystal" + (n > 0 ? " has" : "");
-      chip.style.setProperty("--cc", el.color);
-      chip.innerHTML = `<b>${el.name}</b><i>${n}</i>`;
-      ui.forgeCrystals.appendChild(chip);
+      chip.style.setProperty("--cc", st.color);
+      chip.innerHTML = `<b>${st.ico} ${st.name}</b><i>${n}</i>`;
+      ui.forgeStones.appendChild(chip);
     }
   }
-  if (ui.forgeExclCount) ui.forgeExclCount.textContent = `${G.forged.length}/${MAX_EXCLUSIVE}`;
+  if (ui.forgeGemCount) ui.forgeGemCount.textContent = `${gemSlotsUsed()}/${MAX_GEMS}`;
   if (ui.forgeOrdCount) ui.forgeOrdCount.textContent = `${G.ordinary.length}/${MAX_ORDINARY}`;
 
-  if (ui.forgeExclusive) {
-    ui.forgeExclusive.innerHTML = "";
-    const full = G.forged.length >= MAX_EXCLUSIVE;
-    for (const def of EXCLUSIVES) {
-      const owned = G.forged.includes(def.id);
-      const el = ELEM_BY_KEY[def.elem];
-      const have = G.crystals[def.elem] || 0;
-      const disabled = owned || full || have < EXCLUSIVE_COST;
+  // 流派宝石：三系各一颗，可逐阶凝练；槽位只有两个
+  if (ui.forgeGems) {
+    ui.forgeGems.innerHTML = "";
+    const slotsFull = gemSlotsUsed() >= MAX_GEMS;
+    for (const def of gemsOf()) {
+      const p = gemProgress(def);
+      const maxed = p.r >= 3;
+      const blocked = !maxed && p.r === 0 && slotsFull;
+      const ready = canCraft(def);
+      const disabled = maxed || blocked || !ready;
+      const st = STONE_BY_KEY[def.stone];
+      const nextLabel = p.r === 0 ? "初凝" : p.r === 1 ? "化形" : "圆满";
+      const pips = [1, 2, 3].map((i) => `<i class="gp${p.r >= i ? " on" : ""}"></i>`).join("");
       const btn = document.createElement("button");
       btn.type = "button";
-      btn.className = "forge-item f-excl tier-xian" + (owned ? " owned" : disabled ? " disabled" : " can");
+      btn.className = "forge-item f-excl tier-xian" + (maxed ? " owned" : disabled ? " disabled" : " can");
       btn.style.setProperty("--fc", def.color);
       btn.innerHTML = `
         <span class="fi-ico">${def.ico}</span>
         <span class="fi-body">
-          <span class="fi-name">${def.name}<em>专属</em><em class="el" style="color:${def.color}">${el.name}行</em></span>
-          <span class="fi-desc">${def.desc}</span>
+          <span class="fi-name">${def.name}<em>${def.school}</em><em class="el" style="color:${def.color}">${ELEM_BY_KEY[def.elem].name}行</em></span>
+          <span class="fi-pips">${pips}<b>${maxed ? "圆满" : p.r > 0 ? nextLabel : "未凝"}</b></span>
+          <span class="fi-desc">${maxed ? "已达圆满 · 效果恒定" : def.tierText[p.r]}</span>
           <span class="fi-desc rel">${elemMatchText(def.elem)}</span>
         </span>
-        <span class="fi-cost">${owned ? "已铸" : `${el.name}晶 ${have}/${EXCLUSIVE_COST}`}</span>`;
-      if (!disabled) btn.addEventListener("click", () => forgeExclusive(def.id));
-      ui.forgeExclusive.appendChild(btn);
+        <span class="fi-cost">${maxed ? "圆满"
+          : blocked ? `需空出流派位`
+          : `主石 ${st.name} ${p.main}/${GEM_TIERS[p.r].main}${GEM_TIERS[p.r].any ? ` · 配 ${GEM_TIERS[p.r].any}` : ""}`}</span>`;
+      if (!disabled) btn.addEventListener("click", () => craftGem(def.id));
+      ui.forgeGems.appendChild(btn);
     }
   }
 
+  // 通用装备：只给普通数值效果，胜在便宜
   if (ui.forgeOrdinary) {
     ui.forgeOrdinary.innerHTML = "";
     const full = G.ordinary.length >= MAX_ORDINARY;
-    const total = crystalTotal();
+    const total = stoneTotal();
     for (const def of ORDINARIES) {
       const disabled = full || total < ORDINARY_COST;
       const btn = document.createElement("button");
@@ -1549,22 +1682,22 @@ function renderForge() {
       btn.innerHTML = `
         <span class="fi-ico">${def.ico}</span>
         <span class="fi-body">
-          <span class="fi-name">${def.name}<em class="ord">寻常</em></span>
+          <span class="fi-name">${def.name}<em class="ord">通用</em></span>
           <span class="fi-desc">${def.desc}</span>
         </span>
-        <span class="fi-cost">灵晶 ${ORDINARY_COST}</span>`;
+        <span class="fi-cost">灵石 ${ORDINARY_COST}</span>`;
       if (!disabled) btn.addEventListener("click", () => forgeOrdinary(def.id));
       ui.forgeOrdinary.appendChild(btn);
     }
   }
 
-  // 熔晶淬体：两处皆满才出现
+  // 灵石淬体：宝石与通用皆满才出现
   if (ui.forgeMelt) {
-    const open = G.forged.length >= MAX_EXCLUSIVE && G.ordinary.length >= MAX_ORDINARY;
+    const open = gemsMaxed() && G.ordinary.length >= MAX_ORDINARY;
     if (ui.forgeMeltWrap) ui.forgeMeltWrap.classList.toggle("hidden", !open);
     ui.forgeMelt.innerHTML = "";
     if (open) {
-      const can = crystalTotal() >= MELT_COST;
+      const can = stoneTotal() >= MELT_COST;
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "forge-item f-melt tier-ling" + (can ? " can" : " disabled");
@@ -1572,58 +1705,66 @@ function renderForge() {
       btn.innerHTML = `
         <span class="fi-ico">淬</span>
         <span class="fi-body">
-          <span class="fi-name">熔晶淬体<em class="ord">循环</em></span>
+          <span class="fi-name">灵石淬体<em class="ord">循环</em></span>
           <span class="fi-desc">攻击 +2% · 护盾上限 +8 并回复（可重复）</span>
         </span>
-        <span class="fi-cost">灵晶 ${MELT_COST}${G.meltCount ? ` · 已淬 ${G.meltCount}` : ""}</span>`;
-      if (can) btn.addEventListener("click", meltCrystals);
+        <span class="fi-cost">灵石 ${MELT_COST}${G.meltCount ? ` · 已淬 ${G.meltCount}` : ""}</span>`;
+      if (can) btn.addEventListener("click", meltStones);
       ui.forgeMelt.appendChild(btn);
     }
   }
 }
 
-function forgeExclusive(id) {
-  const def = EXCLUSIVE_BY_ID[id];
-  if (!def) return;
-  if (G.forged.includes(id)) { toast("此宝已铸"); return; }
-  if (G.forged.length >= MAX_EXCLUSIVE) { toast("专属之位数已满"); return; }
-  if ((G.crystals[def.elem] || 0) < EXCLUSIVE_COST) { toast("灵晶不足"); return; }
-  G.crystals[def.elem] -= EXCLUSIVE_COST;
-  G.forged.push(id);
-  def.apply();
-  burst(G.px, G.py, def.color, 30, 230, 5);
-  G.goldFlash = Math.max(G.goldFlash || 0, 0.5);
-  G.shake = Math.max(G.shake, 8);
+// 凝练：主石决定是哪一系，配料决定能到哪一阶
+function craftGem(id) {
+  const def = GEM_BY_ID[id];
+  if (!def || def.char !== G.charId) return;
+  const cur = G.gems[id] || 0;
+  const st = STONE_BY_KEY[def.stone];
+  if (cur >= 3) { toast("此宝已至圆满"); return; }
+  if (cur === 0 && gemSlotsUsed() >= MAX_GEMS) { toast(`流派之位数已满（${MAX_GEMS} 席）`); return; }
+  const t = GEM_TIERS[cur];
+  if (stoneAt(def.stone) < t.main) { toast(`${st.name}不足`); return; }
+  if (stoneTotal() < t.main + t.any) { toast("灵石不足"); return; }
+  G.stones[def.stone] -= t.main;
+  if (t.any > 0) spendStones(t.any, def.stone);
+  const nr = cur + 1;
+  G.gems[id] = nr;
+  def.apply(nr);
+  burst(G.px, G.py, def.color, 22 + nr * 8, 190 + nr * 30, 4 + nr);
+  G.goldFlash = Math.max(G.goldFlash || 0, 0.35 + nr * 0.12);
+  G.shake = Math.max(G.shake, 6 + nr * 2);
+  spawnFloater(G.px, G.py - G.pr - 22, `${def.name} · ${GEM_TIERS[nr - 1].label}`, def.color, nr >= 3 ? 20 : 16, true);
   AudioSys.level();
-  toast(`铸成专属 · ${def.name}`, "gold");
-  crystalHudSync(); forgeBtnSync(); renderForge(); refreshWeaponHint();
+  toast(`凝成 · ${def.name}（${GEM_TIERS[nr - 1].label}）`, "gold");
+  stoneHudSync(); forgeBtnSync(); renderForge(); refreshWeaponHint();
 }
 
 function forgeOrdinary(id) {
   const def = ORDINARY_BY_ID[id];
   if (!def) return;
-  if (G.ordinary.length >= MAX_ORDINARY) { toast("寻常之位数已满"); return; }
-  if (!spendCrystals(ORDINARY_COST)) { toast("灵晶不足"); return; }
+  if (G.ordinary.length >= MAX_ORDINARY) { toast("通用之位数已满"); return; }
+  if (!spendStones(ORDINARY_COST)) { toast("灵石不足"); return; }
   G.ordinary.push(id);
   def.apply();
   burst(G.px, G.py, "#dfe6ef", 16, 170, 4);
   AudioSys.buy();
-  toast(`制成寻常 · ${def.name}`, "cyan");
-  crystalHudSync(); forgeBtnSync(); renderForge(); refreshWeaponHint();
+  toast(`制成通用 · ${def.name}`, "cyan");
+  stoneHudSync(); forgeBtnSync(); renderForge(); refreshWeaponHint();
 }
 
-// 两处皆满后的去处：把富余灵晶熔进肉身，换一点永久强度（收益明显低于专属）
-function meltCrystals() {
-  if (G.forged.length < MAX_EXCLUSIVE || G.ordinary.length < MAX_ORDINARY) { toast("先铸满专属与寻常"); return; }
-  if (!spendCrystals(MELT_COST)) { toast("灵晶不足"); return; }
+// 宝石与通用皆满后的去处：把富余灵石淬进肉身（收益明显低于宝石）
+function meltStones() {
+  if (!gemsMaxed() || G.ordinary.length < MAX_ORDINARY) { toast("先凝满宝石与通用装备"); return; }
+  if (!spendStones(MELT_COST)) { toast("灵石不足"); return; }
   G.atk *= 1.02;
   G.shieldMax += 8;
   G.shield = Math.min(G.shieldMax, G.shield + 8);
   G.meltCount = (G.meltCount || 0) + 1;
   burst(G.px, G.py, "#5ce1e6", 12, 150, 3);
   AudioSys.buy();
-  toast("熔晶淬体 · 攻击 +2% · 护盾 +8", "cyan");
-  crystalHudSync(); forgeBtnSync(); renderForge(); refreshWeaponHint();
+  toast("灵石淬体 · 攻击 +2% · 护盾 +8", "cyan");
+  stoneHudSync(); forgeBtnSync(); renderForge(); refreshWeaponHint();
 }
 
 function openForge() {
@@ -1642,32 +1783,32 @@ function closeForge() {
   resolvePendingModal();
 }
 
-// 妖王灵髓：五行择一，直接得 3 颗
+// 妖王精魄：本角色三系择一，直接得 2 颗 —— 全流程最重的那个决策点
 function openEssenceModal() {
   G.state = "job";
   const weNow = ELEM_BY_KEY[waveElemKey()];
-  ui.jobTitle.textContent = "五行灵髓";
-  ui.jobSub.textContent = `择一行而取 · 每行灵晶 ×${ESSENCE_GAIN} · 当前 ${weNow.name}行妖潮`;
+  ui.jobTitle.textContent = "灵石精魄";
+  ui.jobSub.textContent = `本命三系择一 · 每系专属灵石 ×${ESSENCE_GAIN} · 当前 ${weNow.name}行妖潮`;
   ui.jobChoices.innerHTML = "";
-  for (const el of ELEMENTS) {
-    const ex = EXCLUSIVES.find((x) => x.elem === el.key);
+  for (const st of stonesOf()) {
+    const gem = gemsOf().find((g) => g.stone === st.key);
     const btn = document.createElement("button");
     btn.className = "choice-btn rare";
     btn.innerHTML = `
-      <div class="choice-ico tier-xian">${el.ico}</div>
+      <div class="choice-ico tier-xian" style="color:${st.color}">${st.ico}</div>
       <div class="choice-body">
-        <span class="c-tag tier-xian">${el.name}行 · 灵髓</span>
-        <span class="c-name">${el.name}晶 ×${ESSENCE_GAIN}</span>
-        <span class="c-desc">${el.attrs} · 铸「${ex.name}」 · ${elemMatchText(el.key)}</span>
+        <span class="c-tag tier-xian">${st.attrs}系 · 精魄</span>
+        <span class="c-name">${st.name} ×${ESSENCE_GAIN}</span>
+        <span class="c-desc">凝「${gem.name}」 · ${elemMatchText(st.elem)}</span>
       </div>`;
     btn.addEventListener("click", () => {
-      G.crystals[el.key] = (G.crystals[el.key] || 0) + ESSENCE_GAIN;
-      burst(G.px, G.py, el.color, 26, 210, 4);
+      G.stones[st.key] = stoneAt(st.key) + ESSENCE_GAIN;
+      burst(G.px, G.py, st.color, 26, 210, 4);
       AudioSys.level();
-      toast(`${el.name}晶 +${ESSENCE_GAIN}`, "gold");
+      toast(`${st.name} +${ESSENCE_GAIN}`, "gold");
       ui.jobModal.classList.add("hidden");
       G.state = "play";
-      crystalHudSync(); forgeBtnSync(); forgeHintCheck();
+      stoneHudSync(); forgeBtnSync(); forgeHintCheck();
       resolvePendingModal();
     });
     ui.jobChoices.appendChild(btn);
@@ -1796,9 +1937,23 @@ function hitStop(ms) {
   G.hitStop = Math.max(G.hitStop, ms / 1000);
 }
 
+// 震波：把周围妖物推开一点（磐石/铁骨的圆满效果用）
+function knockEnemies(cx, cy, radius, force) {
+  for (const e of G.enemies) {
+    if (e.dead || e.boss) continue;
+    const d = dist(cx, cy, e.x, e.y);
+    if (d < radius && d > 0.01) {
+      const f = force * (1 - d / radius);
+      e.x += ((e.x - cx) / d) * f;
+      e.y += ((e.y - cy) / d) * f;
+    }
+  }
+}
+
 function damagePlayer(amount) {
   if (G.dashIFrame > 0 || G.invuln > 0) return;
   amount *= (G.nodeDmgTakenMul || 1) * (G.dmgTakenMul || 1);   // 玄冰剑阵 / 转职：减伤
+  const hadShield = G.shield > 0;
   if (G.shield > 0) {
     const abs = Math.min(G.shield, amount);
     G.shield -= abs;
@@ -1811,12 +1966,32 @@ function damagePlayer(amount) {
       });
     }
   }
+  // 铁骨圆满：护盾被击碎时爆发冲击波
+  if (hadShield && G.shield <= 0 && G.gemFx.shieldBreak) {
+    burst(G.px, G.py, "#cbd5e1", 26, 240, 5);
+    G.shake = Math.max(G.shake, 7);
+    for (const e of G.enemies) {
+      if (e.dead) continue;
+      if (dist(e.x, e.y, G.px, G.py) < 150) applyHit(e, G.atk * 1.4 * playerDamageMult());
+    }
+    knockEnemies(G.px, G.py, 150, 90);
+    toast("护盾碎裂 · 冲击波外放", "cyan");
+  }
   if (amount <= 0) return;
   G.hp -= amount;
   G.playerHurt = 0.18;
   G.flash = 0.15;
   G.shake = Math.min(10, G.shake + amount * 0.08);
   AudioSys.hurt();
+  // 磐石圆满：受击有概率爆出震波
+  if (G.gemFx.quake && Math.random() < G.gemFx.quake) {
+    burst(G.px, G.py, "#d6a86a", 20, 200, 4);
+    for (const e of G.enemies) {
+      if (e.dead) continue;
+      if (dist(e.x, e.y, G.px, G.py) < 130) applyHit(e, G.atk * playerDamageMult());
+    }
+    knockEnemies(G.px, G.py, 130, 70);
+  }
   spawnFloater(G.px, G.py - G.pr - 8, `-${Math.round(amount)}`, "#f87171", 14);
   // thorns
   if (G.thorns > 0) {
@@ -1833,9 +2008,17 @@ function damagePlayer(amount) {
   if (G.hp <= 0) { G.hp = 0; endRun(); }
 }
 
+// 御风圆满：御风之后短时间攻速大涨
+function atkSpeedNow() {
+  const h = (G.gemFx && G.gemFx.dashHaste && G.hasteT > 0) ? 1 + G.gemFx.dashHaste : 1;
+  return G.atkSpeed * h;
+}
+
 function playerDamageMult() {
   let m = 1;
   if (G.hp < G.hpMax * 0.4) m += G.lowHpBonus;
+  // 龙血流：气血低于 45% 时狂化
+  if (G.gemFx && G.gemFx.rage && G.hp < G.hpMax * 0.45) m += 0.25;
   // 剑阵：站在阵上吃阵法增益，升级「阵心通明」再叠一层
   m *= (G.nodeAtkMul || 1);
   if (G.nodeActive) m *= (1 + (G.nodeBonus || 0));
@@ -1868,20 +2051,20 @@ function killEnemy(e, byPlayer = true) {
   if (e.boss) {
     dropPickup(e.x, e.y, "boss");
     dropPickup(e.x + rand(-26, 26), e.y + rand(-26, 26), "relic");
-    // 妖王陨落凝出「五行灵髓」——拾取后自选一行，是铸器路线的关键决策
+    // 妖王陨落凝出「灵石精魄」——拾取后本命三系自选一系，是全流程最重的决策
     dropPickup(e.x + rand(-34, 34), e.y + rand(-34, 34), "essence");
     for (let i = 0; i < DROP_BOSS; i++) {
-      dropPickup(e.x + rand(-46, 46), e.y + rand(-46, 46), "crystal", { elem: randElem() });
+      dropPickup(e.x + rand(-46, 46), e.y + rand(-46, 46), "stone", { stone: randStone() });
     }
   } else if (e.elite) {
     dropPickup(e.x, e.y, "elite");
     if (Math.random() < 0.12) dropPickup(e.x + rand(-20, 20), e.y + rand(-20, 20), "relic");
     for (let i = 0; i < DROP_ELITE; i++) {
-      dropPickup(e.x + rand(-26, 26), e.y + rand(-26, 26), "crystal", { elem: randElem() });
+      dropPickup(e.x + rand(-26, 26), e.y + rand(-26, 26), "stone", { stone: randStone() });
     }
   } else {
     if (Math.random() < 0.04) dropPickup(e.x, e.y, "orb");
-    if (Math.random() < DROP_MOB) dropPickup(e.x, e.y, "crystal", { elem: randElem() });
+    if (Math.random() < DROP_MOB) dropPickup(e.x, e.y, "stone", { stone: randStone() });
   }
   // 雷音铃：击杀概率落雷（限深度，避免连锁递归）
   if (G.thunderProc > 0 && (G._thunderChain || 0) < 3 && Math.random() < G.thunderProc) {
@@ -1950,8 +2133,8 @@ function dropPickup(x, y, kind, data) {
   const big = kind === "boss" || kind === "relic" || kind === "essence";
   const p = {
     x, y, kind,
-    r: big ? 14 : kind === "crystal" ? 9 : 10,
-    life: kind === "crystal" ? 26 : 20,
+    r: big ? 14 : kind === "stone" ? 9 : 10,
+    life: kind === "stone" ? 26 : 20,
     bob: rand(0, TAU),
   };
   if (data) Object.assign(p, data);
@@ -1964,12 +2147,12 @@ function collectPickup(p) {
     G.mp = Math.min(G.mpMax, G.mp + 12);
     spawnFloater(p.x, p.y, "灵息", "#5ce1e6", 12);
     AudioSys.hit();
-  } else if (p.kind === "crystal") {
-    const el = ELEM_BY_KEY[p.elem] || ELEMENTS[0];
-    G.crystals[el.key] = (G.crystals[el.key] || 0) + 1;
-    spawnFloater(p.x, p.y - 6, `${el.name}晶 +1`, el.color, 11);
-    burst(p.x, p.y, el.color, 5, 90, 2);
-    crystalHudSync();
+  } else if (p.kind === "stone") {
+    const st = STONE_BY_KEY[p.stone] || stonesOf()[0];
+    G.stones[st.key] = stoneAt(st.key) + 1;
+    spawnFloater(p.x, p.y - 6, `${st.name} +1`, st.color, 11);
+    burst(p.x, p.y, st.color, 5, 90, 2);
+    stoneHudSync();
     forgeHintCheck();
     AudioSys.hit();
   } else if (p.kind === "elite") {
@@ -1989,7 +2172,7 @@ function collectPickup(p) {
     if (G.state === "play") openRelicModal();
     else G.pendingRelic = (G.pendingRelic || 0) + 1;
   } else if (p.kind === "essence") {
-    toast("妖王灵髓 · 择一行而取之", "gold");
+    toast("妖王精魄 · 择一系而取之", "gold");
     burst(p.x, p.y, "#f0c14b", 26, 220, 4);
     AudioSys.level();
     if (G.state === "play") openEssenceModal();
@@ -2003,34 +2186,34 @@ function collectPickup(p) {
   }
 }
 
-// 专属装备的「特殊攻击效果」——寻常装备永远给不了这些
-function forgeOnHit(e, d) {
-  const fx = G.forgeFx;
+// 流派宝石的「特殊攻击效果」——通用装备永远给不了这些
+function gemOnHit(e, d) {
+  const fx = G.gemFx;
   if (!fx || e.dead) return;
-  // 火 · 焚天炎狱：必附灼烧
-  if (fx.burn) {
+  // 焚天流：必附灼烧 / 概率灼烧
+  if (fx.burn || (fx.burnChance && Math.random() < fx.burnChance)) {
     e.burn = Math.max(e.burn || 0, 2.2);
     e.burnDmg = Math.max(e.burnDmg || 0, d * 0.35);
   }
-  // 水 · 玄冰寒渊：减速 + 精英冰封
-  if (fx.frost) {
+  // 玄冰流：必附寒毒减速；精英另有几率冰封
+  if (fx.chill) {
     e.slow = Math.max(e.slow || 0, 1.5);
-    e.slowMul = Math.min(e.slowMul || 1, 0.5);
-    if ((e.elite || e.boss) && Math.random() < 0.12) {
-      e.slow = 1.5; e.slowMul = 0.12;
+    e.slowMul = Math.min(e.slowMul || 1, 0.55);
+    if ((e.elite || e.boss) && fx.freezeChance && Math.random() < fx.freezeChance) {
+      e.slow = 1.6; e.slowMul = 0.12;
       spawnFloater(e.x, e.y - e.r, "冰封", "#93c5fd", 12);
     }
   }
-  // 金 · 裂空金锋：剑气溅射（限深度，避免递归）
+  // 剑罡流：命中溅射剑气（限深度，避免递归）
   if (fx.cleave > 0 && (G._cleaveDepth || 0) < 1) {
     G._cleaveDepth = (G._cleaveDepth || 0) + 1;
     let n = 0;
     for (const e2 of G.enemies) {
       if (e2.dead || e2.id === e.id || n >= 2) continue;
-      if (dist(e.x, e.y, e2.x, e2.y) < 82) {
+      if (dist(e.x, e.y, e2.x, e2.y) < 96) {
         G.particles.push({
           x: e.x, y: e.y, vx: 0, vy: 0, life: 0.12, max: 0.12,
-          color: "#f1e9d2", size: 2, line: { x: e2.x, y: e2.y },
+          color: "#fde68a", size: 2, line: { x: e2.x, y: e2.y },
         });
         applyHit(e2, d * fx.cleave);
         n++;
@@ -2040,12 +2223,31 @@ function forgeOnHit(e, d) {
   }
 }
 
+// 血剑流：暴击时溅血爆裂（同样限深度）
+function gemOnCrit(e, d) {
+  const fx = G.gemFx;
+  if (!fx || !fx.critBurst || (G._critBurstDepth || 0) > 0 || e.dead) return;
+  G._critBurstDepth = 1;
+  let n = 0;
+  for (const e2 of G.enemies) {
+    if (e2.dead || e2.id === e.id || n >= 3) continue;
+    if (dist(e.x, e.y, e2.x, e2.y) < 74) {
+      burst(e2.x, e2.y, "#f87171", 5, 110, 2);
+      applyHit(e2, d * fx.critBurst);
+      n++;
+    }
+  }
+  G._critBurstDepth = 0;
+}
+
 function applyHit(e, dmg, opts = {}) {
   if (e.dead) return;
   let d = dmg;
-  // 五行相生相克：由已铸专属的五行决定，寻常装备不参与
+  // 五行相生相克：由已凝宝石的五行决定，通用装备不参与
   const rel = bestElemRelation(e.elem);
   if (rel.mul !== 1) d *= rel.mul;
+  // 玄冰圆满：已受寒毒影响者额外受伤
+  if (G.gemFx.deepFreeze && (e.slow || 0) > 0) d *= 1.25;
   const isCrit = Math.random() < G.crit;
   if (isCrit) {
     d *= G.critMul;
@@ -2056,7 +2258,8 @@ function applyHit(e, dmg, opts = {}) {
   e.flash = 0.1;
   if (opts.burn) { e.burn = opts.burn; e.burnDmg = opts.burnDmg; }
   if (opts.slow) { e.slow = opts.slow; e.slowMul = opts.slowMul || 0.55; }
-  forgeOnHit(e, d);   // 专属装备的特殊攻击效果
+  gemOnHit(e, d);                    // 流派宝石的特殊攻击效果
+  if (isCrit) gemOnCrit(e, d);       // 血剑流：暴击溅血爆裂
   // size by damage magnitude
   const mag = Math.min(1, Math.log10(1 + d) / 3.2);
   const size = isCrit ? 14 + mag * 8 : 11 + mag * 5;
@@ -2137,6 +2340,7 @@ function castSkill(idx) {
     G.dashCDLeft = G.dashCD;
     G.dashTimer = G.dashTime;
     G.dashIFrame = G.dashTime + 0.05;
+    if (G.gemFx.dashHaste) { G.hasteT = 3; spawnFloater(G.px, G.py - G.pr - 12, "御风 · 攻速涨", "#86efac", 12); }
     AudioSys.skill();
     burst(G.px, G.py, "#5ce1e6", 12, 100, 3);
   }
@@ -2157,7 +2361,7 @@ function updateWeapons(dt) {
   const w = G.weapons;
   // fire orb
   if (w.fire.lv > 0) {
-    w.fire.timer -= dt * (1 + w.fire.lv * 0.15) * G.atkSpeed * 0.5;
+    w.fire.timer -= dt * (1 + w.fire.lv * 0.15) * atkSpeedNow() * 0.5;
     if (w.fire.timer <= 0) {
       w.fire.timer = 1;
       const t = nearestEnemy(G.px, G.py);
@@ -2179,7 +2383,7 @@ function updateWeapons(dt) {
   }
   // frost bolt
   if (w.frost.lv > 0) {
-    w.frost.timer -= dt * (0.7 + w.frost.lv * 0.1) * G.atkSpeed * 0.4;
+    w.frost.timer -= dt * (0.7 + w.frost.lv * 0.1) * atkSpeedNow() * 0.4;
     if (w.frost.timer <= 0) {
       w.frost.timer = 1;
       const t = nearestEnemy(G.px, G.py);
@@ -2200,7 +2404,7 @@ function updateWeapons(dt) {
   }
   // lightning bolt (紫电)
   if (w.lightning.lv > 0) {
-    w.lightning.timer -= dt * (0.55 + w.lightning.lv * 0.1) * G.atkSpeed * 0.35;
+    w.lightning.timer -= dt * (0.55 + w.lightning.lv * 0.1) * atkSpeedNow() * 0.35;
     if (w.lightning.timer <= 0) {
       w.lightning.timer = 1;
       const t = nearestEnemy(G.px, G.py, 320);
@@ -2399,7 +2603,7 @@ function startRun(charId) {
   jobSyncHud(false);
   relicHudSync();
   beastHudSync();
-  crystalHudSync();
+  stoneHudSync();
   forgeBtnSync();
   toast(`${CHARS[id]?.name || "修士"} · 御剑清妖`);
   clearTimeout(startRun._hint);
@@ -2408,7 +2612,7 @@ function startRun(charId) {
   }, 2200);
   clearTimeout(startRun._hint2);
   startRun._hint2 = setTimeout(() => {
-    if (G.state === "play") toast("斩妖落灵晶 · 攒三同属可铸专属", "gold");
+    if (G.state === "play") toast("斩妖落灵石 · 攒本命一系可凝宝石", "gold");
   }, 5200);
 }
 
@@ -2478,10 +2682,21 @@ function update(dt) {
   G.aoeCDLeft = Math.max(0, G.aoeCDLeft - dt);
   G.dashCDLeft = Math.max(0, G.dashCDLeft - dt);
   G.mp = Math.min(G.mpMax, G.mp + G.mpRegen * dt);
-  // 专属装备：气血滋长 / 护盾再生
-  if (G.forgeFx.regen) G.hp = Math.min(G.hpMax, G.hp + G.forgeFx.regen * dt);
-  if (G.forgeFx.shieldRegen && G.shieldMax > 0) {
-    G.shield = Math.min(G.shieldMax, G.shield + G.forgeFx.shieldRegen * dt);
+  // 流派宝石：气血滋长 / 护盾再生 / 御风提速 / 龙血定期回复
+  G.hasteT = Math.max(0, G.hasteT - dt);
+  if (G.gemFx.regen) G.hp = Math.min(G.hpMax, G.hp + G.gemFx.regen * dt);
+  if (G.gemFx.shieldRegen && G.shieldMax > 0) {
+    G.shield = Math.min(G.shieldMax, G.shield + G.gemFx.shieldRegen * dt);
+  }
+  if (G.gemFx.regenPct) {
+    G.regenT += dt;
+    if (G.regenT >= 8) {
+      G.regenT -= 8;
+      const heal = G.hpMax * G.gemFx.regenPct;
+      G.hp = Math.min(G.hpMax, G.hp + heal);
+      spawnFloater(G.px, G.py - G.pr - 10, `+${Math.round(heal)}`, "#86efac", 12);
+      burst(G.px, G.py, "#86efac", 10, 120, 3);
+    }
   }
 
   // combo decay
@@ -2511,7 +2726,7 @@ function update(dt) {
   updateNodes(dt);
   updateBeasts(dt);
 
-  G.swordPhase += dt * (1.8 + G.atkSpeed * 0.5);
+  G.swordPhase += dt * (1.8 + atkSpeedNow() * 0.5);
   const orbitCount = G.swordCount;
   const orbitDmg = G.atk * 0.55 * playerDamageMult() * (G.weapons.orbit.evo ? 1.5 : 1) * (1 + G.weapons.orbit.lv * 0.05);
   for (let i = 0; i < orbitCount; i++) {
@@ -2527,7 +2742,7 @@ function update(dt) {
     }
   }
 
-  G.swordTimer -= dt * G.atkSpeed;
+  G.swordTimer -= dt * atkSpeedNow();
   if (G.swordTimer <= 0) {
     G.swordTimer = 1;
     fireSwordBolt();
@@ -2761,7 +2976,7 @@ function draw() {
         const b = w2s(G.px, G.py);
         let col = (p.kind === "boss" || p.kind === "relic" || p.kind === "essence") ? "251,191,36"
           : p.kind === "elite" ? "192,132,252" : "92,225,230";
-        if (p.kind === "crystal") col = hexRgb((ELEM_BY_KEY[p.elem] || ELEMENTS[0]).color);
+        if (p.kind === "stone") col = hexRgb((STONE_BY_KEY[p.stone] || stonesOf()[0]).color);
         const alpha = (1 - d / 90) * 0.35;
         ctx.strokeStyle = `rgba(${col},${alpha})`;
         ctx.lineWidth = 1.5;
@@ -2927,7 +3142,7 @@ function drawBackground(camX, camY) {
 
 const WORLD_PROPS = (() => {
   const list = [];
-  const kinds = ["rune", "crystal", "stele", "lantern"];
+  const kinds = ["rune", "stone", "stele", "lantern"];
   for (let i = 0; i < 14; i++) {
     const ang = (i / 14) * TAU + 0.35;
     const rad = 200 + (i % 5) * 70;
@@ -2966,7 +3181,7 @@ function drawWorldProps(camX, camY) {
       ctx.moveTo(-6 * s, -3 * s); ctx.lineTo(0, -7 * s); ctx.lineTo(6 * s, -3 * s);
       ctx.moveTo(0, -7 * s); ctx.lineTo(0, 6 * s);
       ctx.stroke();
-    } else if (p.kind === "crystal") {
+    } else if (p.kind === "stone") {
       const g = ctx.createLinearGradient(0, -18 * s, 0, 8 * s);
       g.addColorStop(0, "rgba(167,139,250,0.55)");
       g.addColorStop(1, "rgba(40,20,60,0.25)");
@@ -3657,13 +3872,13 @@ function drawPickup(p) {
   if (p.kind === "elite") col = "#c084fc";
   if (p.kind === "boss") col = "#fbbf24";
   if (p.kind === "relic") col = "#f0c14b";
-  if (p.kind === "crystal") col = (ELEM_BY_KEY[p.elem] || ELEMENTS[0]).color;
+  if (p.kind === "stone") col = (STONE_BY_KEY[p.stone] || stonesOf()[0]).color;
   if (p.kind === "essence") col = "#fde68a";
   const gold = p.kind === "boss" || p.kind === "relic" || p.kind === "essence";
 
   ctx.save();
   // quality light pillar for elite/boss/relic
-  if (p.kind !== "orb" && p.kind !== "crystal") {
+  if (p.kind !== "orb" && p.kind !== "stone") {
     const h = gold ? 72 : 48;
     const w = gold ? 18 : 12;
     const g = ctx.createLinearGradient(s.x, s.y + bobY - h, s.x, s.y + bobY);
@@ -3759,7 +3974,7 @@ function drawPickup(p) {
     return;
   }
 
-  if (p.kind === "crystal") {
+  if (p.kind === "stone") {
     // 五行灵晶：小颗菱形结晶
     const r = p.r * 1.05;
     ctx.rotate(Math.sin(p.bob * 0.6) * 0.25);
@@ -4027,6 +4242,7 @@ function renderChars() {
       <div class="char-meta">
         <span class="c-name">${c.name}</span>
         <span class="c-desc">${c.desc}</span>
+        <span class="c-stones">本命 · ${(CHAR_STONES[c.id] || []).map((s) => s.name).join(" / ")}</span>
       </div>`;
     btn.addEventListener("click", () => {
       const m = Meta.load();
@@ -4368,15 +4584,16 @@ window.__XTJ__ = {
   JOB_PATHS, JOB_LEVELS, JOB_STAGES, NODE_HOLD,
   openRelicModal, updateBeasts, spawnBeast, relicHudSync, beastHudSync, renderCodex, showCodex, hideCodex,
   ARTIFACTS, ARTIFACT_BY_ID, BEASTS, BEAST_BY_ID, MAX_RELICS,
-  ELEMENTS, ELEM_BY_KEY, EXCLUSIVES, EXCLUSIVE_BY_ID, ORDINARIES, ORDINARY_BY_ID,
-  EXCLUSIVE_COST, ORDINARY_COST, MAX_EXCLUSIVE, MAX_ORDINARY,
-  crystalTotal, crystalHudSync, forgeBtnSync, forgeableAny, canForgeExclusive, spendCrystals,
-  renderForge, openForge, closeForge, forgeExclusive, forgeOrdinary, openEssenceModal,
-  canMelt, meltCrystals, MELT_COST,
-  forgeOnHit,
+  ELEMENTS, ELEM_BY_KEY, ORDINARIES, ORDINARY_BY_ID, ORDINARY_COST, MAX_ORDINARY,
+  CHAR_STONES, STONE_BY_KEY, GEMS, GEM_BY_ID, GEM_TIERS, MAX_GEMS,
+  stonesOf, stoneKeys, stoneTotal, stoneAt, gemsOf, gemSlotsUsed, randStone,
+  stoneHudSync, forgeBtnSync, forgeableAny, canCraft, spendStones, gemProgress, nextGemStoneKey,
+  renderForge, openForge, closeForge, craftGem, forgeOrdinary, openEssenceModal,
+  gemsMaxed, canMelt, meltStones, MELT_COST,
+  gemOnHit, gemOnCrit, atkSpeedNow, knockEnemies, playerDamageMult,
   ELEM_OVERCOME, ELEM_GENERATE, elemRelation, bestElemRelation, elemMulVs, elemMatchText, waveElemKey,
   REL_BEAT, REL_LOSE, REL_FED, REL_DRAIN,
-  DROP_MOB, DROP_ELITE, DROP_BOSS, ESSENCE_GAIN, ELEM_BIAS, buildWave, updateWaves,
+  DROP_MOB, DROP_ELITE, DROP_BOSS, ESSENCE_GAIN, buildWave, updateWaves,
   applyHit, update,
   collectPickup, dropPickup, killEnemy, spawnEnemy, damagePlayer, updateHUD, ENEMY_TYPES,
 };

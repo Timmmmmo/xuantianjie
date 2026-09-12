@@ -518,9 +518,10 @@ const ITEM_TYPES = {
   lian:  { name: "紫金链", ico: "链" },
   fu:    { name: "驱邪符", ico: "符" },
 };
-// 词条库：9 派系词条 + 5 稀有词条
+// 词条库：v4.0 纯打装流 —— 每件装备 2-3 词条里至少 1 个是「技能词条」
+// 数值词条（已有）+ 技能词条（新增 SKILL_AFFIXES）
 const AFFIX_POOL = {
-  // 派系词条 —— 与 v2.0 派系核心联动
+  // —— 派系数值词条（保留）——
   huo_dmg:     { name: "赤锋·炎",  type: "派系", school: "赤锋", desc: "火伤 +12%" },
   mu_speed:    { name: "疾风·逸",  type: "派系", school: "疾风", desc: "移速 +8%" },
   shui_slow:   { name: "霜晶·凝",  type: "派系", school: "霜晶", desc: "命中减速 +10%" },
@@ -530,28 +531,52 @@ const AFFIX_POOL = {
   jin_thunder: { name: "雷灵·震",  type: "派系", school: "雷灵", desc: "雷伤 +25%" },
   huo_fire:    { name: "龙血·炎",  type: "派系", school: "龙血", desc: "受击火反伤 +15" },
   jin_iron:    { name: "玄铁·坚",  type: "派系", school: "玄铁", desc: "减伤 +8%" },
-  // 稀有词条 —— 紫装起出现
+  // —— 稀有数值词条（保留）——
   crit_pct:   { name: "锐利",  type: "稀有", desc: "暴击率 +5%" },
   haste_pct:  { name: "急速",  type: "稀有", desc: "急速 +8%" },
   lifesteal:  { name: "吸血",  type: "稀有", desc: "击杀回血 +2" },
   xp_bonus:   { name: "悟性",  type: "稀有", desc: "经验 +15%" },
   shield_max: { name: "护体",  type: "稀有", desc: "护盾上限 +15" },
+  // —— v4.0 新增：技能词条（每件装备 2-3 词条里至少带 1 个）——
+  // skill 字段定义技能形态；cd/cdMax 是主动技能 CD（秒）；passive=true 表示被动
+  sk_fire_jet:    { name: "炽焰喷射",  type: "技能", kind: "active",   cd: 4.0, ico: "喷", desc: "主动 J/K · 喷 6 道穿透火焰（攻击 ×180%）" },
+  sk_wind_step:   { name: "御风行步",  type: "技能", kind: "passive",  ico: "逸", desc: "被动 · 闪避后 1.5s 移速 +80%" },
+  sk_ice_prison:  { name: "玄冰囚笼",  type: "技能", kind: "passive",  ico: "囚", desc: "被动 · 击杀 30% 在死处 1.5s 冰冻圈" },
+  sk_stone_wall:  { name: "磐石壁垒",  type: "技能", kind: "passive",  ico: "壁", desc: "被动 · 每 8s 受击生 3s 石墙挡伤" },
+  sk_thunder:     { name: "落雷引线",  type: "技能", kind: "passive",  ico: "雷", desc: "被动 · 暴击时 30% 周围 3 敌人引雷" },
+  sk_sword_array: { name: "剑气护体",  type: "技能", kind: "active",   cd: 8.0,  ico: "阵", desc: "主动 J/K · 200 范围剑阵护体 6s" },
+  sk_blood_suck:  { name: "血煞噬魂",  type: "技能", kind: "passive",  ico: "噬", desc: "被动 · 击杀回 HP +15" },
+  sk_crit_burst:  { name: "暴击溅血",  type: "技能", kind: "passive",  ico: "暴", desc: "被动 · 暴击溅射 4 个目标 50% 伤害" },
+  sk_wind_shadow: { name: "疾风残影",  type: "技能", kind: "active",   cd: 6.0,  ico: "影", desc: "主动 J/K · 留 3s 残影吸引火力" },
+  sk_fire_burn:   { name: "朱雀灼烧",  type: "技能", kind: "passive",  ico: "灼", desc: "被动 · 命中 25% 灼烧目标 ×3" },
+  sk_iron_skin:   { name: "金刚铁皮",  type: "技能", kind: "passive",  ico: "铁", desc: "被动 · 受击 30% 概率完全免伤" },
+  sk_hp_regen:    { name: "生生不息",  type: "技能", kind: "passive",  ico: "生", desc: "被动 · 每 5s 回 HP +12" },
 };
 const AFFIX_BY_KEY = AFFIX_POOL;        // 别名（兼容旧引用）
 const AFFIX_KEYS = Object.keys(AFFIX_POOL);
 const RARE_AFFIX_KEYS = AFFIX_KEYS.filter((k) => AFFIX_POOL[k].type === "稀有");
+const SKILL_AFFIX_KEYS = AFFIX_KEYS.filter((k) => AFFIX_POOL[k].type === "技能");
+const ACTIVE_SKILL_KEYS = SKILL_AFFIX_KEYS.filter((k) => AFFIX_POOL[k].kind === "active");
+const PASSIVE_SKILL_KEYS = SKILL_AFFIX_KEYS.filter((k) => AFFIX_POOL[k].kind === "passive");
+const MAX_ACTIVE_SLOTS = 2;              // 玩家主动技能槽 2 个（J/K）
 
-// 生成装备：slot × tier × type × 词条
+// 生成装备：slot × tier × type × 词条（v4.0：紫+橙 至少 1 个技能词条）
 function makeEquip(slot, tier, opts = {}) {
   const slotDef = SLOT_DEFS[slot];
   const tierDef = TIERS[tier];
   const typeKey = opts.typeKey || slotDef.pool[Math.floor(Math.random() * slotDef.pool.length)];
   const typeDef = ITEM_TYPES[typeKey];
   const n = randInt(tierDef.affMin, tierDef.affMax);
-  // 词条池：紫装起至少 1 个稀有词条（保证稀有感）
+  // 词条池：v4.0 紫+橙 至少 1 个技能词条（被动 + 主动 随机）
   const used = new Set(opts.fixedAffixes || []);
   const affixes = [...(opts.fixedAffixes || [])];
-  // 紫+橙 起步补 1 稀有
+  // v4.0：紫+橙 起步带 1 技能词条（没有的话补）
+  if (tierDef.equipable && affixes.filter((a) => AFFIX_POOL[a].type === "技能").length === 0 && SKILL_AFFIX_KEYS.some((k) => !used.has(k))) {
+    const avail = SKILL_AFFIX_KEYS.filter((k) => !used.has(k));
+    const k = avail[Math.floor(Math.random() * avail.length)];
+    affixes.push(k); used.add(k);
+  }
+  // 紫+橙 起步补 1 稀有（数值）
   if (tierDef.equipable && affixes.filter((a) => AFFIX_POOL[a].type === "稀有").length === 0 && RARE_AFFIX_KEYS.some((k) => !used.has(k))) {
     const avail = RARE_AFFIX_KEYS.filter((k) => !used.has(k));
     const k = avail[Math.floor(Math.random() * avail.length)];
@@ -633,6 +658,88 @@ function equipRec() {
   G.shieldMax = (G._baseShieldMax || 0) + (G._eqCache.shield || 0);
   G.burnMul = (G._baseBurnMul || 1) * (G._eqCache.burnMul || 1);
   G.dmgTakenMul = Math.max(0.1, (G._baseDmgTaken || 1) + (G._eqCache.dmgTaken || 0));
+  // v4.0: 主动技能槽位同步
+  G.activeSkills = G._eqCache.activeSkillIds.slice();
+  G.passiveSkills = G._eqCache.passiveSkillIds.slice();
+  // 确保 cd 数组长度对齐
+  while (G.skillCD.length < G.activeSkills.length) G.skillCD.push(0);
+  while (G.skillCD.length > G.activeSkills.length) G.skillCD.pop();
+  // v4.0: 套装自动转职 —— 3 件同派系装备在槽位 ⇒ 自动设 G.jobPath = 同源道途 id
+  autoJobFromSet();
+}
+
+// v4.0 套装自动转职：本角色所有 9 套派系武器 3 件同派系 ⇒ 对应道途
+function autoJobFromSet() {
+  const schools = {};
+  for (const slot in G.equipped) {
+    const eq = G.equipped[slot];
+    if (!eq) continue;
+    const aff = (eq.affixes || []).find((a) => AFFIX_POOL[a] && AFFIX_POOL[a].school);
+    if (!aff) continue;
+    const sch = AFFIX_POOL[aff].school;
+    schools[sch] = (schools[sch] || 0) + 1;
+  }
+  // 找套数最多的派系
+  let bestSchool = null, bestN = 0;
+  for (const s in schools) if (schools[s] > bestN) { bestN = schools[s]; bestSchool = s; }
+  // 任意派系集齐 3 件 ⇒ 转职
+  if (bestN >= 3) {
+    const path = CHAR_TO_PATH[G.charId];
+    if (path && (!G.jobPath || G.jobPath !== path)) {
+      G.jobPath = path;
+      G.jobStage = 1;
+      jobSyncHud(true);
+      toast(`套装转职 · ${(JOB_PATHS.find((p) => p.id === path) || {}).name || "道途"}`, "gold");
+      burst(G.px, G.py, "#fde68a", 26, 240, 5);
+      AudioSys.level();
+    }
+    G._setBonus = (G._setBonus || 0) + 0;   // 占位扩展
+  }
+}
+const CHAR_TO_PATH = { sword: "sword", mage: "mage", body: "body" };   // 角色→对应道途
+
+// v4.0 装备主动技能触发
+function triggerEquipSkill(idx) {
+  if (idx < 0 || idx >= G.activeSkills.length) return false;
+  const id = G.activeSkills[idx];
+  const def = AFFIX_POOL[id];
+  if (!def || def.kind !== "active") return false;
+  if ((G.skillCD[idx] || 0) > 0) {
+    if (G._lastSklCDWarn !== id) { toast(`${def.name} · 冷却中（${G.skillCD[idx].toFixed(1)}s）`, "warn"); G._lastSklCDWarn = id; }
+    return false;
+  }
+  // 各技能的 effect
+  switch (id) {
+    case "sk_fire_jet": {    // 炽焰喷射：喷 6 道火焰穿透
+      const dmg = G.atk * 1.8 * playerDamageMult();
+      for (let i = 0; i < 6; i++) {
+        const ang = (i / 6) * TAU + (Math.random() - 0.5) * 0.2;
+        G.projectiles.push({ x: G.px, y: G.py, vx: Math.cos(ang) * 380, vy: Math.sin(ang) * 380,
+          life: 1.2, max: 1.2, pierce: 6, dmg, r: 8, color: "#fb923c", hitIds: new Set(), source: "sk_fire_jet" });
+      }
+      burst(G.px, G.py, "#fb923c", 18, 200, 4);
+      spawnFloater(G.px, G.py - G.pr - 16, def.name, "#fb923c", 13);
+      break;
+    }
+    case "sk_sword_array": { // 剑气护体：200 范围剑阵
+      G.shieldMax = Math.max(G.shieldMax, 60);
+      G.shield = Math.min(G.shieldMax, G.shield + 60);
+      burst(G.px, G.py, "#7dd3fc", 22, 240, 4);
+      spawnFloater(G.px, G.py - G.pr - 16, def.name + " · 护体", "#7dd3fc", 13);
+      // 6s 内增伤
+      G._swordArrayT = 6;
+      break;
+    }
+    case "sk_wind_shadow": { // 疾风残影：留 3s 残影
+      G._shadowT = 3;
+      burst(G.px, G.py, "#86efac", 16, 180, 3);
+      spawnFloater(G.px, G.py - G.pr - 16, def.name, "#86efac", 13);
+      break;
+    }
+  }
+  G.skillCD[idx] = def.cd || 5;
+  AudioSys.hit();
+  return true;
 }
 
 function pickUpEquip(eq) {
@@ -681,10 +788,11 @@ function unequipTo(slot) {
   equipRec();
   return true;
 }
-// 装备属性汇总（按当前 G.equipped）
+// 装备属性汇总（v4.0：同时收集 主动/被动 技能）
 function equipBonuses() {
   const b = { atk: 0, hp: 0, spd: 0, crit: 0, lifesteal: 0, xp: 0, shield: 0, dmgTaken: 0,
-              huoMul: 1, burnMul: 1 };
+              huoMul: 1, burnMul: 1,
+              activeSkillIds: [], passiveSkillIds: [] };
   for (const slot in G.equipped) {
     const eq = G.equipped[slot];
     if (!eq) continue;
@@ -692,23 +800,36 @@ function equipBonuses() {
     b.hp += eq.hp || 0;
     b.spd += eq.spd || 0;
     for (const ax of eq.affixes) {
+      const def = AFFIX_POOL[ax];
+      if (def && def.type === "技能") {
+        if (def.kind === "active") {
+          if (!b.activeSkillIds.includes(ax)) b.activeSkillIds.push(ax);
+        } else {
+          if (!b.passiveSkillIds.includes(ax)) b.passiveSkillIds.push(ax);
+        }
+        continue;
+      }
       switch (ax) {
         case "huo_dmg":     b.huoMul += 0.12; break;
         case "mu_speed":    b.spd += 8; break;
-        case "shui_slow":   /* 接口占位：命中减速 +10% */ break;
-        case "jin_crit":    /* 接口占位：击杀回血 +5 */ break;
+        case "shui_slow":   /* 命中减速 +10%（在 applyHit 里实现） */ break;
+        case "jin_crit":    /* 击杀回血 +5（在 killEnemy 里实现） */ break;
         case "tu_shield":   b.shield += 10; break;
         case "huo_burn":    b.burnMul += 0.25; break;
-        case "jin_thunder": /* 接口占位：雷伤 +25% */ break;
-        case "huo_fire":    /* 接口占位：受击火反伤 +15 */ break;
+        case "jin_thunder": /* 雷伤 +25% */ break;
+        case "huo_fire":    /* 受击火反伤 +15 */ break;
         case "jin_iron":    b.dmgTaken -= 0.08; break;
         case "crit_pct":    b.crit += 0.05; break;
-        case "haste_pct":   /* 接口占位：急速 +8%（atkSpeedNow 已支持 G._eqCache.haste）*/ break;
+        case "haste_pct":   /* 急速 +8%（atkSpeedNow 已支持 G._eqCache.haste）*/ break;
         case "lifesteal":   b.lifesteal += 2; break;
         case "xp_bonus":    b.xp += 0.15; break;
         case "shield_max":  b.shield += 15; break;
       }
     }
+  }
+  // 主动槽只保留 MAX_ACTIVE_SLOTS 个（按装备装槽顺序 = weapon → armor → accessory）
+  if (b.activeSkillIds.length > MAX_ACTIVE_SLOTS) {
+    b.activeSkillIds = b.activeSkillIds.slice(0, MAX_ACTIVE_SLOTS);
   }
   return b;
 }
@@ -883,6 +1004,11 @@ function canUnlockCore(school) {
   if (!def || def.char !== G.charId) return false;
   if (G.schoolUnlocked && G.schoolUnlocked[school]) return false;
   return countSchool(school) >= CORE_NEED_STONES;
+}
+// v4.0 自动解锁：每次灵石数变化时检查所有派系，凑齐 5 颗就 unlock
+function autoUnlockCoreCheck(school) {
+  const checkList = school ? [school] : Object.keys(STONE_BY_SCHOOL);
+  for (const s of checkList) if (canUnlockCore(s)) unlockCore(s);
 }
 function unlockCore(school) {
   if (!canUnlockCore(school)) return false;
@@ -1213,6 +1339,9 @@ window.addEventListener("keydown", (e) => {
   input.keys[k] = true;
   if (k === "1" || k === "q") castSkill(0);
   if (k === "2" || k === "w") castSkill(1);
+  // v4.0 装备主动技能槽：J 触发槽 0，K 触发槽 1
+  if (k === "j" || k === "3") triggerEquipSkill(0);
+  if (k === "k" || k === "4") triggerEquipSkill(1);
   if (k === "escape" || k === "p") togglePause();
   if (k === "f") toggleFullscreen();
   if (k === " " || k.startsWith("arrow")) e.preventDefault();
@@ -1469,7 +1598,12 @@ const G = {
   // v3.0 装备系统（背包 + 3 槽位）
   inventory: [], equipped: { weapon: null, armor: null, accessory: null },
   _eqCache: { atk: 0, hp: 0, spd: 0, crit: 0, lifesteal: 0, xp: 0, shield: 0, dmgTaken: 0,
-              huoMul: 1, burnMul: 1 },
+              huoMul: 1, burnMul: 1,
+              activeSkillIds: [], passiveSkillIds: [] },
+  // v4.0 装备主动技能槽（J/K = 3/4）：存当前 CD + 装备附带的技能 id
+  activeSkills: [], passiveSkills: [], skillCD: [],
+  // v4.0 装备主动技能状态
+  _swordArrayT: 0, _shadowT: 0,
 };
 
 function resetRun(charId) {
@@ -1516,7 +1650,11 @@ function resetRun(charId) {
   G.gems = {}; G.gemFx = {}; G.pendingEssence = 0;
   G.inventory = []; G.equipped = { weapon: null, armor: null, accessory: null };   // v3.0 装备系统
   G._eqCache = { atk: 0, hp: 0, spd: 0, crit: 0, lifesteal: 0, xp: 0, shield: 0, dmgTaken: 0,
-                 huoMul: 1, burnMul: 1 };
+                 huoMul: 1, burnMul: 1,
+                 activeSkillIds: [], passiveSkillIds: [] };
+  // v4.0 主动技能状态
+  G.activeSkills = []; G.passiveSkills = []; G.skillCD = [];
+  G._swordArrayT = 0; G._shadowT = 0;
   // v3.0 装备系统基础值（reset 后装备带来的增量叠加用）
   G._baseAtk = G.atk; G._baseHpMax = G.hpMax; G._baseMoveSpeed = G.moveSpeed;
   G._baseCrit = G.crit; G._baseLS = G.lifesteal; G._baseXpMul = G.xpMul;
@@ -1560,115 +1698,14 @@ function resetRun(charId) {
 }
 
 // ---------- Upgrades ----------
-const UPGRADE_ICO = {
-  atk: "攻", atk2: "剑", spd: "疾", as: "速", hp: "体", mp: "灵",
-  swords: "分", orbit: "域", pierce: "破", crit: "暴", critd: "诛",
-  ls: "噬", aoe: "气", aoe2: "扇", cd: "风", shield: "甲", xp: "丹",
-  low: "血", chain: "雷", size: "巨", thorn: "棘",
-  fire: "火", lightning: "电", frost: "冰", array: "阵", sword: "飞", orbitw: "环",
-  e_fire: "燎", e_lightning: "霆", e_frost: "封", e_array: "归",
-  e_sword: "光", e_orbit: "罡",
-  nodeR: "阵", nodeP: "心",
-};
-
-function buildUpgradePool() {
-  const w = G.weapons;
-  const withIco = (o) => ({ ...o, ico: UPGRADE_ICO[o.id] || "道" });
-  const pool = [
-    { id: "atk", name: "灵力灌注", desc: "攻击 +20%", tag: "输出", rare: false, apply: () => { G.atk *= 1.2; } },
-    { id: "atk2", name: "剑意淬炼", desc: "攻击 +15%", tag: "输出", rare: false, apply: () => { G.atk *= 1.15; } },
-    { id: "spd", name: "疾风步", desc: "移速 +12%", tag: "身法", rare: false, apply: () => { G.moveSpeed *= 1.12; } },
-    { id: "as", name: "剑心如电", desc: "飞剑攻速 +18%", tag: "输出", rare: false, apply: () => { G.atkSpeed *= 1.18; } },
-    { id: "hp", name: "炼体", desc: "气血上限 +30，并回满", tag: "生存", rare: false, apply: () => { G.hpMax += 30; G.hp = G.hpMax; } },
-    { id: "mp", name: "聚灵", desc: "灵力上限 +20，回复 +1", tag: "续航", rare: false, apply: () => { G.mpMax += 20; G.mp = G.mpMax; G.mpRegen += 1; } },
-    { id: "swords", name: "御剑分光", desc: "环绕飞剑 +1", tag: "飞剑", rare: true, apply: () => { G.swordCount += 1; G.arenaR += 40; } },
-    { id: "orbit", name: "剑域扩张", desc: "环绕半径 +18", tag: "飞剑", rare: false, apply: () => { G.swordOrbit += 18; } },
-    { id: "pierce", name: "破甲剑意", desc: "飞剑穿透 +1", tag: "飞剑", rare: true, apply: () => { G.swordPierce += 1; } },
-    { id: "crit", name: "血煞", desc: "暴击率 +10%", tag: "爆发", rare: false, apply: () => { G.crit = Math.min(0.7, G.crit + 0.1); } },
-    { id: "critd", name: "诛心", desc: "暴击伤害 +30%", tag: "爆发", rare: true, apply: () => { G.critMul += 0.3; } },
-    { id: "ls", name: "噬灵", desc: "击杀吸血 +2", tag: "续航", rare: false, apply: () => { G.lifesteal += 2; } },
-    { id: "aoe", name: "剑气纵横·极", desc: "剑气伤害 +30%，范围 +20%", tag: "剑气", rare: false, apply: () => { G.aoeDamageMul *= 1.3; G.aoeRange *= 1.2; } },
-    { id: "aoe2", name: "扇形天罗", desc: "剑气扇形角 +25%", tag: "剑气", rare: false, apply: () => { G.aoeAngle *= 1.25; } },
-    { id: "cd", name: "御风诀", desc: "主动技能冷却 -15%", tag: "身法", rare: false, apply: () => { G.aoeCD *= 0.85; G.dashCD *= 0.85; } },
-    { id: "shield", name: "玄武甲", desc: "获得 40 点护盾，上限 +20", tag: "生存", rare: true, apply: () => { G.shieldMax += 20; G.shield += 40; } },
-    { id: "xp", name: "妖丹纳灵", desc: "经验获取 +25%", tag: "成长", rare: false, apply: () => { G.xpMul *= 1.25; } },
-    { id: "low", name: "血祭", desc: "气血低于40%时伤害 +35%", tag: "爆发", rare: true, apply: () => { G.lowHpBonus += 0.35; } },
-    { id: "chain", name: "紫电青霜", desc: "飞剑命中有 15% 弹射", tag: "飞剑", rare: true, apply: () => { G.chain += 0.15; } },
-    { id: "size", name: "巨剑真形", desc: "飞剑体积 +20%，伤害 +10%", tag: "飞剑", rare: false, apply: () => { G.swordSize *= 1.2; G.atk *= 1.1; } },
-    { id: "thorn", name: "荆棘罡气", desc: "反伤 +10%", tag: "生存", rare: true, apply: () => { G.thorns += 0.1; } },
-    { id: "nodeR", name: "阵纹扩张", desc: "剑阵范围 +15%", tag: "剑阵", rare: false, apply: () => { for (const n of G.nodes) n.r *= 1.15; } },
-    { id: "nodeP", name: "阵心通明", desc: "站在剑阵中伤害 +18%", tag: "剑阵", rare: true, apply: () => { G.nodeBonus = (G.nodeBonus || 0) + 0.18; } },
-  ].map(withIco);
-
-  // weapon level ups
-  const wepUp = (key, name, tag, desc) => ({
-    id: "w_" + key, name, tag, desc, rare: false,
-    ico: UPGRADE_ICO["w_" + key] || UPGRADE_ICO[key] || "升",
-    apply: () => { G.weapons[key].lv = Math.min(5, G.weapons[key].lv + 1); },
-    can: () => G.weapons[key].lv > 0 && G.weapons[key].lv < 5,
-  });
-  const wepUnlock = (key, name, tag, desc) => ({
-    id: "u_" + key, name, tag, desc, rare: true,
-    ico: UPGRADE_ICO["u_" + key] || UPGRADE_ICO[key] || "解",
-    apply: () => { G.weapons[key].lv = 1; },
-    can: () => G.weapons[key].lv === 0,
-  });
-  const wepEvo = (key, name, tag, desc) => ({
-    id: "e_" + key, name: name + "·觉醒", tag: tag, desc, rare: true,
-    ico: UPGRADE_ICO["e_" + key] || UPGRADE_ICO[key] || "觉",
-    apply: () => { G.weapons[key].evo = true; },
-    can: () => G.weapons[key].lv >= 5 && !G.weapons[key].evo,
-  });
-
-  pool.push(wepUnlock("fire", "业火球", "法术", "解锁业火球：命中燃烧"));
-  pool.push(wepUp("fire", "业火精炼", "法术", "业火球伤害/射速提升"));
-  pool.push(wepEvo("fire", "业火燎原", "法术", "业火球范围扩大，燃烧更烈"));
-
-  pool.push(wepUnlock("lightning", "紫电", "法术", "解锁紫电：命中弹射3目标"));
-  pool.push(wepUp("lightning", "紫电强化", "法术", "紫电伤害与弹射提升"));
-  pool.push(wepEvo("lightning", "九天雷法", "法术", "紫电弹射至5，伤害大增"));
-
-  pool.push(wepUnlock("frost", "寒冰锥", "法术", "解锁冰锥：命中减速"));
-  pool.push(wepUp("frost", "玄冰淬炼", "法术", "冰锥伤害与减速提升"));
-  pool.push(wepEvo("frost", "千里冰封", "法术", "冰锥穿透并冻结精英"));
-
-  pool.push(wepUnlock("array", "周天剑阵", "剑阵", "解锁剑阵：周期自身AOE"));
-  pool.push(wepUp("array", "剑阵扩域", "剑阵", "剑阵半径与伤害提升"));
-  pool.push(wepEvo("array", "万剑归宗", "剑阵", "剑阵连续脉冲三次"));
-
-  // default weapons can level & evolve
-  pool.push(wepUp("sword", "飞剑精炼", "飞剑", "飞剑伤害与速度提升"));
-  pool.push(wepEvo("sword", "玄天剑光", "飞剑", "飞剑伤害大增并多穿透1"));
-  pool.push(wepUp("orbit", "环剑精修", "飞剑", "环绕剑伤害提升"));
-  pool.push(wepEvo("orbit", "剑罡环绕", "飞剑", "环绕剑伤害大幅提升"));
-
-  // filter by can()
-  return pool.filter((u) => !u.can || u.can());
-}
-
-function rollUpgrades() {
-  let pool = buildUpgradePool();
-  const luck = G._shopLuck || 0;
-  if (luck > 0) {
-    // bias rare: duplicate rare entries
-    const weighted = [];
-    for (const u of pool) {
-      weighted.push(u);
-      if (u.rare) for (let i = 0; i < luck; i++) weighted.push(u);
-    }
-    pool = weighted;
-  }
-  const picked = [];
-  const ids = new Set();
-  const shuffled = shuffle(pool);
-  for (const u of shuffled) {
-    if (ids.has(u.id)) continue;
-    ids.add(u.id);
-    picked.push(u);
-    if (picked.length >= 3) break;
-  }
-  return picked;
-}
+// v4.0 砍掉「升级 3 选 1」面板：所有被动成长都在 gainXP 完成
+// 升级弹窗 / buildUpgradePool / rollUpgrades / pendingChoices 已全部删除
+function openLevelUp() { /* 升级不弹窗 */ }
+// 占位函数供测试残留引用（_XTJ__ 等）和老 ui 引用
+function buildUpgradePool() { return []; }
+function rollUpgrades() { return []; }
+function shouldOfferJob() { return false; }
+function openJobModal() { /* 转职不弹窗，由套装触发 */ }
 
 // ---------- 转职（3 系 × 3 分支） ----------
 // 设计意图：把「塔防的站位/流派决策」搬进幸存者。
@@ -1754,75 +1791,6 @@ function jobSyncHud(flash) {
   }
 }
 
-function openJobModal() {
-  const stage = Math.min(jobStage(), JOB_LEVELS.length - 1);
-  const info = JOB_STAGES[stage];
-  G.state = "job";
-  ui.jobTitle.textContent = info.title;
-  ui.jobSub.textContent = info.sub;
-  ui.jobChoices.innerHTML = "";
-
-  const opts = [];
-  if (stage === 0) {
-    for (const p of JOB_PATHS) {
-      const innate = p.id === G.charId;   // 与本命同源的道途，给个标识
-      opts.push({
-        ico: p.ico, cls: p.tagCls, rare: innate,
-        tag: innate ? "本命 · 道途" : "道途",
-        name: p.name, desc: p.desc,
-        pick: () => { G.jobPath = p.id; return p.name; },
-      });
-    }
-  } else {
-    const p = jobPathOf(G.jobPath) || JOB_PATHS[0];
-    if (!G.jobPath) G.jobPath = p.id;
-    for (const b of p.branches) {
-      const cur = G.jobBranches[b.id] || 0;
-      opts.push({
-        ico: b.ico, cls: p.tagCls, rare: cur > 0,
-        tag: cur > 0 ? `已修 Lv.${cur}` : "法门",
-        name: b.name,
-        desc: cur > 0 ? b.desc + "（再次择取叠层）" : b.desc,
-        pick: () => { G.jobBranches[b.id] = cur + 1; b.apply(); return p.name + " · " + b.name; },
-      });
-    }
-  }
-
-  burst(G.px, G.py, "#f0c14b", 24, 200, 4);
-  G.particles.push({
-    x: G.px, y: G.py, vx: 0, vy: 0,
-    life: 0.55, max: 0.55, color: "#fde68a", size: 4,
-    ring: { r0: 12, r1: 130 },
-  });
-
-  for (const o of opts) {
-    const btn = document.createElement("button");
-    btn.className = "choice-btn" + (o.rare ? " rare" : "");
-    btn.innerHTML = `
-      <div class="choice-ico ${o.cls}">${o.ico}</div>
-      <div class="choice-body">
-        <span class="c-tag ${o.cls}">${o.tag}</span>
-        <span class="c-name">${o.name}</span>
-        <span class="c-desc">${o.desc}</span>
-      </div>`;
-    btn.addEventListener("click", () => {
-      const label = o.pick();
-      G.jobStage = stage + 1;
-      jobSyncHud(true);
-      AudioSys.level();
-      toast(`转职 · ${label}`, "gold");
-      G.goldFlash = 0.6;
-      G.shake = Math.max(G.shake, 12);
-      burst(G.px, G.py, "#fde68a", 34, 250, 5);
-      ui.jobModal.classList.add("hidden");
-      G.state = "play";
-      refreshWeaponHint();
-      resolvePendingModal();
-    });
-    ui.jobChoices.appendChild(btn);
-  }
-  ui.jobModal.classList.remove("hidden");
-}
 
 // ---------- 法宝 & 灵兽 ----------
 function hexRgb(hex) {
@@ -1982,78 +1950,10 @@ function beastHudSync() {
   ui.beastHudName.textContent = G.beast.def.name;
 }
 
-// 法宝匣：从未持有的法宝里抽 3 件择一
-function openRelicModal() {
-  if (G.relics.length >= MAX_RELICS) {
-    G.hp = Math.min(G.hpMax, G.hp + G.hpMax * 0.15);
-    G.shield += 30;
-    toast("法宝已满 · 匣中灵力化为护盾与气血", "cyan");
-    burst(G.px, G.py, "#f0c14b", 20, 180, 4);
-    return;
-  }
-  const owned = new Set(G.relics.map((r) => r.id));
-  const pool = ARTIFACTS.filter((a) => !owned.has(a.id));
-  if (!pool.length) {
-    G.hp = Math.min(G.hpMax, G.hp + G.hpMax * 0.15);
-    G.shield += 30;
-    toast("法宝已尽收 · 匣中灵力化为护盾与气血", "cyan");
-    return;
-  }
-  const choices = shuffle(pool.slice()).slice(0, 3);
-
-  G.state = "job";        // 复用「抉择弹窗」暂停态
-  ui.jobTitle.textContent = "法宝匣";
-  ui.jobSub.textContent = "择一法宝 · 纳为己用";
-  ui.jobChoices.innerHTML = "";
-  burst(G.px, G.py, "#f0c14b", 24, 200, 4);
-
-  for (const a of choices) {
-    const btn = document.createElement("button");
-    btn.className = "choice-btn rare";
-    btn.innerHTML = `
-      <div class="choice-ico ${"tier-" + TIER_KEY[a.tier]}">${a.ico}</div>
-      <div class="choice-body">
-        <span class="c-tag ${"tier-" + TIER_KEY[a.tier]}">${a.tier}品 · 法宝</span>
-        <span class="c-name">${a.name}</span>
-        <span class="c-desc">${a.desc}</span>
-      </div>`;
-    btn.addEventListener("click", () => {
-      G.relics.push(a);
-      a.apply();
-      try { Meta.recordArtifact(a.id); } catch (_) {}
-      relicHudSync();
-      AudioSys.level();
-      toast(`得法宝 · ${a.name}`, "gold");
-      G.goldFlash = 0.55;
-      G.shake = Math.max(G.shake, 10);
-      burst(G.px, G.py, a.color, 30, 230, 5);
-      ui.jobModal.classList.add("hidden");
-      G.state = "play";
-      refreshWeaponHint();
-      resolvePendingModal();
-    });
-    ui.jobChoices.appendChild(btn);
-  }
-  ui.jobModal.classList.remove("hidden");
-}
-
-// 弹窗收尾：把排队的升级 / 法宝依次弹完
-function resolvePendingModal() {
-  if (G.pendingLevel && G.pendingLevel > 0) {
-    G.pendingLevel -= 1;
-    setTimeout(() => openLevelUp(), 50);
-    return;
-  }
-  if (G.pendingRelic && G.pendingRelic > 0) {
-    G.pendingRelic -= 1;
-    setTimeout(() => openRelicModal(), 50);
-    return;
-  }
-  if (G.pendingEssence && G.pendingEssence > 0) {
-    G.pendingEssence -= 1;
-    setTimeout(() => openEssenceModal(), 50);
-  }
-}
+// v4.0 砍掉「法宝匣 3 选 1」面板：直接在 collectPickup 随机获得
+function openRelicModal() { /* 法宝匣不再弹窗，由 collectPickup 处理 */ }
+// v4.0 砍掉弹窗收尾器（升级 / 遗物 / 精魄 都不再排队弹）
+function resolvePendingModal() { /* v4.0 不再弹窗 */ }
 
 // ---------- 炼宝台：专属灵石 → 流派宝石 / 通用装备 ----------
 function stoneHudSync() {
@@ -2606,44 +2506,8 @@ function closeForge() {
   resolvePendingModal();
 }
 
-// 妖王精魄：本角色三派系择一，直接得 ESSENCE_GAIN 颗同派系灵石 —— 全流程最重的那个决策点
-function openEssenceModal() {
-  G.state = "job";
-  const weNow = ELEM_BY_KEY[waveElemKey()];
-  const mySchools = [...new Set(stonesOf().map((s) => s.school))];
-  ui.jobTitle.textContent = "灵石精魄";
-  ui.jobSub.textContent = `本角色三派系择一 · 每派系灵石 ×${ESSENCE_GAIN} · 当前 ${weNow.name}行妖潮`;
-  ui.jobChoices.innerHTML = "";
-  for (const sch of mySchools) {
-    const arr = STONE_BY_SCHOOL[sch] || [];
-    const gem = gemsOf().find((g) => STONE_BY_KEY[g.stone] && STONE_BY_KEY[g.stone].school === sch);
-    const have = countSchool(sch);
-    const readyCore = have >= CORE_NEED_STONES;
-    const btn = document.createElement("button");
-    btn.className = "choice-btn rare";
-    btn.style.setProperty("--bc", arr[0] && arr[0].color);
-    btn.innerHTML = `
-      <div class="choice-ico tier-xian" style="color:${arr[0] && arr[0].color}">${arr[0] && arr[0].ico}</div>
-      <div class="choice-body">
-        <span class="c-tag tier-xian">${sch}派系 · 精魄</span>
-        <span class="c-name">${arr.map((s) => s.name).join(" / ")} ×${ESSENCE_GAIN}</span>
-        <span class="c-desc">${gem ? `凝「${gem.name}」 · ${elemMatchText(arr[0].elem)}` : "无对应宝石，可直接凑派系核心"}${readyCore ? " · 已可启核心！" : ""}</span>
-      </div>`;
-    btn.addEventListener("click", () => {
-      for (const st of arr) G.stones[st.key] = stoneAt(st.key) + ESSENCE_GAIN;
-      burst(G.px, G.py, arr[0].color, 26, 210, 4);
-      AudioSys.level();
-      toast(`${sch}派系灵石 +${ESSENCE_GAIN}`, "gold");
-      ui.jobModal.classList.add("hidden");
-      G.state = "play";
-      stoneHudSync(); forgeBtnSync(); forgeHintCheck();
-      schoolHintCheck(sch);
-      resolvePendingModal();
-    });
-    ui.jobChoices.appendChild(btn);
-  }
-  ui.jobModal.classList.remove("hidden");
-}
+// v4.0 砍掉灵魄 3 选 1 弹窗：collectPickup 直接自动选最大派系
+function openEssenceModal() { /* v4.0 灵魄不再弹窗 */ }
 
 // ---------- Enemies ----------
 const ENEMY_TYPES = {
@@ -3029,20 +2893,32 @@ function killEnemy(e, byPlayer = true) {
   }
 }
 
+// v4.0 纯打装流：升级不再弹窗，纯被动数值成长 —— 技能全部由装备决定
+const LV_HP_MUL = 1.08;       // 每升 1 级 HP ×1.08
+const LV_ATK_MUL = 1.05;      // 每升 1 级 ATK ×1.05
+const LV_SHIELD_MUL = 1.10;   // 每升 1 级 护盾上限 ×1.10
 function gainXP(amount) {
   G.xp += amount;
-  let shouldOpen = false;
   while (G.xp >= G.xpNeed) {
     G.xp -= G.xpNeed;
     G.level += 1;
     G.xpNeed = Math.floor(20 * Math.pow(1.18, G.level - 1));
-    if (G.state === "play" && !shouldOpen) {
-      shouldOpen = true;
-    } else {
-      G.pendingLevel = (G.pendingLevel || 0) + 1;
+    // 被动成长：直接在已叠加的 atk/hpMax/shieldMax 上乘倍率
+    G.hpMax *= LV_HP_MUL;
+    G.atk *= LV_ATK_MUL;
+    G.shieldMax *= LV_SHIELD_MUL;
+    const hpDelta = G.hpMax * (1 - 1 / LV_HP_MUL);
+    const atkDelta = G.atk * (1 - 1 / LV_ATK_MUL);
+    G.hp = Math.min(G.hpMax, G.hp + hpDelta);
+    G.shield = Math.min(G.shieldMax, G.shield + G.shieldMax * (1 - 1 / LV_SHIELD_MUL));
+    if ((G.level % 3) === 0) {
+      burst(G.px, G.py, "#fde68a", 14, 150, 3);
+      spawnFloater(G.px, G.py - 28, `Lv.${G.level} · 气血攻道皆涨`, "#fde68a", 13);
+      AudioSys.level();
+    } else if (G.level >= 2) {
+      spawnFloater(G.px, G.py - 24, `Lv.${G.level} · +${Math.round(hpDelta)}HP +${Math.round(atkDelta)}攻`, "#fde68a", 10);
     }
   }
-  if (shouldOpen) openLevelUp();
 }
 
 function dropPickup(x, y, kind, data) {
@@ -3070,7 +2946,8 @@ function collectPickup(p) {
     burst(p.x, p.y, st.color, 5, 90, 2);
     stoneHudSync();
     forgeHintCheck();
-    schoolHintCheck(st.school);   // 派系核心凑齐时弹醒
+    // v4.0 派系核心自动解锁：5 颗同派系 ⇒ 自动 unlock
+    autoUnlockCoreCheck(st.school);
     AudioSys.hit();
   } else if (p.kind === "elite") {
     pick([
@@ -3083,26 +2960,54 @@ function collectPickup(p) {
     burst(p.x, p.y, "#c084fc", 14, 160, 4);
     AudioSys.level();
   } else if (p.kind === "relic") {
-    toast("开启法宝匣 · 择宝而纳", "gold");
-    burst(p.x, p.y, "#f0c14b", 22, 210, 4);
-    AudioSys.level();
-    if (G.state === "play") openRelicModal();
-    else G.pendingRelic = (G.pendingRelic || 0) + 1;
+    // v4.0 砍弹窗：法宝匣直接随机挑 1 件并入列（不再 3 选 1）
+    if (G.relics.length >= MAX_RELICS) {
+      G.hp = Math.min(G.hpMax, G.hp + G.hpMax * 0.15);
+      G.shield += 30;
+      toast("法宝已满 · 匣中灵力化为护盾与气血", "cyan");
+    } else {
+      const owned = new Set(G.relics.map((r) => r.id));
+      const pool = ARTIFACTS.filter((a) => !owned.has(a.id));
+      const a = pool[Math.floor(Math.random() * pool.length)] || ARTIFACTS[0];
+      if (a) {
+        G.relics.push(a);
+        a.apply();
+        try { Meta.recordArtifact(a.id); } catch (_) {}
+        relicHudSync();
+        toast(`法宝匣赐 · ${a.name}`, "gold");
+        burst(p.x, p.y, a.color, 26, 220, 5);
+        AudioSys.level();
+      }
+    }
   } else if (p.kind === "essence") {
-    toast("妖王精魄 · 择一系而取之", "gold");
-    burst(p.x, p.y, "#f0c14b", 26, 220, 4);
-    AudioSys.level();
-    if (G.state === "play") openEssenceModal();
-    else G.pendingEssence = (G.pendingEssence || 0) + 1;
+    // v4.0 砍弹窗：灵魄自动选玩家持有最多的派系，整派系 +3 颗
+    const mySchools = [...new Set(stonesOf().map((s) => s.school))];
+    if (mySchools.length === 0) {
+      toast("灵石精魄散尽 · 无派系可取", "cyan");
+      burst(p.x, p.y, "#5ce1e6", 16, 180, 3);
+    } else {
+      // 找持有最多的派系
+      const counts = mySchools.map((s) => ({ s, n: countSchool(s) }));
+      counts.sort((a, b) => b.n - a.n);
+      const sch = counts[0].s;
+      const arr = STONE_BY_SCHOOL[sch] || [];
+      for (const st of arr) G.stones[st.key] = stoneAt(st.key) + ESSENCE_GAIN;
+      toast(`灵魄入体 · ${sch}派 +${ESSENCE_GAIN}`, "gold");
+      burst(p.x, p.y, arr[0] && arr[0].color, 26, 210, 4);
+      stoneHudSync(); forgeBtnSync(); forgeHintCheck();
+      schoolHintCheck(sch);
+      AudioSys.level();
+    }
   } else if (p.kind === "equip") {
     pickUpEquip(p.equip);
     AudioSys.hit();
   } else if (p.kind === "boss") {
+    // v4.0 砍弹窗：妖王不再触发升级弹窗，纯恢复+奖励
     G.hp = G.hpMax; G.mp = G.mpMax; G.shield += 30; G.atk *= 1.1;
-    toast("斩灭大妖 · 气血回满，攻击大涨");
+    G.xpMul *= 1.05;
+    toast("斩灭大妖 · 气血回满，攻击大涨，经验+5%");
     burst(p.x, p.y, "#fbbf24", 30, 220, 5);
     AudioSys.level();
-    if (G.state === "play") openLevelUp();
   }
 }
 
@@ -3459,62 +3364,6 @@ function onProjectileHitEnemy(p, e) {
   return true;
 }
 
-// ---------- Level modal ----------
-let pendingChoices = [];
-const TAG_CLASS = {
-  "输出": "t-out",
-  "爆发": "t-burst",
-  "生存": "t-hp",
-  "飞剑": "t-sword",
-  "剑气": "t-aoe",
-  "身法": "t-move",
-  "续航": "t-mp",
-  "成长": "t-xp",
-};
-
-function openLevelUp() {
-  // 到转职境界：本次不给普通升级卡，改出转职抉择
-  if (shouldOfferJob()) { openJobModal(); return; }
-  G.state = "level";
-  pendingChoices = rollUpgrades();
-  // gold burst on level
-  burst(G.px, G.py, "#f0c14b", 18, 160, 4);
-  G.particles.push({
-    x: G.px, y: G.py, vx: 0, vy: 0,
-    life: 0.4, max: 0.4, color: "#f0c14b", size: 4,
-    ring: { r0: 10, r1: 90 },
-  });
-  ui.levelChoices.innerHTML = "";
-  for (const u of pendingChoices) {
-    const btn = document.createElement("button");
-    const tagCls = TAG_CLASS[u.tag] || "t-sword";
-    btn.className = "choice-btn" + (u.rare ? " rare" : "");
-    btn.innerHTML = `
-      <div class="choice-ico ${tagCls}">${u.ico || "道"}</div>
-      <div class="choice-body">
-        <span class="c-tag ${tagCls}">${u.tag}${u.rare ? "·稀有" : ""}</span>
-        <span class="c-name">${u.name}</span>
-        <span class="c-desc">${u.desc}</span>
-      </div>`;
-    btn.addEventListener("click", () => {
-      u.apply();
-      AudioSys.level();
-      toast(`领悟 · ${u.name}`, u.rare ? "gold" : "cyan");
-      if (String(u.id).startsWith("e_")) {
-        G.goldFlash = 0.55;
-        G.shake = Math.max(G.shake, 10);
-        burst(G.px, G.py, "#fde68a", 28, 220, 5);
-      }
-      ui.levelModal.classList.add("hidden");
-      G.state = "play";
-      refreshWeaponHint();
-      resolvePendingModal();
-    });
-    ui.levelChoices.appendChild(btn);
-  }
-  ui.levelModal.classList.remove("hidden");
-}
-
 function refreshWeaponHint() {
   const w = G.weapons;
   const names = [];
@@ -3626,6 +3475,23 @@ function update(dt) {
   G.dashTimer = Math.max(0, G.dashTimer - dt);
   G.aoeCDLeft = Math.max(0, G.aoeCDLeft - dt);
   G.dashCDLeft = Math.max(0, G.dashCDLeft - dt);
+  // v4.0 装备主动技能 CD tick
+  for (let i = 0; i < (G.skillCD || []).length; i++) {
+    if (G.skillCD[i] > 0) G.skillCD[i] = Math.max(0, G.skillCD[i] - dt);
+  }
+  // v4.0 装备主动技能持续时长 tick（如剑气护体 +6s）
+  G._swordArrayT = Math.max(0, (G._swordArrayT || 0) - dt);
+  G._shadowT = Math.max(0, (G._shadowT || 0) - dt);
+  // v4.0 装备被动技能 tick（按 G.passiveSkills 列表）
+  for (const id of (G.passiveSkills || [])) {
+    if (id === "sk_hp_regen") {
+      G._hpRegenT = (G._hpRegenT || 0) + dt;
+      if (G._hpRegenT >= 5) {
+        G._hpRegenT -= 5;
+        if (G.hp < G.hpMax) { G.hp = Math.min(G.hpMax, G.hp + 12); spawnFloater(G.px, G.py - G.pr - 14, "+12", "#86efac", 10); }
+      }
+    }
+  }
   G.mp = Math.min(G.mpMax, G.mp + G.mpRegen * dt);
   // 流派宝石：气血滋长 / 护盾再生 / 御风提速 / 龙血定期回复
   G.hasteT = Math.max(0, G.hasteT - dt);
@@ -5539,9 +5405,12 @@ window.__XTJ__ = {
   ELEMENTS, ELEM_BY_KEY, ORDINARY_COST, MAX_ORDINARY,
   // v3.0 装备系统
   TIERS, TIER_ORDER, SLOT_DEFS, ITEM_TYPES, AFFIX_POOL, AFFIX_KEYS, RARE_AFFIX_KEYS,
+  SKILL_AFFIX_KEYS, ACTIVE_SKILL_KEYS, PASSIVE_SKILL_KEYS, MAX_ACTIVE_SLOTS,
   INVENTORY_MAX, EQUIP_SLOTS_MAX,
   makeEquip, canMerge, mergeEquip, autoMergeEquip, pickUpEquip,
   equipTo, unequipTo, equipBonuses, equipRec,
+  // v4.0 主动技能触发 + 派系核心自动解锁
+  triggerEquipSkill, autoUnlockCoreCheck, autoJobFromSet, CHAR_TO_PATH,
   CHAR_STONES, STONE_BY_KEY, STONES_ALL, STONE_BY_SCHOOL, SCHOOLS_ALL,
   GEMS, GEM_BY_ID, GEM_TIERS, MAX_GEMS,
   SCH_CORES, SCH_CORE_BY_ID, SCH_CORE_BY_SCHOOL, MAX_SCHOOL_CORES, CORE_NEED_STONES,
@@ -5559,5 +5428,6 @@ window.__XTJ__ = {
   applyHit, update,
   collectPickup, dropPickup, killEnemy, spawnEnemy, damagePlayer, updateHUD, ENEMY_TYPES,
   recomputeResonance, resonanceJust, renderResonance, resHudSync, gemsOfId,
+  ATK_BASE: 12,   // 测试用：玩家初始攻击（用于计算升级成长比值）
 };
 })();

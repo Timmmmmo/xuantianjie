@@ -2120,6 +2120,156 @@ canvas#game {
   50% { box-shadow: 0 0 26px rgba(240,193,75,0.62); }
 }
 
+/* ========== 背包按钮（v3.0） ========== */
+.inv-btn {
+  position: absolute;
+  top: calc(30% + 130px);
+  right: 12px;
+  display: flex; flex-direction: column; align-items: center; gap: 1px;
+  width: 58px;
+  padding: 6px 4px 5px;
+  border-radius: 14px;
+  background: linear-gradient(150deg, rgba(18,16,32,0.92), rgba(10,12,22,0.86));
+  border: 1.5px solid rgba(167,139,250,0.42);
+  box-shadow: 0 0 14px rgba(167,139,250,0.16), inset 0 0 12px rgba(0,0,0,0.45);
+  color: #d8b4fe;
+  cursor: pointer;
+  pointer-events: auto;
+  z-index: 12;
+  font-family: inherit;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.1s, box-shadow 0.2s, border-color 0.2s;
+}
+.inv-btn:active { transform: scale(0.94); }
+.inv-btn-ico {
+  font-size: 18px; font-weight: 800; line-height: 1;
+  font-family: STKaiti, KaiTi, serif;
+  text-shadow: 0 0 12px rgba(167,139,250,0.55);
+}
+.inv-btn-label { font-size: 9px; letter-spacing: 1px; color: var(--muted, #8fa0b8); }
+.inv-btn-count { font-size: 11px; font-weight: 800; color: #a78bfa; }
+.inv-btn.has-purple {
+  border-color: #d8b4fe;
+  box-shadow: 0 0 16px rgba(216,180,254,0.4);
+  animation: forgePulse 1.6s ease-in-out infinite;
+}
+.inv-btn.has-purple .inv-btn-count { color: #d8b4fe; }
+
+/* ========== 背包面板 ========== */
+.inv-card { max-width: 480px; max-height: 86vh; }
+.inv-equipped {
+  display: flex; gap: 8px; margin: 12px 0 14px;
+}
+.inv-slot {
+  flex: 1; min-height: 80px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  padding: 8px 4px;
+  border-radius: 12px;
+  background: rgba(20,24,38,0.5);
+  border: 1.5px dashed rgba(167,139,250,0.3);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.inv-slot:hover { border-color: #d8b4fe; }
+.inv-slot.filled {
+  border-style: solid;
+  background: rgba(30,24,52,0.7);
+}
+.inv-slot-label {
+  font-size: 10px; color: #a78bfa; letter-spacing: 2px; font-weight: 700;
+}
+.inv-slot-eq {
+  font-size: 12px; color: #ece4ff; text-align: center;
+}
+.inv-slot .empty-hint { font-size: 10px; color: #6c7589; }
+.inv-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 5px;
+  padding: 6px;
+  background: rgba(12,16,26,0.5);
+  border-radius: 10px;
+  min-height: 220px;
+}
+.inv-cell {
+  aspect-ratio: 1;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  padding: 3px 2px;
+  border-radius: 7px;
+  background: rgba(28,32,48,0.7);
+  border: 1.5px solid #2a3042;
+  font-size: 14px; font-weight: 800;
+  cursor: pointer;
+  transition: all 0.12s;
+  user-select: none;
+  position: relative;
+}
+.inv-cell:hover { transform: translateY(-2px); border-color: #d8b4fe; }
+.inv-cell.empty { background: transparent; border-color: #1a1f2c; cursor: default; }
+.inv-cell.tier-white  { border-color: #6b7280; color: #e5e7eb; }
+.inv-cell.tier-green  { border-color: #22c55e; color: #86efac; box-shadow: 0 0 6px rgba(134,239,172,0.2); }
+.inv-cell.tier-blue   { border-color: #3b82f6; color: #93c5fd; box-shadow: 0 0 8px rgba(147,197,253,0.3); }
+.inv-cell.tier-purple { border-color: #a855f7; color: #d8b4fe; box-shadow: 0 0 10px rgba(216,180,254,0.4); background: rgba(40,30,60,0.7); }
+.inv-cell.tier-orange { border-color: #f97316; color: #fb923c; box-shadow: 0 0 12px rgba(251,146,60,0.5); background: rgba(50,30,20,0.7); animation: forgePulse 2s ease-in-out infinite; }
+.inv-cell-name { font-size: 9px; opacity: 0.85; line-height: 1.1; }
+.inv-cell-affix {
+  position: absolute; bottom: 1px; right: 2px;
+  font-size: 8px; color: #fbbf24; font-weight: 700;
+}
+.inv-detail {
+  margin: 10px 0 4px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(12,16,26,0.5);
+  border: 1px solid #2a3042;
+  font-size: 11px; line-height: 1.5;
+  min-height: 60px;
+  color: #d1d8e0;
+}
+.inv-detail.empty { color: #6c7589; }
+.inv-detail .det-name { font-size: 14px; font-weight: 800; margin-bottom: 4px; }
+.inv-detail .det-stat { color: #fde68a; font-weight: 700; }
+.inv-detail .det-affix { color: #c4b5fd; }
+.inv-detail .det-affix.rare { color: #fb923c; }
+.inv-detail .det-actions { margin-top: 6px; display: flex; gap: 6px; }
+.inv-detail button {
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid;
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+}
+.btn-equip {
+  background: rgba(167,139,250,0.2);
+  border-color: #a78bfa !important;
+  color: #d8b4fe;
+}
+.btn-unequip {
+  background: rgba(251,146,60,0.15);
+  border-color: #fb923c !important;
+  color: #fb923c;
+}
+
+/* 炼宝台装备区 */
+.eq-quick {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+  padding: 8px 4px;
+}
+.eq-quick-card {
+  padding: 8px 6px;
+  border-radius: 8px;
+  background: rgba(20,24,38,0.5);
+  border: 1px solid #2a3042;
+  text-align: center;
+  font-size: 11px;
+}
+.eq-quick-card .eq-qc-tier { font-size: 10px; font-weight: 800; }
+.eq-quick-card .eq-qc-name { font-size: 11px; font-weight: 700; margin: 2px 0; }
+.eq-quick-card.empty .eq-qc-name { color: #6c7589; font-weight: 400; }
+.eq-quick-card.tier-purple { border-color: #a855f7; }
+.eq-quick-card.tier-orange { border-color: #f97316; }
+
 .stone-row {
   position: absolute;
   top: calc(30% + 62px);

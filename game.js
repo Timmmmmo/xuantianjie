@@ -47,14 +47,20 @@ const ui = {
   // 炼宝台
   stoneRow: $("stoneRow"), forgeBtn: $("forgeBtn"), forgeBtnCount: $("forgeBtnCount"),
   forgeModal: $("forgeModal"), forgeStones: $("forgeStones"),
-  forgeGemCount: $("forgeGemCount"), forgeOrdCount: $("forgeOrdCount"),
-  forgeGems: $("forgeGems"), forgeOrdinary: $("forgeOrdinary"),
+  forgeGemCount: $("forgeGemCount"),
+  forgeGems: $("forgeGems"),
+  forgeEquip: $("forgeEquip"), forgeEquipCount: $("forgeEquipCount"),
   forgeMelt: $("forgeMelt"), forgeMeltWrap: $("forgeMeltWrap"),
   btnForgeClose: $("btnForgeClose"),
   forgeResonance: $("forgeResonance"),
   forgeCores: $("forgeCores"),
   resHud: $("resHud"), resHudList: $("resHudList"),
   coreHud: $("coreHud"), coreHudList: $("coreHudList"),
+  // 背包 v3.0
+  invBtn: $("invBtn"), invBtnCount: $("invBtnCount"),
+  invModal: $("invModal"), invGrid: $("invGrid"), invDetail: $("invDetail"),
+  invSlotWeapon: $("invSlotWeapon"), invSlotArmor: $("invSlotArmor"), invSlotAccessory: $("invSlotAccessory"),
+  btnInvClose: $("btnInvClose"),
 };
 
 // ---------- Audio ----------
@@ -100,6 +106,7 @@ const AudioSys = {
 // ---------- Utils ----------
 const TAU = Math.PI * 2;
 const rand = (a, b) => a + Math.random() * (b - a);
+const randInt = (a, b) => Math.floor(rand(a, b));
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const lerp = (a, b, t) => a + (b - a) * t;
 const dist = (ax, ay, bx, by) => Math.hypot(ax - bx, ay - by);
@@ -368,9 +375,11 @@ for (const st of STONES_ALL) {
 }
 const SCHOOLS_ALL = Object.keys(STONE_BY_SCHOOL);   // 9 个派系
 
-const ORDINARY_COST = 2;    // 通用装备：2 颗任意专属灵石
+const ORDINARY_COST = 2;    // 保留常量（兼容测试引用，无副作用）
+const MAX_ORDINARY = 3;     // 保留常量（兼容测试引用）
 const MAX_GEMS = 2;         // 流派宝石的槽位 —— 三系只能取其二
-const MAX_ORDINARY = 3;     // 通用装备携带上限
+const INVENTORY_MAX = 30;   // 背包容量
+const EQUIP_SLOTS_MAX = 3;  // 装备槽位上限（武器/防具/饰品）
 const MAX_SCHOOL_CORES = 2; // 派系核心的装备槽位 —— 9 个核心只能同时装 2 个
 const CORE_NEED_STONES = 5; // 解锁一个派系核心所需的同派系灵石数
 
@@ -390,6 +399,15 @@ const DROP_BOSS = 3;        // 妖王必掉 3 颗（v2.0 提高：凑派系核�
 const ESSENCE_GAIN = 3;     // 灵石精魄择一所得颗数（v2.0 提高到 3）
 const MELT_COST = 2;        // 灵石淬体：宝石与通用皆满后，2 颗任意灵石的去处
 const SCH_PACK_DROP = 0.05; // 5% 概率掉「派系包」= 5 颗同派系（v2.0 新增，直接凑满核心）
+// v3.0 装备掉落
+const DROP_EQ_MOB    = 0.05;  // 小妖 5% 掉白装
+const DROP_EQ_ELITE_W = 0.3;  // 精英 30% 掉白
+const DROP_EQ_ELITE_G = 0.1;  // 精英 10% 掉绿
+const DROP_EQ_BOSS_W_MIN = 3;
+const DROP_EQ_BOSS_W_MAX = 5;
+const DROP_EQ_BOSS_G = 0.5;   // 妖王 50% 掉绿 1-2 件
+const DROP_EQ_BOSS_B = 0.05;  // 妖王 5% 掉蓝
+const DROP_EQ_BOSS_O = 0.01;  // 妖王 1% 极小概率掉橙（欧皇专用）
 
 // 流派宝石：每角色三颗，各由一种专属灵石（主石）主导
 // apply(rank) 只施加「该阶新增」的那一份，逐阶调用即自然叠加
@@ -472,22 +490,228 @@ const GEMS = [
 ];
 const GEM_BY_ID = Object.fromEntries(GEMS.map((g) => [g.id, g]));
 
-// 寻常装备：只有普通攻击/属性效果，胜在便宜、随取随用
-const ORDINARIES = [
-  { id: "o_feng", name: "凡铁锋刃", ico: "锋", color: "#dfe6ef",
-    desc: "攻击 +15%（无特殊效果）", apply: () => { G.atk *= 1.15; } },
-  { id: "o_ji", name: "疾风护腕", ico: "疾", color: "#dfe6ef",
-    desc: "飞剑攻速 +12%（无特殊效果）", apply: () => { G.atkSpeed *= 1.12; } },
-  { id: "o_jia", name: "厚土重甲", ico: "甲", color: "#dfe6ef",
-    desc: "护盾上限 +30，立得 40 护盾（无特殊效果）", apply: () => { G.shieldMax += 30; G.shield += 40; } },
-  { id: "o_ling", name: "灵犀玉佩", ico: "暴", color: "#dfe6ef",
-    desc: "暴击率 +8%（无特殊效果）", apply: () => { G.crit = Math.min(0.7, G.crit + 0.08); } },
-  { id: "o_xing", name: "踏云靴", ico: "行", color: "#dfe6ef",
-    desc: "移速 +8%（无特殊效果）", apply: () => { G.moveSpeed *= 1.08; } },
-  { id: "o_xue", name: "赤血丹", ico: "血", color: "#dfe6ef",
-    desc: "气血上限 +60 并回复（无特殊效果）", apply: () => { G.hpMax += 60; G.hp = Math.min(G.hpMax, G.hp + 60); } },
-];
-const ORDINARY_BY_ID = Object.fromEntries(ORDINARIES.map((o) => [o.id, o]));
+// ---------- 装备系统（v3.0） — 怪物掉落 · 背包自动合成 · 3 高级槽位 ----------
+// 装备品阶：5 阶，2→1 自动合成链
+const TIERS = {
+  white:  { name: "白", color: "#e5e7eb", mult: 1.0, affMin: 1, affMax: 2 },
+  green:  { name: "绿", color: "#86efac", mult: 1.4, affMin: 2, affMax: 2 },
+  blue:   { name: "蓝", color: "#93c5fd", mult: 1.8, affMin: 2, affMax: 3 },
+  purple: { name: "紫", color: "#d8b4fe", mult: 2.4, affMin: 3, affMax: 3, equipable: true },
+  orange: { name: "橙", color: "#fb923c", mult: 3.2, affMin: 4, affMax: 4, equipable: true },
+};
+const TIER_ORDER = ["white", "green", "blue", "purple", "orange"];
+// 装备槽位（3 席）
+const SLOT_DEFS = {
+  weapon:    { name: "武器", ico: "⚔", color: "#fbbf24", pool: ["jian", "zhang", "zhua"], mainStat: "atk", mainLabel: "攻击" },
+  armor:     { name: "防具", ico: "🛡", color: "#94a3b8", pool: ["jia", "pao", "yi"],     mainStat: "hp",  mainLabel: "生命" },
+  accessory: { name: "饰品", ico: "◆",  color: "#86efac", pool: ["jie", "lian", "fu"],     mainStat: "spd", mainLabel: "移速" },
+};
+// 底材池（9 种）
+const ITEM_TYPES = {
+  jian:  { name: "青锋剑", ico: "剑" },
+  zhang: { name: "玄铁杖", ico: "杖" },
+  zhua:  { name: "龙骨爪", ico: "爪" },
+  jia:   { name: "玄铁甲", ico: "甲" },
+  pao:   { name: "流云袍", ico: "袍" },
+  yi:    { name: "龙鳞衣", ico: "衣" },
+  jie:   { name: "碧玉戒", ico: "戒" },
+  lian:  { name: "紫金链", ico: "链" },
+  fu:    { name: "驱邪符", ico: "符" },
+};
+// 词条库：9 派系词条 + 5 稀有词条
+const AFFIX_POOL = {
+  // 派系词条 —— 与 v2.0 派系核心联动
+  huo_dmg:     { name: "赤锋·炎",  type: "派系", school: "赤锋", desc: "火伤 +12%" },
+  mu_speed:    { name: "疾风·逸",  type: "派系", school: "疾风", desc: "移速 +8%" },
+  shui_slow:   { name: "霜晶·凝",  type: "派系", school: "霜晶", desc: "命中减速 +10%" },
+  jin_crit:    { name: "血煞·噬",  type: "派系", school: "血煞", desc: "击杀回血 +5" },
+  tu_shield:   { name: "磐石·固",  type: "派系", school: "磐石", desc: "护盾 +10" },
+  huo_burn:    { name: "焚天·灼",  type: "派系", school: "焚天", desc: "灼烧伤害 +25%" },
+  jin_thunder: { name: "雷灵·震",  type: "派系", school: "雷灵", desc: "雷伤 +25%" },
+  huo_fire:    { name: "龙血·炎",  type: "派系", school: "龙血", desc: "受击火反伤 +15" },
+  jin_iron:    { name: "玄铁·坚",  type: "派系", school: "玄铁", desc: "减伤 +8%" },
+  // 稀有词条 —— 紫装起出现
+  crit_pct:   { name: "锐利",  type: "稀有", desc: "暴击率 +5%" },
+  haste_pct:  { name: "急速",  type: "稀有", desc: "急速 +8%" },
+  lifesteal:  { name: "吸血",  type: "稀有", desc: "击杀回血 +2" },
+  xp_bonus:   { name: "悟性",  type: "稀有", desc: "经验 +15%" },
+  shield_max: { name: "护体",  type: "稀有", desc: "护盾上限 +15" },
+};
+const AFFIX_BY_KEY = AFFIX_POOL;        // 别名（兼容旧引用）
+const AFFIX_KEYS = Object.keys(AFFIX_POOL);
+const RARE_AFFIX_KEYS = AFFIX_KEYS.filter((k) => AFFIX_POOL[k].type === "稀有");
+
+// 生成装备：slot × tier × type × 词条
+function makeEquip(slot, tier, opts = {}) {
+  const slotDef = SLOT_DEFS[slot];
+  const tierDef = TIERS[tier];
+  const typeKey = opts.typeKey || slotDef.pool[Math.floor(Math.random() * slotDef.pool.length)];
+  const typeDef = ITEM_TYPES[typeKey];
+  const n = randInt(tierDef.affMin, tierDef.affMax);
+  // 词条池：紫装起至少 1 个稀有词条（保证稀有感）
+  const used = new Set(opts.fixedAffixes || []);
+  const affixes = [...(opts.fixedAffixes || [])];
+  // 紫+橙 起步补 1 稀有
+  if (tierDef.equipable && affixes.filter((a) => AFFIX_POOL[a].type === "稀有").length === 0 && RARE_AFFIX_KEYS.some((k) => !used.has(k))) {
+    const avail = RARE_AFFIX_KEYS.filter((k) => !used.has(k));
+    const k = avail[Math.floor(Math.random() * avail.length)];
+    affixes.push(k); used.add(k);
+  }
+  while (affixes.length < n) {
+    const k = AFFIX_KEYS[Math.floor(Math.random() * AFFIX_KEYS.length)];
+    if (used.has(k)) continue;
+    affixes.push(k); used.add(k);
+  }
+  // 主属性按 slot × 阶倍率
+  const baseMain = slot === "weapon" ? 8 : slot === "armor" ? 20 : 5;
+  const main = Math.round(baseMain * tierDef.mult);
+  return {
+    uid: "eq_" + Date.now().toString(36) + "_" + Math.floor(Math.random() * 1e6).toString(36),
+    slot, typeKey, tier, affixes,
+    name: `${tierDef.name}·${typeDef.name}`,
+    ico: typeDef.ico,
+    color: tierDef.color,
+    atk: slot === "weapon"    ? main : 0,
+    hp:  slot === "armor"     ? main : 0,
+    spd: slot === "accessory" ? main : 0,
+  };
+}
+
+// 合成判断：同 slot 同 tier 至少 1 词条重叠；顶级橙不能再合
+function canMerge(a, b) {
+  if (!a || !b) return false;
+  if (a.slot !== b.slot || a.tier !== b.tier) return false;
+  if (a.tier === "orange") return false;
+  return a.affixes.some((x) => b.affixes.includes(x));
+}
+// 合并：高一阶，词条并集（截断到新阶上限），随机丢多余
+function mergeEquip(a, b) {
+  const idx = TIER_ORDER.indexOf(a.tier);
+  const newTier = TIER_ORDER[idx + 1];
+  const tierDef = TIERS[newTier];
+  const merged = Array.from(new Set([...a.affixes, ...b.affixes]));
+  while (merged.length > tierDef.affMax) merged.splice(Math.floor(Math.random() * merged.length), 1);
+  return makeEquip(a.slot, newTier, { typeKey: a.typeKey, fixedAffixes: merged });
+}
+// 自动合成（递归：合完一次继续找可合的）
+function autoMergeEquip() {
+  let any = true;
+  let count = 0;
+  while (any) {
+    any = false;
+    for (let i = 0; i < G.inventory.length; i++) {
+      for (let j = i + 1; j < G.inventory.length; j++) {
+        const a = G.inventory[i], b = G.inventory[j];
+        if (canMerge(a, b)) {
+          const eq = mergeEquip(a, b);
+          G.inventory.splice(j, 1);
+          G.inventory.splice(i, 1);
+          G.inventory.push(eq);
+          count++;
+          burst(G.px, G.py, eq.color, 14, 160, 3);
+          spawnFloater(G.px, G.py - G.pr - 26, `合成 · ${eq.name}`, eq.color, 12, true);
+          any = true;
+          break;
+        }
+      }
+      if (any) break;
+    }
+  }
+  return count;
+}
+// 拾取装备入背包（满则卖金币）
+// 装备变更后重建缓存
+function equipRec() {
+  G._eqCache = equipBonuses();
+  // v3.0：装备带来的增量叠加到玩家基础值
+  G.atk = (G._baseAtk || G.atk) + (G._eqCache.atk || 0);
+  G.hpMax = (G._baseHpMax || G.hpMax) + (G._eqCache.hp || 0);
+  G.moveSpeed = (G._baseMoveSpeed || G.moveSpeed) * (1 + (G._eqCache.spd || 0) / 100);
+  G.crit = (G._baseCrit || 0.08) + (G._eqCache.crit || 0);
+  G.lifesteal = (G._baseLS || 0) + (G._eqCache.lifesteal || 0);
+  G.xpMul = (G._baseXpMul || 1) + (G._eqCache.xp || 0);
+  G.shieldMax = (G._baseShieldMax || 0) + (G._eqCache.shield || 0);
+  G.burnMul = (G._baseBurnMul || 1) * (G._eqCache.burnMul || 1);
+  G.dmgTakenMul = Math.max(0.1, (G._baseDmgTaken || 1) + (G._eqCache.dmgTaken || 0));
+}
+
+function pickUpEquip(eq) {
+  if (G.inventory.length >= INVENTORY_MAX) {
+    // 白绿自动卖，紫橙提示
+    const tier = TIERS[eq.tier];
+    if (!tier.equipable) {
+      const gold = Math.round(8 * tier.mult);
+      G.gold = (G.gold || 0) + gold;
+      spawnFloater(G.px, G.py - G.pr - 18, `+${gold} 金 · ${eq.name}`, "#fbbf24", 10);
+      return false;
+    }
+    toast(`背包满！${eq.name} 已丢弃`, "warn");
+    return false;
+  }
+  G.inventory.push(eq);
+  const merged = autoMergeEquip();
+  if (merged === 0) {
+    spawnFloater(G.px, G.py - G.pr - 10, `${eq.name} +1`, eq.color, 10);
+    burst(G.px, G.py, eq.color, 6, 110, 2);
+  }
+  invHudSync();
+  return true;
+}
+// 装备 / 卸下槽位
+function equipTo(uid) {
+  const idx = G.inventory.findIndex((e) => e.uid === uid);
+  if (idx < 0) return false;
+  const eq = G.inventory[idx];
+  if (!TIERS[eq.tier].equipable) { toast("白/绿/蓝只能在背包里", "warn"); return false; }
+  const cur = G.equipped[eq.slot];
+  if (cur) G.inventory.push(cur);                  // 卸下旧装备回背包
+  G.equipped[eq.slot] = eq;
+  G.inventory.splice(idx, 1);
+  invHudSync();
+  equipRec();
+  return true;
+}
+function unequipTo(slot) {
+  const cur = G.equipped[slot];
+  if (!cur) return false;
+  if (G.inventory.length >= INVENTORY_MAX) { toast("背包满，无法卸下", "warn"); return false; }
+  G.equipped[slot] = null;
+  G.inventory.push(cur);
+  invHudSync();
+  equipRec();
+  return true;
+}
+// 装备属性汇总（按当前 G.equipped）
+function equipBonuses() {
+  const b = { atk: 0, hp: 0, spd: 0, crit: 0, lifesteal: 0, xp: 0, shield: 0, dmgTaken: 0,
+              huoMul: 1, burnMul: 1 };
+  for (const slot in G.equipped) {
+    const eq = G.equipped[slot];
+    if (!eq) continue;
+    b.atk += eq.atk || 0;
+    b.hp += eq.hp || 0;
+    b.spd += eq.spd || 0;
+    for (const ax of eq.affixes) {
+      switch (ax) {
+        case "huo_dmg":     b.huoMul += 0.12; break;
+        case "mu_speed":    b.spd += 8; break;
+        case "shui_slow":   /* 接口占位：命中减速 +10% */ break;
+        case "jin_crit":    /* 接口占位：击杀回血 +5 */ break;
+        case "tu_shield":   b.shield += 10; break;
+        case "huo_burn":    b.burnMul += 0.25; break;
+        case "jin_thunder": /* 接口占位：雷伤 +25% */ break;
+        case "huo_fire":    /* 接口占位：受击火反伤 +15 */ break;
+        case "jin_iron":    b.dmgTaken -= 0.08; break;
+        case "crit_pct":    b.crit += 0.05; break;
+        case "haste_pct":   /* 接口占位：急速 +8%（atkSpeedNow 已支持 G._eqCache.haste）*/ break;
+        case "lifesteal":   b.lifesteal += 2; break;
+        case "xp_bonus":    b.xp += 0.15; break;
+        case "shield_max":  b.shield += 15; break;
+      }
+    }
+  }
+  return b;
+}
 
 // ---------- 派系核心（v2.0） ----------
 // 攒齐 5 颗同派系灵石即可解锁；最多同时装备 2 个；效果是"永久被动 + 终极技能"
@@ -1242,6 +1466,10 @@ const G = {
   stones: { chifeng: 0, jifeng: 0, xuesha: 0 },
   gems: {}, ordinary: [], gemFx: {}, pendingEssence: 0,
   meltCount: 0, hasteT: 0, regenT: 0,
+  // v3.0 装备系统（背包 + 3 槽位）
+  inventory: [], equipped: { weapon: null, armor: null, accessory: null },
+  _eqCache: { atk: 0, hp: 0, spd: 0, crit: 0, lifesteal: 0, xp: 0, shield: 0, dmgTaken: 0,
+              huoMul: 1, burnMul: 1 },
 };
 
 function resetRun(charId) {
@@ -1285,13 +1513,23 @@ function resetRun(charId) {
   G.burnMul = 1; G.thunderProc = 0;
   G.stones = {};
   for (const st of STONES_ALL) G.stones[st.key] = 0;   // 全部 27 颗都可拾取
-  G.gems = {}; G.ordinary = []; G.gemFx = {}; G.pendingEssence = 0;
+  G.gems = {}; G.gemFx = {}; G.pendingEssence = 0;
+  G.inventory = []; G.equipped = { weapon: null, armor: null, accessory: null };   // v3.0 装备系统
+  G._eqCache = { atk: 0, hp: 0, spd: 0, crit: 0, lifesteal: 0, xp: 0, shield: 0, dmgTaken: 0,
+                 huoMul: 1, burnMul: 1 };
+  // v3.0 装备系统基础值（reset 后装备带来的增量叠加用）
+  G._baseAtk = G.atk; G._baseHpMax = G.hpMax; G._baseMoveSpeed = G.moveSpeed;
+  G._baseCrit = G.crit; G._baseLS = G.lifesteal; G._baseXpMul = G.xpMul;
+  G._baseShieldMax = G.shieldMax; G._baseBurnMul = G.burnMul;
+  G._baseDmgTaken = G.dmgTakenMul;
   G.cores = []; G.schoolUnlocked = {}; G.schoolFx = {};
   G._coreFireT = 0; G._coreZhenboT = 0; G._coreLeiYuT = 0; G._coreFenshiT = 0; G._coreBingfengT = 0; G._coreDiedOnce = false;
   G.meltCount = 0; G.hasteT = 0; G.regenT = 0;
   G._schoolHinted = null;
   G._forgeHinted = false;
   G.resonance = recomputeResonance();
+  equipRec();   // v3.0 装备缓存初始化（先空）
+  invHudSync();
   initNodes();
   G.weapons = {
     sword: { lv: 1, evo: false },
@@ -1873,11 +2111,10 @@ function gemsMaxed() {
   return ids.length >= MAX_GEMS && ids.every((id) => (G.gems[id] || 0) >= 3);
 }
 function canMelt() {
-  return gemsMaxed() && G.ordinary.length >= MAX_ORDINARY && stoneTotal() >= MELT_COST;
+  return gemsMaxed() && stoneTotal() >= MELT_COST;   // v3.0 装备替换通用后，淬体只看宝石满
 }
 function forgeableAny() {
   if (gemsOf().some(canCraft)) return true;
-  if (G.ordinary.length < MAX_ORDINARY && stoneTotal() >= ORDINARY_COST) return true;
   return canMelt();
 }
 
@@ -1885,6 +2122,124 @@ function forgeBtnSync() {
   if (!ui.forgeBtn) return;
   ui.forgeBtnCount.textContent = stoneTotal();
   ui.forgeBtn.classList.toggle("ready", forgeableAny());
+}
+
+// ---------- 背包 v3.0 渲染 ----------
+function invHudSync() {
+  if (!ui.invBtnCount) return;
+  ui.invBtnCount.textContent = `${G.inventory.length}/${INVENTORY_MAX}`;
+  const hasPurple = G.inventory.some((e) => e.tier === "purple" || e.tier === "orange");
+  ui.invBtn.classList.toggle("has-purple", hasPurple);
+}
+// 渲染装备槽位（3 席）+ 背包网格（30 格）
+let _invSelectedUid = null;
+function renderInventory() {
+  if (!ui.invGrid) return;
+  // 槽位
+  for (const slot of ["weapon", "armor", "accessory"]) {
+    const node = ui["invSlot" + slot[0].toUpperCase() + slot.slice(1)];
+    if (!node) continue;
+    const eq = G.equipped[slot];
+    const labelEl = node.querySelector(".inv-slot-label");
+    const eqEl = node.querySelector(".inv-slot-eq");
+    if (eq) {
+      node.classList.add("filled");
+      eqEl.innerHTML = `<b style="color:${TIERS[eq.tier].color}">${TIERS[eq.tier].name}·${ITEM_TYPES[eq.typeKey].name}</b><br><span style="font-size:9px;color:#a78bfa">点击卸下</span>`;
+    } else {
+      node.classList.remove("filled");
+      eqEl.innerHTML = `<span class="empty-hint">空 · 点击紫/橙装备</span>`;
+    }
+    node.onclick = () => { if (G.equipped[slot]) { unequipTo(slot); renderInventory(); } };
+  }
+  // 网格
+  ui.invGrid.innerHTML = "";
+  for (let i = 0; i < INVENTORY_MAX; i++) {
+    const cell = document.createElement("div");
+    const eq = G.inventory[i];
+    if (!eq) {
+      cell.className = "inv-cell empty";
+    } else {
+      cell.className = `inv-cell tier-${eq.tier}`;
+      cell.innerHTML = `<div>${eq.ico}</div><div class="inv-cell-name">${TIERS[eq.tier].name}${eq.ico}</div>` +
+                       (TIERS[eq.tier].equipable ? `<div class="inv-cell-affix">装</div>` : "");
+      cell.onclick = () => {
+        _invSelectedUid = eq.uid;
+        renderInventory();
+      };
+      if (_invSelectedUid === eq.uid) cell.style.outline = "2px solid #d8b4fe";
+    }
+    ui.invGrid.appendChild(cell);
+  }
+  // 详情
+  renderInvDetail();
+}
+function renderInvDetail() {
+  if (!ui.invDetail) return;
+  if (!_invSelectedUid) {
+    ui.invDetail.className = "inv-detail empty";
+    ui.invDetail.innerHTML = "点选装备查看词条，点击槽位可装备紫/橙";
+    return;
+  }
+  const eq = G.inventory.find((e) => e.uid === _invSelectedUid);
+  if (!eq) {
+    ui.invDetail.className = "inv-detail empty";
+    ui.invDetail.innerHTML = "（已被卸下/合成）";
+    return;
+  }
+  const tier = TIERS[eq.tier];
+  const slotDef = SLOT_DEFS[eq.slot];
+  const mainLabel = eq.atk ? `攻击 +${eq.atk}` : eq.hp ? `生命 +${eq.hp}` : `移速 +${eq.spd}`;
+  ui.invDetail.className = "inv-detail";
+  ui.invDetail.innerHTML = `
+    <div class="det-name" style="color:${tier.color}">${eq.name} · ${slotDef.name}</div>
+    <div><span class="det-stat">${mainLabel}</span> · <span style="color:#fbbf24">${TIER_ORDER.indexOf(eq.tier)+1}/5阶</span></div>
+    ${eq.affixes.map((a) => {
+      const af = AFFIX_POOL[a];
+      return `<div class="det-affix${af.type === "稀有" ? " rare" : ""}">· ${af.name}：${af.desc}${af.type === "稀有" ? " ✦" : ""}</div>`;
+    }).join("")}
+    <div class="det-actions">
+      ${tier.equipable ? `<button class="btn-equip" id="btnEquipNow">装备到${slotDef.name}槽</button>` : `<button class="btn-equip" disabled style="opacity:0.4">白/绿/蓝不可装</button>`}
+    </div>`;
+  const btn = ui.invDetail.querySelector("#btnEquipNow");
+  if (btn) btn.onclick = () => {
+    if (equipTo(eq.uid)) { _invSelectedUid = null; renderInventory(); invHudSync(); }
+  };
+}
+function openInventory() {
+  G.state = "pause";
+  _invSelectedUid = null;
+  renderInventory();
+  ui.invModal.classList.remove("hidden");
+}
+function closeInventory() {
+  ui.invModal.classList.add("hidden");
+  G.state = "play";
+}
+// 炼宝台里装备快览（3 槽位 + 总览）
+function renderEquipQuick() {
+  if (!ui.forgeEquip) return;
+  if (ui.forgeEquipCount) {
+    const n = Object.values(G.equipped).filter(Boolean).length;
+    ui.forgeEquipCount.textContent = `${n}/${EQUIP_SLOTS_MAX}`;
+  }
+  ui.forgeEquip.innerHTML = "";
+  for (const slot of ["weapon", "armor", "accessory"]) {
+    const eq = G.equipped[slot];
+    const card = document.createElement("div");
+    if (eq) {
+      const tier = TIERS[eq.tier];
+      card.className = `eq-quick-card tier-${eq.tier}`;
+      card.innerHTML = `<div class="eq-qc-tier" style="color:${tier.color}">${tier.name}·${SLOT_DEFS[slot].name}</div>
+                        <div class="eq-qc-name">${ITEM_TYPES[eq.typeKey].name}</div>
+                        <div style="font-size:10px;color:#a78bfa">${eq.affixes.length}词条</div>`;
+    } else {
+      card.className = "eq-quick-card empty";
+      card.innerHTML = `<div class="eq-qc-tier">${SLOT_DEFS[slot].name}</div>
+                        <div class="eq-qc-name">未装备</div>
+                        <div style="font-size:10px;color:#6c7589">紫/橙可装</div>`;
+    }
+    ui.forgeEquip.appendChild(card);
+  }
 }
 
 function forgeHintCheck() {
@@ -1959,32 +2314,12 @@ function renderForge() {
     }
   }
 
-  // 通用装备：只给普通数值效果，胜在便宜
-  if (ui.forgeOrdinary) {
-    ui.forgeOrdinary.innerHTML = "";
-    const full = G.ordinary.length >= MAX_ORDINARY;
-    const total = stoneTotal();
-    for (const def of ORDINARIES) {
-      const disabled = full || total < ORDINARY_COST;
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "forge-item f-ord tier-fan" + (disabled ? " disabled" : " can");
-      btn.style.setProperty("--fc", "#cbd5e1");
-      btn.innerHTML = `
-        <span class="fi-ico">${def.ico}</span>
-        <span class="fi-body">
-          <span class="fi-name">${def.name}<em class="ord">通用</em></span>
-          <span class="fi-desc">${def.desc}</span>
-        </span>
-        <span class="fi-cost">灵石 ${ORDINARY_COST}</span>`;
-      if (!disabled) btn.addEventListener("click", () => forgeOrdinary(def.id));
-      ui.forgeOrdinary.appendChild(btn);
-    }
-  }
+  // 通用装备已由 v3.0 装备系统取代（背包自动合成 + 怪物掉落）
+  renderEquipQuick();
 
   // 灵石淬体：宝石与通用皆满才出现
   if (ui.forgeMelt) {
-    const open = gemsMaxed() && G.ordinary.length >= MAX_ORDINARY;
+    const open = gemsMaxed();
     if (ui.forgeMeltWrap) ui.forgeMeltWrap.classList.toggle("hidden", !open);
     ui.forgeMelt.innerHTML = "";
     if (open) {
@@ -2237,21 +2572,13 @@ function craftGem(id) {
 }
 
 function forgeOrdinary(id) {
-  const def = ORDINARY_BY_ID[id];
-  if (!def) return;
-  if (G.ordinary.length >= MAX_ORDINARY) { toast("通用之位数已满"); return; }
-  if (!spendStones(ORDINARY_COST)) { toast("灵石不足"); return; }
-  G.ordinary.push(id);
-  def.apply();
-  burst(G.px, G.py, "#dfe6ef", 16, 170, 4);
-  AudioSys.buy();
-  toast(`制成通用 · ${def.name}`, "cyan");
-  stoneHudSync(); forgeBtnSync(); renderForge(); refreshWeaponHint();
+  // v3.0 装备替换了通用装备 —— 通用合成入口已废弃
+  toast("通用装备已下线 · 用怪物掉落的装备吧", "warn");
 }
 
-// 宝石与通用皆满后的去处：把富余灵石淬进肉身（收益明显低于宝石）
+// 宝石满后的去处：把富余灵石淬进肉身（收益明显低于宝石）
 function meltStones() {
-  if (!gemsMaxed() || G.ordinary.length < MAX_ORDINARY) { toast("先凝满宝石与通用装备"); return; }
+  if (!gemsMaxed()) { toast("先凝满流派宝石"); return; }
   if (!spendStones(MELT_COST)) { toast("灵石不足"); return; }
   G.atk *= 1.02;
   G.shieldMax += 8;
@@ -2531,11 +2858,14 @@ function atkSpeedNow() {
 
 function playerDamageMult() {
   let m = 1;
+  const eq = G._eqCache || equipBonuses();
   if (G.hp < G.hpMax * 0.4) m += G.lowHpBonus;
   // 龙血流：气血低于 45% 时狂化
   if (G.gemFx && G.gemFx.rage && G.hp < G.hpMax * 0.45) m += 0.25;
   // 本命归一（共鸣）—— 凝出第一颗宝石即永久获得
   if (G.resonance && G.resonance.benPlayerMul) m += G.resonance.benPlayerMul;
+  // v3.0 装备·火元素加伤（其他元素词条预留接口）
+  m *= eq.huoMul;
   // 派系核心：每个核心可叠加一个 damageMult 钩子（血月当空等）
   for (const c of coresEquipped()) {
     if (c.damageMult) m = c.damageMult(m);
@@ -2603,9 +2933,54 @@ function killEnemy(e, byPlayer = true) {
       }
       toast(`派系包 · ${s}灵石 ×5`, "gold");
     }
+    // v3.0 装备掉落
+    if (Math.random() < DROP_EQ_ELITE_W) {
+      const slots = ["weapon", "armor", "accessory"];
+      const eq = makeEquip(pick(slots), "white");
+      dropPickup(e.x + rand(-30, 30), e.y + rand(-30, 30), "equip", { equip: eq });
+    }
+    if (Math.random() < DROP_EQ_ELITE_G) {
+      const slots = ["weapon", "armor", "accessory"];
+      const eq = makeEquip(pick(slots), "green");
+      dropPickup(e.x + rand(-30, 30), e.y + rand(-30, 30), "equip", { equip: eq });
+    }
   } else {
     if (Math.random() < 0.04) dropPickup(e.x, e.y, "orb");
     if (Math.random() < DROP_MOB) dropPickup(e.x, e.y, "stone", { stone: randStone() });
+    // v3.0 小妖掉装备
+    if (Math.random() < DROP_EQ_MOB) {
+      const slots = ["weapon", "armor", "accessory"];
+      const eq = makeEquip(pick(slots), "white");
+      dropPickup(e.x + rand(-20, 20), e.y + rand(-20, 20), "equip", { equip: eq });
+    }
+  }
+  // 妖王装备（独立分支确保必出）
+  if (e.boss) {
+    const wN = randInt(DROP_EQ_BOSS_W_MIN, DROP_EQ_BOSS_W_MAX);
+    for (let i = 0; i < wN; i++) {
+      const slots = ["weapon", "armor", "accessory"];
+      const eq = makeEquip(pick(slots), "white");
+      dropPickup(e.x + rand(-60, 60), e.y + rand(-60, 60), "equip", { equip: eq });
+    }
+    if (Math.random() < DROP_EQ_BOSS_G) {
+      const n = randInt(1, 2);
+      for (let i = 0; i < n; i++) {
+        const slots = ["weapon", "armor", "accessory"];
+        const eq = makeEquip(pick(slots), "green");
+        dropPickup(e.x + rand(-60, 60), e.y + rand(-60, 60), "equip", { equip: eq });
+      }
+    }
+    if (Math.random() < DROP_EQ_BOSS_B) {
+      const slots = ["weapon", "armor", "accessory"];
+      const eq = makeEquip(pick(slots), "blue");
+      dropPickup(e.x + rand(-60, 60), e.y + rand(-60, 60), "equip", { equip: eq });
+    }
+    if (Math.random() < DROP_EQ_BOSS_O) {
+      const slots = ["weapon", "armor", "accessory"];
+      const eq = makeEquip(pick(slots), "orange");
+      dropPickup(e.x + rand(-60, 60), e.y + rand(-60, 60), "equip", { equip: eq });
+      toast(`妖王赐 · 橙·${ITEM_TYPES[eq.typeKey].name}`, "orange");
+    }
   }
   // 雷音铃：击杀概率落雷（限深度，避免连锁递归）
   if (G.thunderProc > 0 && (G._thunderChain || 0) < 3 && Math.random() < G.thunderProc) {
@@ -2719,6 +3094,9 @@ function collectPickup(p) {
     AudioSys.level();
     if (G.state === "play") openEssenceModal();
     else G.pendingEssence = (G.pendingEssence || 0) + 1;
+  } else if (p.kind === "equip") {
+    pickUpEquip(p.equip);
+    AudioSys.hit();
   } else if (p.kind === "boss") {
     G.hp = G.hpMax; G.mp = G.mpMax; G.shield += 30; G.atk *= 1.1;
     toast("斩灭大妖 · 气血回满，攻击大涨");
@@ -5079,6 +5457,8 @@ ui.btnCodex.addEventListener("click", showCodex);
 ui.btnCodexBack.addEventListener("click", hideCodex);
 if (ui.forgeBtn) ui.forgeBtn.addEventListener("click", () => { AudioSys.init(); openForge(); });
 if (ui.btnForgeClose) ui.btnForgeClose.addEventListener("click", closeForge);
+if (ui.invBtn) ui.invBtn.addEventListener("click", () => { AudioSys.init(); openInventory(); });
+if (ui.btnInvClose) ui.btnInvClose.addEventListener("click", closeInventory);
 ui.btnResume.addEventListener("click", resumeGame);
 ui.btnPauseHome.addEventListener("click", () => {
   ui.pauseScreen.classList.add("hidden");
@@ -5156,16 +5536,22 @@ window.__XTJ__ = {
   JOB_PATHS, JOB_LEVELS, JOB_STAGES, NODE_HOLD,
   openRelicModal, updateBeasts, spawnBeast, relicHudSync, beastHudSync, renderCodex, showCodex, hideCodex,
   ARTIFACTS, ARTIFACT_BY_ID, BEASTS, BEAST_BY_ID, MAX_RELICS,
-  ELEMENTS, ELEM_BY_KEY, ORDINARIES, ORDINARY_BY_ID, ORDINARY_COST, MAX_ORDINARY,
+  ELEMENTS, ELEM_BY_KEY, ORDINARY_COST, MAX_ORDINARY,
+  // v3.0 装备系统
+  TIERS, TIER_ORDER, SLOT_DEFS, ITEM_TYPES, AFFIX_POOL, AFFIX_KEYS, RARE_AFFIX_KEYS,
+  INVENTORY_MAX, EQUIP_SLOTS_MAX,
+  makeEquip, canMerge, mergeEquip, autoMergeEquip, pickUpEquip,
+  equipTo, unequipTo, equipBonuses, equipRec,
   CHAR_STONES, STONE_BY_KEY, STONES_ALL, STONE_BY_SCHOOL, SCHOOLS_ALL,
   GEMS, GEM_BY_ID, GEM_TIERS, MAX_GEMS,
   SCH_CORES, SCH_CORE_BY_ID, SCH_CORE_BY_SCHOOL, MAX_SCHOOL_CORES, CORE_NEED_STONES,
   stonesOf, stoneKeys, stoneTotal, stoneAt, schoolOf, countSchool, gemsOf, gemSlotsUsed, randStone,
   canUnlockCore, unlockCore, equipCore, unequipCore, spendSchool,
   coresEquipped, coresHasSlot, coresOfChar,
-  stoneHudSync, schoolHintCheck, forgeBtnSync, forgeableAny, canCraft, spendStones, gemProgress, nextGemStoneKey,
-  renderForge, renderCores, coreHudSync, openForge, closeForge, craftGem, forgeOrdinary, openEssenceModal,
+  stoneHudSync, invHudSync, renderInventory, openInventory, closeInventory, renderEquipQuick, schoolHintCheck, forgeBtnSync, forgeableAny, canCraft, spendStones, gemProgress, nextGemStoneKey,
+  renderForge, renderCores, coreHudSync, openForge, closeForge, craftGem, openEssenceModal,
   gemsMaxed, canMelt, meltStones, MELT_COST, SCH_PACK_DROP,
+  DROP_EQ_MOB, DROP_EQ_ELITE_W, DROP_EQ_ELITE_G, DROP_EQ_BOSS_W_MIN, DROP_EQ_BOSS_W_MAX, DROP_EQ_BOSS_G, DROP_EQ_BOSS_B, DROP_EQ_BOSS_O,
   gemOnHit, gemOnCrit, atkSpeedNow, knockEnemies, playerDamageMult,
   ELEM_OVERCOME, ELEM_GENERATE, PATH_ELEMS, elemRelation, bestElemRelation, elemMulVs, elemMatchText, waveElemKey,
   REL_BEAT, REL_LOSE, REL_FED, REL_DRAIN,

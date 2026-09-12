@@ -86,6 +86,12 @@
       <span id="forgeBtnCount" class="forge-btn-count">0</span>
     </button>
 
+    <button id="invBtn" class="inv-btn" type="button">
+      <span class="inv-btn-ico">包</span>
+      <span class="inv-btn-label">背包</span>
+      <span id="invBtnCount" class="inv-btn-count">0/30</span>
+    </button>
+
     <div id="stoneRow" class="stone-row hidden"></div>
 
     <div id="resHud" class="res-hud hidden"><span id="resHudList"></span></div>
@@ -158,15 +164,15 @@
       <div id="forgeStones" class="forge-crystals"></div>
       <div class="forge-slots">
         <span class="forge-slot excl">流派宝石 <b id="forgeGemCount">0/2</b></span>
-        <span class="forge-slot ord">通用装备 <b id="forgeOrdCount">0/3</b></span>
+        <span class="forge-slot eq">装备 <b id="forgeEquipCount">0/3</b></span>
       </div>
       <div class="forge-scroll">
         <div class="forge-sec-title"><i class="forge-dot d-excl"></i>流派宝石 · 属性与技能大增，圆满另有特效</div>
         <div id="forgeGems" class="forge-list"></div>
-        <div class="forge-sec-title"><i class="forge-dot d-ord"></i>通用装备 · 只有普通攻击效果</div>
-        <div id="forgeOrdinary" class="forge-list"></div>
+        <div class="forge-sec-title"><i class="forge-dot d-eq"></i>装备 · 怪物掉落 · 背包自动合成 · 紫/橙可装备</div>
+        <div id="forgeEquip" class="eq-quick"></div>
         <div id="forgeMeltWrap" class="hidden">
-          <div class="forge-sec-title"><i class="forge-dot d-melt"></i>灵石淬体 · 宝石与通用皆满后的去处</div>
+          <div class="forge-sec-title"><i class="forge-dot d-melt"></i>灵石淬体 · 宝石满后的去处</div>
           <div id="forgeMelt" class="forge-list"></div>
         </div>
         <div class="forge-sec-title"><i class="forge-dot d-res"></i>派系核心 · 同派系 5 颗灵石觉醒一个，永久被动 + 终极技能</div>
@@ -175,6 +181,32 @@
         <div id="forgeResonance" class="res-list"></div>
       </div>
       <button id="btnForgeClose" class="btn-primary forge-close" type="button"><span>收工 · 继续战斗</span></button>
+    </div>
+  </div>
+
+  <!-- 背包 v3.0 -->
+  <div id="invModal" class="modal hidden">
+    <div class="modal-card inv-card">
+      <div class="modal-ornament"></div>
+      <h2>装备背包</h2>
+      <p class="modal-sub">怪物掉落 · 2 同阶同槽位 + 至少 1 词条重叠 = 自动合成 · 紫/橙可装备</p>
+      <div class="inv-equipped">
+        <div id="invSlotWeapon"    class="inv-slot" data-slot="weapon">
+          <span class="inv-slot-label">武器</span>
+          <span class="inv-slot-eq"></span>
+        </div>
+        <div id="invSlotArmor"     class="inv-slot" data-slot="armor">
+          <span class="inv-slot-label">防具</span>
+          <span class="inv-slot-eq"></span>
+        </div>
+        <div id="invSlotAccessory" class="inv-slot" data-slot="accessory">
+          <span class="inv-slot-label">饰品</span>
+          <span class="inv-slot-eq"></span>
+        </div>
+      </div>
+      <div class="inv-grid" id="invGrid"></div>
+      <div id="invDetail" class="inv-detail"></div>
+      <button id="btnInvClose" class="btn-primary forge-close" type="button"><span>收工 · 继续战斗</span></button>
     </div>
   </div>
 

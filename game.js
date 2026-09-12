@@ -51,6 +51,8 @@ const ui = {
   forgeGems: $("forgeGems"), forgeOrdinary: $("forgeOrdinary"),
   forgeMelt: $("forgeMelt"), forgeMeltWrap: $("forgeMeltWrap"),
   btnForgeClose: $("btnForgeClose"),
+  forgeResonance: $("forgeResonance"),
+  resHud: $("resHud"), resHudList: $("resHudList"),
 };
 
 // ---------- Audio ----------
@@ -477,6 +479,12 @@ function randStone() {
 // 每波妖物统一带当前波属性；你已铸的专属按「最优那一行」参与判定。
 const ELEM_OVERCOME = { jin: "mu", mu: "tu", tu: "shui", shui: "huo", huo: "jin" };
 const ELEM_GENERATE = { jin: "shui", shui: "mu", mu: "huo", huo: "tu", tu: "jin" };
+// 三道侣伴五行：剑道火/木/金；玄法金/水/火；体道金/火/土。道途与这些元素共鸣时视为「同属」
+const PATH_ELEMS = {
+  sword: new Set(["huo", "mu", "jin"]),
+  mage:  new Set(["jin", "shui", "huo"]),
+  body:  new Set(["jin", "huo", "tu"]),
+};
 const REL_SAME = { key: "same", mul: 1, tag: "", color: null };
 const REL_BEAT = { key: "beat", mul: 1.35, tag: "克", color: "#fbbf24" };    // 我克它
 const REL_LOSE = { key: "lose", mul: 0.8, tag: "被克", color: "#93c5fd" };   // 它克我
@@ -1011,6 +1019,7 @@ function resetRun(charId) {
   G.gems = {}; G.ordinary = []; G.gemFx = {}; G.pendingEssence = 0;
   G.meltCount = 0; G.hasteT = 0; G.regenT = 0;
   G._forgeHinted = false;
+  G.resonance = recomputeResonance();
   initNodes();
   G.weapons = {
     sword: { lv: 1, evo: false },
@@ -1713,9 +1722,152 @@ function renderForge() {
       ui.forgeMelt.appendChild(btn);
     }
   }
+
+  renderResonance();
+}
+
+// 共鸣面板：四条共鸣实时展示（locked/active），位于熔晶淬体下方
+function renderResonance() {
+  if (!ui.forgeResonance) return;
+  G.resonance = G.resonance || recomputeResonance();
+  const r = G.resonance;
+  const stones = stonesOf();
+  const gems = gemsOfId();
+  ui.forgeResonance.innerHTML = "";
+  for (const def of RESONANCE_DEFS) {
+    const on = !!r[def.id];
+    const detail = describeResonance(def.id, r, stones, gems);
+    const btn = document.createElement("div");
+    btn.className = "res-card" + (on ? " on" : "");
+    btn.innerHTML = `
+      <span class="res-ico">${def.ico}</span>
+      <span class="res-body">
+        <span class="res-name">${def.label}${on ? "·已觉醒" : "·未启"}</span>
+        <span class="res-desc">${detail}</span>
+      </span>
+      <span class="res-state">${on ? "已" : "未"}</span>`;
+    ui.forgeResonance.appendChild(btn);
+  }
+  resHudSync();
+}
+
+function describeResonance(id, r, stones, gems) {
+  switch (id) {
+    case "benming":
+      return gems.length ? `已凝宝石 ${gems.length} 颗 · 全伤 +${(r.benPlayerMul * 100) | 0}%`
+        : "尚无已凝宝石";
+    case "daotu": {
+      const p = JOB_PATHS[G.jobPath];
+      if (!p) return "未择道途";
+      if (!r.daoTuElems.length) return `${p.name}五行未与宝石重合`;
+      return `${p.name}·[${r.daoTuElems.map((k) => ELEM_BY_KEY[k].name).join("·")}] 所克目标再 +25%`;
+    }
+    case "kuaJie":
+      return r.kuaJieStones.length
+        ? `${r.kuaJieStones.map((k) => STONE_BY_KEY[k].name).join("·")}圆满 · 整段 ×1.5`
+        : "至少一颗灵石需凝至圆满";
+    case "pobi":
+      return r.poBiElems.length
+        ? `${r.poBiElems.map((k) => ELEM_BY_KEY[k].name).join("⇿")}相克 · 余敌 +15%`
+        : "需 2 颗宝石五行相克";
+    default:
+      return id;
+  }
+}
+
+// 共鸣 HUD 缩略：右上灵兽/灵石芯片的下方
+function resHudSync() {
+  if (!ui.resHud || !ui.resHudList) return;
+  const r = G.resonance;
+  if (!r) { ui.resHud.classList.add("hidden"); return; }
+  const onNames = RESONANCE_DEFS.filter((d) => r[d.id]).map((d) => d.label);
+  if (onNames.length === 0) { ui.resHud.classList.add("hidden"); return; }
+  ui.resHud.classList.remove("hidden");
+  ui.resHudList.innerHTML = onNames.map((n) => `<span class="res-chip">${n.replace(/^[··]*/, "")}</span>`).join("");
 }
 
 // 凝练：主石决定是哪一系，配料决定能到哪一阶
+// ---------- 共鸣 · 多颗已凝宝石之间的协同奖励 ----------
+// 四条共鸣，由「已凝宝石 + 角色 + 转职道」实时推出
+//   本命归一：≥ 1 颗已凝宝石          ⇒ 玩家全伤 +12%
+//   道途共鸣：宝石元素 ∈ 转职五行集    ⇒ 该宝石对「其所克」目标再 +25%
+//   跨阶归一：任一灵石同时三阶         ⇒ 圆满特效的整段伤害 ×1.5
+//   破壁者  ：任意 2 颗宝石存在相克    ⇒ 对未直接被克的目标 +15%
+const RESONANCE_DEFS = [
+  { id: "benming", label: "本命归一", ico: "命",
+    desc: "你已凝出第一颗流派宝石 · 全局伤害 +12%" },
+  { id: "daotu",   label: "道途共鸣", ico: "道",
+    desc: "宝石与转职同属 · 该系对所克目标再 +25%" },
+  { id: "kuaJie",  label: "跨阶归一", ico: "阶",
+    desc: "一颗灵石推至圆满 · 圆满特效整段 ×1.5" },
+  { id: "pobi",    label: "破壁者", ico: "破",
+    desc: "两颗宝石五行相克 · 对未被克目标 +15%" },
+];
+
+function gemsOfId() {
+  return Object.entries(G.gems || {})
+    .map(([id, t]) => ({ id, t, def: GEM_BY_ID[id] }))
+    .filter((x) => x.def);
+}
+
+function recomputeResonance() {
+  const gems = gemsOfId();
+  const res = {
+    benming: false, daotu: false, kuaJie: false, poBi: false,
+    benPlayerMul: 0, daoTuElems: [], kuaJieStones: [], poBiElems: [],
+  };
+
+  // 1. 本命归一：≥ 1 颗已凝宝石 ⇒ 玩家伤害系数 +12%（由 playerDamageMult 读取）
+  if (gems.length >= 1) {
+    res.benming = true;
+    res.benPlayerMul = 0.12;
+  }
+
+  // 2. 道途共鸣：任一已凝宝石的元素 ∈ 当前转职五行集
+  const path = JOB_PATHS[G.jobPath];
+  const set = path && PATH_ELEMS[path.id];
+  if (set) {
+    const seen = new Set();
+    for (const g of gems) if (set.has(g.def.elem)) seen.add(g.def.elem);
+    if (seen.size) {
+      res.daotu = true;
+      res.daoTuElems = [...seen];
+    }
+  }
+
+  // 3. 跨阶归一：任意一颗宝石到达 tier=3（圆满）
+  const maxTier = Math.max(0, ...gems.map((g) => g.t || 0));
+  if (maxTier >= 3) {
+    res.kuaJie = true;
+    res.kuaJieStones = gems.filter((g) => g.t >= 3).map((g) => g.def.stone);
+  }
+
+  // 4. 破壁者：两颗宝石之间存在「相克」(i.g.j 或 j.g.i)
+  for (let i = 0; i < gems.length; i++) {
+    for (let j = i + 1; j < gems.length; j++) {
+      const ei = gems[i].def.elem, ej = gems[j].def.elem;
+      if (ELEM_OVERCOME[ei] === ej || ELEM_OVERCOME[ej] === ei) {
+        res.pobi = true;
+        res.poBiElems = [...new Set([ei, ej])];
+        i = gems.length; break;
+      }
+    }
+  }
+
+  return res;
+}
+
+// 返回「刚刚首次觉醒」的共鸣列表，供 craftGem toast
+function resonanceJust(prev, now) {
+  const out = [];
+  if (!prev) return out;
+  const names = { benming: "本命归一", daotu: "道途共鸣", kuaJie: "跨阶归一", pobi: "破壁者" };
+  for (const k of ["benming", "daotu", "kuaJie", "pobi"]) {
+    if (!prev[k] && now[k]) out.push(names[k]);
+  }
+  return out;
+}
+
 function craftGem(id) {
   const def = GEM_BY_ID[id];
   if (!def || def.char !== G.charId) return;
@@ -1737,7 +1889,15 @@ function craftGem(id) {
   spawnFloater(G.px, G.py - G.pr - 22, `${def.name} · ${GEM_TIERS[nr - 1].label}`, def.color, nr >= 3 ? 20 : 16, true);
   AudioSys.level();
   toast(`凝成 · ${def.name}（${GEM_TIERS[nr - 1].label}）`, "gold");
+  // 重新计算共鸣 —— 任何新觉醒的都会单独再 toast 一次
+  const prevR = G.resonance || {};
+  const r = recomputeResonance();
+  G.resonance = r;
+  const just = resonanceJust(prevR, r);
   stoneHudSync(); forgeBtnSync(); renderForge(); refreshWeaponHint();
+  if (just.length) {
+    setTimeout(() => toast("共鸣觉醒 · " + just.join(" · "), "violet"), 240);
+  }
 }
 
 function forgeOrdinary(id) {
@@ -2019,6 +2179,8 @@ function playerDamageMult() {
   if (G.hp < G.hpMax * 0.4) m += G.lowHpBonus;
   // 龙血流：气血低于 45% 时狂化
   if (G.gemFx && G.gemFx.rage && G.hp < G.hpMax * 0.45) m += 0.25;
+  // 本命归一（共鸣）—— 凝出第一颗宝石即永久获得
+  if (G.resonance && G.resonance.benPlayerMul) m += G.resonance.benPlayerMul;
   // 剑阵：站在阵上吃阵法增益，升级「阵心通明」再叠一层
   m *= (G.nodeAtkMul || 1);
   if (G.nodeActive) m *= (1 + (G.nodeBonus || 0));
@@ -2246,8 +2408,25 @@ function applyHit(e, dmg, opts = {}) {
   // 五行相生相克：由已凝宝石的五行决定，通用装备不参与
   const rel = bestElemRelation(e.elem);
   if (rel.mul !== 1) d *= rel.mul;
+  // 共鸣 · 道途共鸣：若宝石元素当前属于转职五行集，对该系所克的目标再叠 +25%
+  if (G.resonance && G.resonance.daoTuElems && G.resonance.daoTuElems.length) {
+    for (const ee of G.resonance.daoTuElems) {
+      if (ELEM_OVERCOME[ee] === e.elem) { d *= 1.25; break; }
+    }
+  }
+  // 共鸣 · 破壁者：敌人五行不在任何已凝宝石的「直接克制对」中时，稳步补 +15%
+  if (G.resonance && G.resonance.pobi) {
+    let beaten = false;
+    if (G.resonance.poBiElems) for (const ee of G.resonance.poBiElems) {
+      if (ELEM_OVERCOME[ee] === e.elem) { beaten = true; break; }
+    }
+    if (!beaten) d *= 1.15;
+  }
   // 玄冰圆满：已受寒毒影响者额外受伤
   if (G.gemFx.deepFreeze && (e.slow || 0) > 0) d *= 1.25;
+  // 共鸣 · 跨阶归一：圆满特效（含溅射/暴击溅血/落雷引线等）整段再 ×1.5
+  const kuaJieOn = !!(G.resonance && G.resonance.kuaJie);
+  if (kuaJieOn) d *= 1.5;
   const isCrit = Math.random() < G.crit;
   if (isCrit) {
     d *= G.critMul;
@@ -2260,6 +2439,7 @@ function applyHit(e, dmg, opts = {}) {
   if (opts.slow) { e.slow = opts.slow; e.slowMul = opts.slowMul || 0.55; }
   gemOnHit(e, d);                    // 流派宝石的特殊攻击效果
   if (isCrit) gemOnCrit(e, d);       // 血剑流：暴击溅血爆裂
+  if (kuaJieOn) spawnFloater(e.x, e.y - e.r - 12, "跨阶 ×1.5", "#a78bfa", 12);
   // size by damage magnitude
   const mag = Math.min(1, Math.log10(1 + d) / 3.2);
   const size = isCrit ? 14 + mag * 8 : 11 + mag * 5;
@@ -2605,6 +2785,7 @@ function startRun(charId) {
   beastHudSync();
   stoneHudSync();
   forgeBtnSync();
+  resHudSync();
   toast(`${CHARS[id]?.name || "修士"} · 御剑清妖`);
   clearTimeout(startRun._hint);
   startRun._hint = setTimeout(() => {
@@ -4591,10 +4772,11 @@ window.__XTJ__ = {
   renderForge, openForge, closeForge, craftGem, forgeOrdinary, openEssenceModal,
   gemsMaxed, canMelt, meltStones, MELT_COST,
   gemOnHit, gemOnCrit, atkSpeedNow, knockEnemies, playerDamageMult,
-  ELEM_OVERCOME, ELEM_GENERATE, elemRelation, bestElemRelation, elemMulVs, elemMatchText, waveElemKey,
+  ELEM_OVERCOME, ELEM_GENERATE, PATH_ELEMS, elemRelation, bestElemRelation, elemMulVs, elemMatchText, waveElemKey,
   REL_BEAT, REL_LOSE, REL_FED, REL_DRAIN,
   DROP_MOB, DROP_ELITE, DROP_BOSS, ESSENCE_GAIN, buildWave, updateWaves,
   applyHit, update,
   collectPickup, dropPickup, killEnemy, spawnEnemy, damagePlayer, updateHUD, ENEMY_TYPES,
+  recomputeResonance, resonanceJust, renderResonance, resHudSync, gemsOfId,
 };
 })();

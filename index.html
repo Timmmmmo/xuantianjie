@@ -203,6 +203,10 @@
           <span class="inv-slot-label">饰品</span>
           <span class="inv-slot-eq"></span>
         </div>
+        <div id="invSlotStone"     class="inv-slot inv-slot-stone" data-slot="stone">
+          <span class="inv-slot-label">灵石</span>
+          <span class="inv-slot-eq"></span>
+        </div>
       </div>
       <div class="inv-grid" id="invGrid"></div>
       <div id="invDetail" class="inv-detail"></div>
@@ -313,6 +317,33 @@
   </div>
 
   <div id="toast" class="toast hidden"></div>
+
+  <!-- v5.0 PM视角：目标进度条（顶部常驻） -->
+  <div id="goalBar" class="goal-bar hidden">
+    <div class="goal-label">
+      <span id="goalIco">目</span>
+      <span id="goalText">当前目标</span>
+    </div>
+    <div class="goal-track"><div id="goalFill" class="goal-fill"></div></div>
+    <div class="goal-detail" id="goalDetail">0/0</div>
+  </div>
+
+  <!-- v5.0 大字报：里程碑 / 紫装入手 / 橙装觉醒 -->
+  <div id="bigBanner" class="big-banner hidden">
+    <div class="big-banner-sub" id="bigBannerSub">里程碑</div>
+    <div class="big-banner-text" id="bigBannerText">—</div>
+  </div>
+
+  <!-- v5.0 新手教程遮罩 -->
+  <div id="tutOverlay" class="tut-overlay hidden">
+    <div class="tut-card" id="tutCard">
+      <div class="tut-step">第 <span id="tutStepNum">1</span> 步 / 共 <span id="tutStepTotal">4</span></div>
+      <div class="tut-title" id="tutTitle">—</div>
+      <div class="tut-body" id="tutBody">—</div>
+      <div class="tut-tip" id="tutTip"></div>
+      <button id="tutNext" class="btn-primary" type="button"><span>知道了</span></button>
+    </div>
+  </div>
 </div>
 <script src="game.js"></script>
 </body>

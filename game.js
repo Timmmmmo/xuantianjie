@@ -60,7 +60,13 @@ const ui = {
   invBtn: $("invBtn"), invBtnCount: $("invBtnCount"),
   invModal: $("invModal"), invGrid: $("invGrid"), invDetail: $("invDetail"),
   invSlotWeapon: $("invSlotWeapon"), invSlotArmor: $("invSlotArmor"), invSlotAccessory: $("invSlotAccessory"),
+  invSlotStone: $("invSlotStone"),   // v5.0 灵石槽位
   btnInvClose: $("btnInvClose"),
+  // v5.0 PM 视角：目标进度条 / 大字报 / 教程
+  goalBar: $("goalBar"), goalIco: $("goalIco"), goalText: $("goalText"), goalFill: $("goalFill"), goalDetail: $("goalDetail"),
+  bigBanner: $("bigBanner"), bigBannerSub: $("bigBannerSub"), bigBannerText: $("bigBannerText"),
+  tutOverlay: $("tutOverlay"), tutCard: $("tutCard"), tutStepNum: $("tutStepNum"), tutStepTotal: $("tutStepTotal"),
+  tutTitle: $("tutTitle"), tutBody: $("tutBody"), tutTip: $("tutTip"), tutNext: $("tutNext"),
 };
 
 // ---------- Audio ----------
@@ -382,6 +388,11 @@ const INVENTORY_MAX = 30;   // 背包容量
 const EQUIP_SLOTS_MAX = 3;  // 装备槽位上限（武器/防具/饰品）
 const MAX_SCHOOL_CORES = 2; // 派系核心的装备槽位 —— 9 个核心只能同时装 2 个
 const CORE_NEED_STONES = 5; // 解锁一个派系核心所需的同派系灵石数
+// v5.0 PM 视角常量
+const PURITY_BONUS = 0.30;        // 3 件同派系纯度 100% 时,所有数值词条 ×1.30
+const PURITY_PARTIAL = 0.10;      // 2 件同派系纯度 ~66% 时 ×1.10
+const STONE_SLOT_BONUS = 0.30;    // 灵石槽装该派系灵石 → 该派系词条效果 ×1.30
+const BOSS_PURPLE_DROP = 1;       // 妖王必掉 1 件本派系紫装
 
 // —— 合成逻辑：三阶配方，越往上越贵，也越强 ——
 // 主石决定是哪一系宝石，配料（任意本角色灵石）决定能否升阶。
@@ -692,20 +703,48 @@ function autoJobFromSet() {
       toast(`套装转职 · ${(JOB_PATHS.find((p) => p.id === path) || {}).name || "道途"}`, "gold");
       burst(G.px, G.py, "#fde68a", 26, 240, 5);
       AudioSys.level();
+      // v5.0 大字报：套装转职
+      showBigBanner("套装转职", `${(JOB_PATHS.find((p) => p.id === path) || {}).name || "道途"} · ${bestSchool}派`, "job");
     }
     G._setBonus = (G._setBonus || 0) + 0;   // 占位扩展
   }
 }
 const CHAR_TO_PATH = { sword: "sword", mage: "mage", body: "body" };   // 角色→对应道途
 
-// v4.0 装备主动技能触发
-function triggerEquipSkill(idx) {
-  if (idx < 0 || idx >= G.activeSkills.length) return false;
-  const id = G.activeSkills[idx];
+// v4.0 装备主动技能触发 —— v5.0 技能轮盘：J/K 优先按 CD 最小自动选
+// 轮盘算法：固定 CD 最短优先（≤0 的可用技能里 CD 最小的那个先放）
+// 仍然接受 idx 参数：>0 直接用 idx（手动锁）；-1 / undefined 走轮盘
+function triggerEquipSkill(idx = -1) {
+  let useIdx = idx;
+  if (useIdx < 0) {
+    // 轮盘：找 CD ≤ 0 的可用主动技能里"CD 上限"最小的（短 CD 优先放）
+    let best = -1, bestDef = null;
+    for (let i = 0; i < (G.activeSkills || []).length; i++) {
+      const id = G.activeSkills[i];
+      const def = AFFIX_POOL[id];
+      if (!def || def.kind !== "active") continue;
+      if ((G.skillCD[i] || 0) > 0) continue;
+      if (best < 0 || (def.cd || 99) < (bestDef.cd || 99)) {
+        best = i; bestDef = def;
+      }
+    }
+    if (best < 0) {
+      // 都在冷却中 → 提示
+      const anyCd = (G.skillCD || []).findIndex((c) => c > 0);
+      if (anyCd >= 0 && G._lastSklCDWarn !== "wheel") {
+        toast(`技能轮转中 · ${G.skillCD[anyCd].toFixed(1)}s`, "warn");
+        G._lastSklCDWarn = "wheel";
+      }
+      return false;
+    }
+    useIdx = best;
+  }
+  if (useIdx < 0 || useIdx >= G.activeSkills.length) return false;
+  const id = G.activeSkills[useIdx];
   const def = AFFIX_POOL[id];
   if (!def || def.kind !== "active") return false;
-  if ((G.skillCD[idx] || 0) > 0) {
-    if (G._lastSklCDWarn !== id) { toast(`${def.name} · 冷却中（${G.skillCD[idx].toFixed(1)}s）`, "warn"); G._lastSklCDWarn = id; }
+  if ((G.skillCD[useIdx] || 0) > 0) {
+    if (G._lastSklCDWarn !== id) { toast(`${def.name} · 冷却中（${G.skillCD[useIdx].toFixed(1)}s）`, "warn"); G._lastSklCDWarn = id; }
     return false;
   }
   // 各技能的 effect
@@ -737,7 +776,7 @@ function triggerEquipSkill(idx) {
       break;
     }
   }
-  G.skillCD[idx] = def.cd || 5;
+  G.skillCD[useIdx] = def.cd || 5;
   AudioSys.hit();
   return true;
 }
@@ -762,6 +801,27 @@ function pickUpEquip(eq) {
     burst(G.px, G.py, eq.color, 6, 110, 2);
   }
   invHudSync();
+  // v5.0 PM 视角：紫装入手里程碑
+  if (eq.tier === "purple" && !G._milestone.purple) {
+    G._milestone.purple = true;
+    showBigBanner("紫装入手", `第一件紫装 · ${eq.name}`, "purple");
+    toast(`紫装入手 · ${eq.name} · 点背包换上`, "gold");
+  }
+  // v5.0 橙装觉醒：慢镜 + 屏幕震动 + 金色光柱 + 大字报
+  if (eq.tier === "orange") {
+    G._orangeT = 0.6;
+    G._orangeName = eq.name;
+    G.shake = Math.max(G.shake || 0, 12);
+    hitStop(140);
+    showBigBanner("橙装觉醒", `${eq.name} · 妖王赐福`, "orange");
+    AudioSys.level();
+    if (!G._milestone.orange) {
+      G._milestone.orange = true;
+      toast(`橙装觉醒 · ${eq.name}`, "gold");
+    }
+  }
+  // v5.0 教程推进：第 2 步"捡起装备"
+  if (G.tutStep === 2) advanceTutorial();
   return true;
 }
 // 装备 / 卸下槽位
@@ -781,6 +841,12 @@ function equipTo(uid) {
 function unequipTo(slot) {
   const cur = G.equipped[slot];
   if (!cur) return false;
+  if (slot === "stone") {                          // v5.0 灵石槽卸下
+    G._stoneSlot = null;
+    equipRec();
+    invHudSync();
+    return true;
+  }
   if (G.inventory.length >= INVENTORY_MAX) { toast("背包满，无法卸下", "warn"); return false; }
   G.equipped[slot] = null;
   G.inventory.push(cur);
@@ -788,11 +854,57 @@ function unequipTo(slot) {
   equipRec();
   return true;
 }
+// v5.0 装备/卸下灵石槽（独立函数：放任意派系灵石×1 → 该派系词条 ×1.30）
+function setStoneSlot(stoneKey) {
+  if (!stoneKey) {
+    G._stoneSlot = null;
+  } else {
+    const def = STONE_BY_KEY[stoneKey];
+    if (!def) return false;
+    G._stoneSlot = { stoneKey, school: def.school, name: def.name, color: def.color };
+  }
+  equipRec();
+  invHudSync();
+  return true;
+}
 // 装备属性汇总（v4.0：同时收集 主动/被动 技能）
 function equipBonuses() {
   const b = { atk: 0, hp: 0, spd: 0, crit: 0, lifesteal: 0, xp: 0, shield: 0, dmgTaken: 0,
               huoMul: 1, burnMul: 1,
               activeSkillIds: [], passiveSkillIds: [] };
+  // v5.0 派系纯度：3 件同派系装备（武器/防具/饰品）⇒ 全派系词条 ×1.30
+  // 计算各装备的"派系主词条"（取第一个带 school 的）
+  const slotSchools = [];
+  for (const slot in G.equipped) {
+    if (slot === "stone") continue;
+    const eq = G.equipped[slot];
+    if (!eq) continue;
+    const ax = (eq.affixes || []).find((a) => AFFIX_POOL[a] && AFFIX_POOL[a].school);
+    slotSchools.push(ax ? AFFIX_POOL[ax].school : null);
+  }
+  let purity = 0;
+  const valid = slotSchools.filter(Boolean);
+  if (valid.length === slotSchools.length && slotSchools.length >= 3) {
+    // 全有派系 ⇒ 取众数
+    const counts = {};
+    for (const s of valid) counts[s] = (counts[s] || 0) + 1;
+    let top = 0, topSch = null;
+    for (const s in counts) if (counts[s] > top) { top = counts[s]; topSch = s; }
+    purity = top / 3;
+  } else if (valid.length >= 2) {
+    const counts = {};
+    for (const s of valid) counts[s] = (counts[s] || 0) + 1;
+    let top = 0;
+    for (const s in counts) if (counts[s] > top) top = counts[s];
+    purity = (top - 1) / 3;     // 2/3 → 0.33; 3/3 → 0.67
+  }
+  // 派系纯度系数：3 件全同 ⇒ ×1.30；2 件同 ⇒ ×1.10
+  const purityMul = purity >= 0.95 ? (1 + PURITY_BONUS)
+                  : purity >= 0.55 ? (1 + PURITY_PARTIAL)
+                  : 1;
+  G._purity = purityMul;
+  // v5.0 灵石槽位加成：装了某派系灵石 ⇒ 该派系词条 ×1.30
+  const stoneSchool = G._stoneSlot && G._stoneSlot.school;
   for (const slot in G.equipped) {
     const eq = G.equipped[slot];
     if (!eq) continue;
@@ -809,21 +921,25 @@ function equipBonuses() {
         }
         continue;
       }
+      // v5.0 派系词条按纯度 + 灵石槽加成
+      const isSchool = def && def.school;
+      const stoneBoost = (isSchool && stoneSchool && def.school === stoneSchool) ? STONE_SLOT_BONUS : 0;
+      const mult = purityMul * (1 + stoneBoost);
       switch (ax) {
-        case "huo_dmg":     b.huoMul += 0.12; break;
-        case "mu_speed":    b.spd += 8; break;
+        case "huo_dmg":     b.huoMul += 0.12 * mult; break;
+        case "mu_speed":    b.spd += 8 * mult; break;
         case "shui_slow":   /* 命中减速 +10%（在 applyHit 里实现） */ break;
         case "jin_crit":    /* 击杀回血 +5（在 killEnemy 里实现） */ break;
-        case "tu_shield":   b.shield += 10; break;
-        case "huo_burn":    b.burnMul += 0.25; break;
+        case "tu_shield":   b.shield += 10 * mult; break;
+        case "huo_burn":    b.burnMul += 0.25 * mult; break;
         case "jin_thunder": /* 雷伤 +25% */ break;
         case "huo_fire":    /* 受击火反伤 +15 */ break;
-        case "jin_iron":    b.dmgTaken -= 0.08; break;
-        case "crit_pct":    b.crit += 0.05; break;
+        case "jin_iron":    b.dmgTaken -= 0.08 * mult; break;
+        case "crit_pct":    b.crit += 0.05 * mult; break;
         case "haste_pct":   /* 急速 +8%（atkSpeedNow 已支持 G._eqCache.haste）*/ break;
-        case "lifesteal":   b.lifesteal += 2; break;
-        case "xp_bonus":    b.xp += 0.15; break;
-        case "shield_max":  b.shield += 15; break;
+        case "lifesteal":   b.lifesteal += 2 * mult; break;
+        case "xp_bonus":    b.xp += 0.15 * mult; break;
+        case "shield_max":  b.shield += 15 * mult; break;
       }
     }
   }
@@ -1025,6 +1141,8 @@ function unlockCore(school) {
   G.goldFlash = Math.max(G.goldFlash || 0, 0.4);
   spawnFloater(G.px, G.py - G.pr - 22, `觉醒 · ${def.name}`, def.color, 18, true);
   toast(`派系核心觉醒 · ${def.name}`, "violet");
+  // v5.0 大字报：派系核心觉醒
+  showBigBanner("派系核心觉醒", `${def.name} · ${school}派`, "purple");
   return true;
 }
 function equipCore(id) {
@@ -1604,6 +1722,13 @@ const G = {
   activeSkills: [], passiveSkills: [], skillCD: [],
   // v4.0 装备主动技能状态
   _swordArrayT: 0, _shadowT: 0,
+  // v5.0 PM 视角
+  tutStep: 0,                       // 0=关闭 / 1=教学1 / 2=教学2 / 3=教学3 / 4=完成
+  _bigBannerT: 0, _bigBannerMode: "",
+  _stoneSlot: null,                 // v5.0 灵石槽位：{ stoneKey, school } | null
+  _purity: 0,                       // v5.0 派系纯度 0~1
+  _milestone: { purple: false, job: false, school: false, orange: false },
+  _orangeT: 0, _orangeName: "",
 };
 
 function resetRun(charId) {
@@ -1669,6 +1794,12 @@ function resetRun(charId) {
   equipRec();   // v3.0 装备缓存初始化（先空）
   invHudSync();
   initNodes();
+  // v5.0 灵石槽 + 派系纯度 + 里程碑 + 教程
+  G._stoneSlot = null;
+  G._purity = 0;
+  G._milestone = { purple: false, job: false, school: false, orange: false };
+  G.tutStep = 1;
+  G._orangeT = 0; G._orangeName = "";
   G.weapons = {
     sword: { lv: 1, evo: false },
     orbit: { lv: 1, evo: false },
@@ -2845,6 +2976,17 @@ function killEnemy(e, byPlayer = true) {
       dropPickup(e.x + rand(-60, 60), e.y + rand(-60, 60), "equip", { equip: eq });
       toast(`妖王赐 · 橙·${ITEM_TYPES[eq.typeKey].name}`, "orange");
     }
+    // v5.0 PM 视角：妖王必掉 1 件本派系紫装（按玩家最大持派系绑定词条）
+    const mySchools = [...new Set(stonesOf().map((s) => s.school))];
+    const sortedSchools = mySchools.slice().sort((a, b) => countSchool(b) - countSchool(a));
+    const targetSchool = sortedSchools[0] || mySchools[0];
+    if (targetSchool) {
+      const affixKey = (AFFIX_KEYS.find((k) => AFFIX_POOL[k].school === targetSchool && AFFIX_POOL[k].type === "派系")) || null;
+      const lockedAff = affixKey ? [affixKey] : [];
+      const purpleEq = makeEquip(pick(["weapon", "armor", "accessory"]), "purple", { fixedAffixes: lockedAff });
+      dropPickup(e.x + rand(-66, 66), e.y + rand(-66, 66), "equip", { equip: purpleEq });
+      toast(`妖王赐·本派紫装 · ${targetSchool}派`, "violet");
+    }
   }
   // 雷音铃：击杀概率落雷（限深度，避免连锁递归）
   if (G.thunderProc > 0 && (G._thunderChain || 0) < 3 && Math.random() < G.thunderProc) {
@@ -3408,6 +3550,16 @@ function startRun(charId) {
   startRun._hint2 = setTimeout(() => {
     if (G.state === "play") toast("斩妖落灵石 · 攒本命一系可凝宝石", "gold");
   }, 5200);
+  // v5.0 PM 视角：教程 step1 显示（开局 1.5s 后由 tickTutorial 自动弹）
+  G.tutStep = 1;
+  if (ui.tutOverlay) ui.tutOverlay.classList.remove("showed");
+  // v5.0 目标进度条
+  if (ui.goalBar) ui.goalBar.classList.remove("hidden");
+}
+
+// v5.0 PM 视角：教程"知道了"按钮
+if (ui.tutNext) {
+  ui.tutNext.addEventListener("click", () => advanceTutorial());
 }
 
 function endRun() {
@@ -3440,6 +3592,141 @@ function endRun() {
 function formatTime(s) {
   s = Math.floor(s);
   return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`;
+}
+
+// v5.0 PM 视角：大字报系统（屏幕中央上半 · 持续 2.4s）
+function showBigBanner(sub, text, mode) {
+  if (!ui.bigBanner) return;
+  ui.bigBannerSub.textContent = sub;
+  ui.bigBannerText.textContent = text;
+  ui.bigBanner.classList.remove("hidden", "s-purple", "s-orange", "s-job");
+  if (mode === "purple") ui.bigBanner.classList.add("s-purple");
+  else if (mode === "orange") ui.bigBanner.classList.add("s-orange");
+  else if (mode === "job") ui.bigBanner.classList.add("s-job");
+  // 强制重启动画
+  ui.bigBanner.style.animation = "none"; void ui.bigBanner.offsetWidth; ui.bigBanner.style.animation = "";
+  G._bigBannerT = 2.4;
+  G._bigBannerMode = mode;
+}
+
+// v5.0 PM 视角：新手教程
+const TUT_STEPS = [
+  // 0=关闭；1..3 可见
+  null,
+  {
+    title: "第一步 · 斩妖取灵石",
+    body: "拖动屏幕移动角色，飞剑会自己砍最近的妖怪。\n妖怪死亡后会掉落「灵石」，碰到自动拾取。\n攒 5 颗同派系灵石 = 解锁派系核心。",
+    tip: "走到灵石边上即可拾取",
+    advance: () => G.stones && stoneTotal() >= 1,
+  },
+  {
+    title: "第二步 · 背包与合成",
+    body: "妖怪还会掉落「装备」——白/绿/蓝/紫/橙 5 阶。\n背包里 2 件同槽位同阶且至少 1 词条重叠 ⇒ 自动合成高一阶。\n紫装才能装备，橙装是终极追求。",
+    tip: "打开背包看看现在有什么",
+    advance: () => G.inventory && G.inventory.length >= 1,
+  },
+  {
+    title: "第三步 · 穿上紫装变强",
+    body: "回到背包，点紫色装备，再点武器/防具/饰品槽即可装备。\n3 件同派系紫装自动转职为对应道途，并解锁终极技能。",
+    tip: "第 5 波会有妖王，赐你一件本派系紫装",
+    advance: () => {
+      for (const slot in G.equipped) {
+        if (slot === "stone") continue;
+        if (G.equipped[slot]) return true;
+      }
+      return false;
+    },
+  },
+];
+function showTutorial(step) {
+  if (!ui.tutOverlay || step < 1 || step > TUT_STEPS.length - 1) return;
+  const s = TUT_STEPS[step];
+  ui.tutStepNum.textContent = step;
+  ui.tutStepTotal.textContent = TUT_STEPS.length - 1;
+  ui.tutTitle.textContent = s.title;
+  ui.tutBody.innerHTML = s.body.replace(/\n/g, "<br>");
+  ui.tutTip.textContent = s.tip;
+  ui.tutOverlay.classList.remove("hidden");
+}
+function hideTutorial() {
+  if (!ui.tutOverlay) return;
+  ui.tutOverlay.classList.add("hidden");
+}
+function advanceTutorial() {
+  if (!G.tutStep) return;
+  if (G.tutStep >= TUT_STEPS.length - 1) { G.tutStep = 0; hideTutorial(); return; }
+  G.tutStep += 1;
+  showTutorial(G.tutStep);
+}
+// 每帧 tick：教程自动完成 + 大字报淡出 + 橙装慢镜
+function tickTutorial(dt) {
+  // 大字报
+  if (G._bigBannerT > 0) {
+    G._bigBannerT -= dt;
+    if (G._bigBannerT <= 0 && ui.bigBanner) ui.bigBanner.classList.add("hidden");
+  }
+  // 橙装慢镜
+  if (G._orangeT > 0) {
+    G._orangeT -= dt;
+    if (G._orangeT > 0) {
+      if (!document.body.classList.contains("orange-pause")) document.body.classList.add("orange-pause");
+    } else {
+      document.body.classList.remove("orange-pause");
+    }
+  }
+  // 教程自动完成检测（玩家已达成 step 条件 ⇒ 自动跳下一步）
+  if (G.tutStep > 0 && G.tutStep < TUT_STEPS.length) {
+    const s = TUT_STEPS[G.tutStep];
+    if (s && s.advance && s.advance()) advanceTutorial();
+  }
+  // 教程 step1 启动延后（开局 1.5s 后再弹，给玩家先动一下）
+  if (G.tutStep === 1 && G.time > 1.5 && !ui.tutOverlay.classList.contains("showed")) {
+    showTutorial(1);
+    ui.tutOverlay.classList.add("showed");
+  }
+}
+
+// v5.0 PM 视角：HUD 顶部目标进度条
+function updateGoalBar() {
+  if (!ui.goalBar) return;
+  ui.goalBar.classList.remove("hidden");
+  const w = G.wave || 0;
+  // 优先级目标：当前阶段缺什么
+  // 1) 紫装 < 3 件 ⇒ 凑齐紫装
+  // 2) Boss 未击 ⇒ 等本波 Boss（wave%5==0 ⇒ 下波前）
+  // 3) 派系核心 < 2 个 ⇒ 凑核心
+  // 4) 装备搭配派系纯度 < 95% ⇒ 凑同派系
+  const purpleCount = G.inventory.filter((e) => e.tier === "purple").length + Object.values(G.equipped).filter(Boolean).filter((e) => e.tier === "purple").length;
+  const nextBossWave = Math.floor(w / 5) * 5 + (w % 5 === 0 ? 5 : 5);
+  const hasBossSoon = (w % 5 >= 3);
+  let label, detail, fill;
+  if (purpleCount < 1) {
+    label = "目标 · 获得首件紫装";
+    detail = `${purpleCount}/1 紫装`;
+    fill = (purpleCount / 1) * 100;
+  } else if (purpleCount < 3 && hasBossSoon) {
+    label = `目标 · 第 ${nextBossWave} 波妖王赐紫`;
+    detail = `${purpleCount}/3 紫装`;
+    fill = (purpleCount / 3) * 100;
+  } else if (purpleCount < 3) {
+    label = "目标 · 凑齐 3 件紫装转职";
+    detail = `${purpleCount}/3 紫装`;
+    fill = (purpleCount / 3) * 100;
+  } else if ((G.cores || []).length < 2 && Object.keys(G.schoolUnlocked || {}).length < 2) {
+    label = "目标 · 觉醒派系核心";
+    const nCores = Object.keys(G.schoolUnlocked || {}).length;
+    detail = `${nCores}/2 核心`;
+    fill = (nCores / 2) * 100;
+  } else {
+    label = "目标 · 派系纯度 100%";
+    detail = `纯度 ${Math.round(G._purity * 100)}%`;
+    fill = (G._purity * 100);
+  }
+  ui.goalIco.textContent = "目";
+  ui.goalText.textContent = label;
+  ui.goalDetail.textContent = detail;
+  ui.goalFill.style.width = Math.min(100, Math.max(0, fill)) + "%";
+  ui.goalFill.classList.toggle("complete", fill >= 100);
 }
 
 function toast(msg, kind) {
@@ -3475,6 +3762,9 @@ function update(dt) {
   G.dashTimer = Math.max(0, G.dashTimer - dt);
   G.aoeCDLeft = Math.max(0, G.aoeCDLeft - dt);
   G.dashCDLeft = Math.max(0, G.dashCDLeft - dt);
+  // v5.0 PM 视角：教程 + 大字报 + 橙装慢镜 + 目标进度条
+  tickTutorial(dt);
+  updateGoalBar();
   // v4.0 装备主动技能 CD tick
   for (let i = 0; i < (G.skillCD || []).length; i++) {
     if (G.skillCD[i] > 0) G.skillCD[i] = Math.max(0, G.skillCD[i] - dt);
@@ -5429,5 +5719,8 @@ window.__XTJ__ = {
   collectPickup, dropPickup, killEnemy, spawnEnemy, damagePlayer, updateHUD, ENEMY_TYPES,
   recomputeResonance, resonanceJust, renderResonance, resHudSync, gemsOfId,
   ATK_BASE: 12,   // 测试用：玩家初始攻击（用于计算升级成长比值）
+  // v5.0 PM 视角
+  showBigBanner, showTutorial, hideTutorial, advanceTutorial, tickTutorial, updateGoalBar, setStoneSlot,
+  PURITY_BONUS, PURITY_PARTIAL, STONE_SLOT_BONUS, BOSS_PURPLE_DROP,
 };
 })();

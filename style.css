@@ -2605,3 +2605,223 @@ canvas#game {
 @media (max-width: 430px) {
   .core-hud { top: calc(30% + 124px); }
 }
+
+/* ============================================================
+ * v5.0 PM 视角·目标进度条（顶部常驻）
+ * ============================================================ */
+.goal-bar {
+  position: absolute;
+  left: 50%;
+  top: calc(env(safe-area-inset-top, 0px) + 152px);
+  transform: translateX(-50%);
+  z-index: 14;
+  display: flex; align-items: center; gap: 10px;
+  width: min(420px, 86vw);
+  padding: 8px 12px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(20,30,48,0.92), rgba(8,12,22,0.88));
+  border: 1px solid rgba(245, 158, 11, 0.45);
+  box-shadow: 0 0 16px rgba(245,158,11,0.18), inset 0 0 12px rgba(245,158,11,0.05);
+  pointer-events: none;
+  animation: goalIn 0.4s ease both;
+}
+.goal-bar.hidden { display: none; }
+@keyframes goalIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(-8px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+.goal-label { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #fcd34d; letter-spacing: 1px; white-space: nowrap; }
+.goal-label span#goalIco {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px;
+  background: rgba(245, 158, 11, 0.2); border-radius: 50%;
+  font-size: 11px; color: #fde68a; font-weight: 700;
+}
+.goal-track {
+  flex: 1;
+  height: 8px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid rgba(245,158,11,0.2);
+}
+.goal-fill {
+  height: 100%; width: 0%;
+  background: linear-gradient(90deg, #f59e0b, #fbbf24, #fde68a);
+  transition: width 0.5s cubic-bezier(0.2, 0.8, 0.4, 1);
+  box-shadow: 0 0 8px #fbbf24;
+}
+.goal-fill.complete {
+  background: linear-gradient(90deg, #22d3ee, #a5f3fc, #f0abfc);
+  box-shadow: 0 0 12px #5ce1e6;
+  animation: goalComplete 0.6s ease infinite alternate;
+}
+@keyframes goalComplete {
+  from { opacity: 0.7; }
+  to { opacity: 1; }
+}
+.goal-detail {
+  font-size: 10px; color: #fcd34d;
+  font-family: var(--mono);
+  white-space: nowrap;
+  min-width: 50px; text-align: right;
+}
+
+/* ============================================================
+ * v5.0 PM 视角·里程碑大字报（屏幕中央上半）
+ * ============================================================ */
+.big-banner {
+  position: absolute;
+  left: 50%;
+  top: 30%;
+  transform: translateX(-50%);
+  z-index: 17;
+  text-align: center;
+  pointer-events: none;
+  animation: bannerIn 0.5s cubic-bezier(0.2, 1.6, 0.3, 1) both;
+}
+.big-banner.hidden { display: none; }
+@keyframes bannerIn {
+  0% { opacity: 0; transform: translateX(-50%) scale(0.7); }
+  60% { opacity: 1; transform: translateX(-50%) scale(1.1); }
+  100% { opacity: 1; transform: translateX(-50%) scale(1); }
+}
+.big-banner-sub {
+  font-size: 11px; letter-spacing: 6px; color: #fbbf24;
+  font-family: var(--font);
+  margin-bottom: 4px;
+  text-shadow: 0 0 10px rgba(251,191,36,0.6);
+}
+.big-banner-text {
+  font-size: 22px;
+  letter-spacing: 4px;
+  color: #fff;
+  text-shadow:
+    0 0 18px rgba(251,146,60,0.8),
+    0 0 36px rgba(251,191,36,0.5),
+    0 2px 4px rgba(0,0,0,0.8);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.big-banner.s-purple .big-banner-text {
+  text-shadow:
+    0 0 18px rgba(216,180,254,0.9),
+    0 0 36px rgba(167,139,250,0.6),
+    0 2px 4px rgba(0,0,0,0.8);
+  color: #f3e8ff;
+}
+.big-banner.s-orange .big-banner-text {
+  text-shadow:
+    0 0 20px rgba(251,146,60,1),
+    0 0 40px rgba(251,191,36,0.7),
+    0 2px 4px rgba(0,0,0,0.8);
+  color: #fff7ed;
+}
+.big-banner.s-job .big-banner-text {
+  text-shadow:
+    0 0 18px rgba(167,139,250,0.9),
+    0 0 36px rgba(196,181,253,0.6),
+    0 2px 4px rgba(0,0,0,0.8);
+  color: #ddd6fe;
+}
+
+/* ============================================================
+ * v5.0 PM 视角·新手教程遮罩
+ * ============================================================ */
+.tut-overlay {
+  position: absolute; inset: 0;
+  z-index: 30;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(7,11,18,0.78);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  animation: tutFade 0.3s ease;
+}
+.tut-overlay.hidden { display: none; }
+@keyframes tutFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.tut-card {
+  width: min(360px, 88vw);
+  padding: 22px 22px 18px;
+  background: linear-gradient(160deg, rgba(22,32,48,0.96), rgba(12,18,28,0.96));
+  border: 1.5px solid rgba(245,158,11,0.5);
+  border-radius: 16px;
+  box-shadow: 0 18px 50px rgba(0,0,0,0.6), 0 0 30px rgba(245,158,11,0.15);
+  text-align: center;
+  animation: tutCardIn 0.45s cubic-bezier(0.2, 1.5, 0.4, 1);
+}
+@keyframes tutCardIn {
+  from { opacity: 0; transform: translateY(20px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.tut-step {
+  font-size: 10px; letter-spacing: 2px;
+  color: #fcd34d;
+  margin-bottom: 8px;
+}
+.tut-title {
+  font-size: 18px;
+  letter-spacing: 3px;
+  color: #fff;
+  margin-bottom: 12px;
+  font-weight: 700;
+}
+.tut-body {
+  font-size: 13px;
+  color: #d1d5db;
+  line-height: 1.7;
+  margin-bottom: 12px;
+  text-align: left;
+  background: rgba(0,0,0,0.3);
+  padding: 10px 12px;
+  border-radius: 8px;
+  border-left: 3px solid #f59e0b;
+}
+.tut-tip {
+  font-size: 11px;
+  color: #86efac;
+  margin-bottom: 16px;
+  letter-spacing: 1px;
+}
+.tut-card .btn-primary {
+  pointer-events: auto;
+}
+
+/* ============================================================
+ * v5.0 PM 视角·灵石槽（背包第4槽）
+ * ============================================================ */
+.inv-slot-stone {
+  background: rgba(40,28,12,0.4);
+  border-color: rgba(245,158,11,0.4);
+}
+.inv-slot-stone.filled {
+  background: rgba(60,40,16,0.6);
+  border-color: rgba(245,158,11,0.8);
+  box-shadow: 0 0 10px rgba(245,158,11,0.3);
+}
+.inv-slot-stone .inv-slot-label {
+  color: #fcd34d;
+}
+
+/* ============================================================
+ * v5.0 PM 视角·橙装慢镜/光柱（CSS 辅助）
+ * ============================================================ */
+body.orange-pause #game {
+  filter: brightness(1.4) saturate(1.3);
+}
+body.orange-pause #app::after {
+  content: '';
+  position: absolute; left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  width: 100vw; height: 100vh;
+  background: radial-gradient(circle, rgba(251,191,36,0.45) 0%, rgba(251,146,60,0.2) 30%, transparent 70%);
+  pointer-events: none;
+  z-index: 9;
+  animation: orangePulse 0.6s ease infinite alternate;
+}
+@keyframes orangePulse {
+  from { opacity: 0.7; }
+  to { opacity: 1; }
+}

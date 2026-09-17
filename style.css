@@ -2825,3 +2825,68 @@ body.orange-pause #app::after {
   from { opacity: 0.7; }
   to { opacity: 1; }
 }
+
+/* ============================================================
+ * v6.0 B · 词条联动 HUD
+ * ============================================================ */
+.syn-hud {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  top: calc(30% + 168px);
+  display: flex; flex-direction: column; align-items: center;
+  gap: 4px;
+  z-index: 12;
+  pointer-events: none;
+}
+.syn-hud-tag {
+  font-size: 10px; letter-spacing: 1px;
+  color: #c4b5fd;
+  background: rgba(15,10,28,0.62);
+  border: 1px solid rgba(167,139,250,0.35);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+.syn-hud-tag b { color: #f5d0fe; font-weight: 700; }
+.syn-hud-list { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; max-width: 86vw; }
+.syn-chip {
+  font-size: 10px; font-weight: 600;
+  color: var(--sc, #c084fc);
+  background: rgba(10,8,20,0.72);
+  border: 1px solid var(--sc, #c084fc);
+  border-radius: 5px;
+  padding: 2px 6px;
+  white-space: nowrap;
+  animation: synIn 0.35s cubic-bezier(0.2,1.5,0.4,1) both;
+}
+@keyframes synIn {
+  from { opacity: 0; transform: scale(0.7) translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ============================================================
+ * v6.0 C · 祭坛赌注
+ * ============================================================ */
+.altar-modal-card { border-color: rgba(192,132,252,0.45); }
+.altar-modal-card h2 { color: #f5d0fe; }
+.altar-card {
+  align-items: center;
+  border-color: rgba(192,132,252,0.3) !important;
+}
+.altar-card:hover { border-color: rgba(216,180,254,0.8) !important; }
+.altar-cost {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  color: #fca5a5;
+  letter-spacing: 0.3px;
+}
+.altar-skip {
+  margin: 14px auto 0;
+  display: block;
+}
+
+/* 怪物词缀名条（画在 canvas 上，这里只放通用的脉冲动画备用） */
+@media (max-width: 430px) {
+  .syn-hud { top: calc(30% + 158px); }
+}

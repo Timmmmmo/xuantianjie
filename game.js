@@ -67,6 +67,9 @@ const ui = {
   bigBanner: $("bigBanner"), bigBannerSub: $("bigBannerSub"), bigBannerText: $("bigBannerText"),
   tutOverlay: $("tutOverlay"), tutCard: $("tutCard"), tutStepNum: $("tutStepNum"), tutStepTotal: $("tutStepTotal"),
   tutTitle: $("tutTitle"), tutBody: $("tutBody"), tutTip: $("tutTip"), tutNext: $("tutNext"),
+  // v6.0 B 词条联动 HUD / C 祭坛赌注
+  synHud: $("synHud"), synHudList: $("synHudList"), synHudCount: $("synHudCount"),
+  altarModal: $("altarModal"), altarChoices: $("altarChoices"), btnAltarSkip: $("btnAltarSkip"),
 };
 
 // ---------- Audio ----------
@@ -571,6 +574,55 @@ const ACTIVE_SKILL_KEYS = SKILL_AFFIX_KEYS.filter((k) => AFFIX_POOL[k].kind === 
 const PASSIVE_SKILL_KEYS = SKILL_AFFIX_KEYS.filter((k) => AFFIX_POOL[k].kind === "passive");
 const MAX_ACTIVE_SLOTS = 2;              // 玩家主动技能槽 2 个（J/K）
 
+// ================= v6.0 A · 怪物词缀 =================
+// 精英 / 大妖随机带 1-2 个词缀，让"每一只怪不一样"，逼玩家换打法
+const ENEMY_MODS = {
+  thorns: { name: "荆棘", ico: "棘", color: "#f87171", desc: "受击反弹 18% 伤害给玩家" },
+  swift:  { name: "迅捷", ico: "迅", color: "#7dd3fc", desc: "移速 +60%" },
+  split:  { name: "分裂", ico: "裂", color: "#a3e635", desc: "死亡裂成 2 只小妖" },
+  ward:   { name: "护盾", ico: "盾", color: "#94a3b8", desc: "带护盾，需先打碎" },
+  drain:  { name: "噬魂", ico: "噬", color: "#c084fc", desc: "靠近玩家持续回血" },
+  bomb:   { name: "自爆", ico: "爆", color: "#fb923c", desc: "死亡爆炸，范围伤害" },
+  mirror: { name: "镜像", ico: "镜", color: "#f472b6", desc: "攻击力复制玩家 25%" },
+  frost:  { name: "冰霜", ico: "霜", color: "#67e8f9", desc: "死亡留下减速力场" },
+};
+const ENEMY_MOD_KEYS = Object.keys(ENEMY_MODS);
+// 按波次决定挂几个词缀：精英 1（8 波起 2）；大妖 1（10 波起 2）
+function modCountFor(e, wave) {
+  if (e.boss) return wave >= 10 ? 2 : 1;
+  if (e.elite) return wave >= 8 ? 2 : 1;
+  return 0;
+}
+function rollEnemyMods(e, wave) {
+  const n = modCountFor(e, wave);
+  if (n <= 0) return [];
+  const pool = ENEMY_MOD_KEYS.slice();
+  const out = [];
+  for (let i = 0; i < n && pool.length; i++) {
+    const k = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
+    out.push(k);
+  }
+  return out;
+}
+
+// ================= v6.0 B · 词条联动 Synergy =================
+// 两个特定词条同时在身 ⇒ 触发质变（不是加法，是机制）
+const SYNERGIES = [
+  { id: "syn_forge",    name: "熔炉",     ico: "熔", color: "#fb923c", need: ["huo_dmg", "shui_slow"],    desc: "被减速的敌人受火伤 ×3" },
+  { id: "syn_bloodrage",name: "血怒",     ico: "怒", color: "#f87171", need: ["crit_pct", "lifesteal"],   desc: "暴击溅射周围 4 敌 50% 伤害" },
+  { id: "syn_thornwall",name: "荆棘壁垒", ico: "棘", color: "#a3e635", need: ["tu_shield", "huo_fire"],   desc: "护盾存在时反伤 ×3" },
+  { id: "syn_frenzy",   name: "狂血",     ico: "狂", color: "#facc15", need: ["haste_pct", "jin_crit"],   desc: "击杀后 2s 攻速 ×2" },
+  { id: "syn_storm",    name: "雷暴",     ico: "雷", color: "#818cf8", need: ["jin_thunder", "crit_pct"], desc: "暴击时引雷 3 个目标" },
+  { id: "syn_burnwheel",name: "焚轮",     ico: "焚", color: "#fb7185", need: ["huo_burn", "haste_pct"],   desc: "灼烧跳伤速度 ×2" },
+  { id: "syn_ironwall", name: "玄铁壁",   ico: "壁", color: "#94a3b8", need: ["jin_iron", "tu_shield"],   desc: "护盾存在时减伤再 −20%" },
+  { id: "syn_enlight",  name: "悟道",     ico: "悟", color: "#5ce1e6", need: ["xp_bonus", "sk_hp_regen"], desc: "击杀经验 +50%" },
+];
+const SYNERGY_BY_ID = {};
+for (const s of SYNERGIES) SYNERGY_BY_ID[s.id] = s;
+// 当前是否激活某联动（读 G._synergies）
+function synOn(id) { return !!(G._synergies && G._synergies.includes(id)); }
+
+
 // 生成装备：slot × tier × type × 词条（v4.0：紫+橙 至少 1 个技能词条）
 function makeEquip(slot, tier, opts = {}) {
   const slotDef = SLOT_DEFS[slot];
@@ -659,13 +711,14 @@ function autoMergeEquip() {
 // 装备变更后重建缓存
 function equipRec() {
   G._eqCache = equipBonuses();
-  // v3.0：装备带来的增量叠加到玩家基础值
-  G.atk = (G._baseAtk || G.atk) + (G._eqCache.atk || 0);
-  G.hpMax = (G._baseHpMax || G.hpMax) + (G._eqCache.hp || 0);
+  // v3.0：装备带来的增量叠加到玩家基础值（v6.0 C 祭坛赌注：atk/crit/xp 再乘修正）
+  G.atk = ((G._baseAtk || G.atk) + (G._eqCache.atk || 0)) * (G.altarBuffs.atkMul || 1);
+  G.hpMax = ((G._baseHpMax || G.hpMax) + (G._eqCache.hp || 0)) * (G.altarBuffs.hpMul || 1);
+  G.hp = Math.min(G.hp, G.hpMax);
   G.moveSpeed = (G._baseMoveSpeed || G.moveSpeed) * (1 + (G._eqCache.spd || 0) / 100);
-  G.crit = (G._baseCrit || 0.08) + (G._eqCache.crit || 0);
+  G.crit = (G._baseCrit || 0.08) + (G._eqCache.crit || 0) + (G.altarBuffs.critAdd || 0);
   G.lifesteal = (G._baseLS || 0) + (G._eqCache.lifesteal || 0);
-  G.xpMul = (G._baseXpMul || 1) + (G._eqCache.xp || 0);
+  G.xpMul = ((G._baseXpMul || 1) + (G._eqCache.xp || 0)) * (G.altarBuffs.xpMul || 1);
   G.shieldMax = (G._baseShieldMax || 0) + (G._eqCache.shield || 0);
   G.burnMul = (G._baseBurnMul || 1) * (G._eqCache.burnMul || 1);
   G.dmgTakenMul = Math.max(0.1, (G._baseDmgTaken || 1) + (G._eqCache.dmgTaken || 0));
@@ -677,6 +730,31 @@ function equipRec() {
   while (G.skillCD.length > G.activeSkills.length) G.skillCD.pop();
   // v4.0: 套装自动转职 —— 3 件同派系装备在槽位 ⇒ 自动设 G.jobPath = 同源道途 id
   autoJobFromSet();
+  // v6.0 B: 词条联动 HUD 同步 + 新激活大字报
+  synHudSync();
+}
+
+// v6.0 B 词条联动 HUD：显示已激活联动，新凑齐时弹大字报（"啊哈时刻"）
+function synHudSync() {
+  const ids = G._synergies || [];
+  if (ui.synHudCount) ui.synHudCount.textContent = `${ids.length}/${SYNERGIES.length}`;
+  if (ui.synHudList) {
+    ui.synHudList.innerHTML = ids.map((id) => {
+      const s = SYNERGY_BY_ID[id];
+      return `<span class="syn-chip" style="--sc:${s.color}">${s.ico} ${s.name}</span>`;
+    }).join("");
+  }
+  if (ui.synHud) ui.synHud.classList.toggle("hidden", ids.length === 0);
+  const prev = G._synPrev || [];
+  for (const id of ids) {
+    if (prev.indexOf(id) < 0) {
+      const s = SYNERGY_BY_ID[id];
+      showBigBanner("词条联动", `${s.name} · ${s.desc}`, "purple");
+      burst(G.px, G.py, s.color, 24, 220, 4);
+      AudioSys.level();
+    }
+  }
+  G._synPrev = ids.slice();
 }
 
 // v4.0 套装自动转职：本角色所有 9 套派系武器 3 件同派系 ⇒ 对应道途
@@ -947,6 +1025,16 @@ function equipBonuses() {
   if (b.activeSkillIds.length > MAX_ACTIVE_SLOTS) {
     b.activeSkillIds = b.activeSkillIds.slice(0, MAX_ACTIVE_SLOTS);
   }
+  // v6.0 B · 词条联动：收集身上所有词条，need 全中即激活（机制质变，非数值叠加）
+  const allAx = new Set();
+  for (const sl in G.equipped) {
+    if (sl === "stone") continue;
+    const eq = G.equipped[sl];
+    if (!eq) continue;
+    for (const ax of (eq.affixes || [])) allAx.add(ax);
+  }
+  b.synergies = SYNERGIES.filter((s) => s.need.every((n) => allAx.has(n))).map((s) => s.id);
+  G._synergies = b.synergies;
   return b;
 }
 
@@ -1729,6 +1817,13 @@ const G = {
   _purity: 0,                       // v5.0 派系纯度 0~1
   _milestone: { purple: false, job: false, school: false, orange: false },
   _orangeT: 0, _orangeName: "",
+  // v6.0 A 怪物词缀 / B 词条联动 / C 祭坛赌注
+  _synergies: [],                   // B：当前激活的联动 id 列表
+  zones: [],                        // A：冰霜力场等地面区域
+  altars: [],                       // C：场上祭坛
+  _frenzyT: 0,                      // B：狂血剩余秒数
+  altarBuffs: { atkMul: 1, hpMul: 1, moveMul: 1, xpMul: 1, dropUp: 0, curseSpeed: 1, critAdd: 0 },
+  _altarWave: 0,                    // C：上次刷祭坛的波次
 };
 
 function resetRun(charId) {
@@ -1799,6 +1894,16 @@ function resetRun(charId) {
   G._purity = 0;
   G._milestone = { purple: false, job: false, school: false, orange: false };
   G.tutStep = 1;
+  // v6.0 A/B/C
+  G._synergies = [];
+  G.zones = [];
+  G.altars = [];
+  G._frenzyT = 0;
+  G.altarBuffs = { atkMul: 1, hpMul: 1, moveMul: 1, xpMul: 1, dropUp: 0, curseSpeed: 1, critAdd: 0 };
+  G._altarWave = 0;
+  G._altarPickup = 0;
+  G._synPrev = [];
+  synHudSync();
   G._orangeT = 0; G._orangeName = "";
   G.weapons = {
     sword: { lv: 1, evo: false },
@@ -2670,6 +2775,18 @@ function spawnEnemy(typeId, x, y, wave) {
     burn: 0, burnDmg: 0, slow: 0, slowMul: 1, dead: false,
     elem: t.elem || waveElemKey(),   // 五行属性：随波轮转
   };
+  // v6.0 A · 怪物词缀：精英/大妖随机带 1-2 个，实例化时立即生效
+  e.mods = (e.elite || e.boss) ? rollEnemyMods(e, wave) : [];
+  for (const m of e.mods) {
+    if (m === "swift")  e.speed *= 1.6;
+    if (m === "mirror") e.atk += G.atk * 0.25;
+    if (m === "ward")  { e.ward = hp * 0.45; e.wardMax = e.ward; }
+    if (m === "drain") { e.drainT = 0; }
+  }
+  if (e.mods.length) {
+    const names = e.mods.map((m) => ENEMY_MODS[m].name).join("·");
+    toast(`${e.boss ? "大妖" : "精英"}词缀 · ${names}`, "violet");
+  }
   G.enemies.push(e);
   if (t.boss) {
     G.bossBanner = 2.2;
@@ -2734,6 +2851,90 @@ function updateWaves(dt) {
   }
 }
 
+// ================= v6.0 C · 祭坛赌注 =================
+// 每 5 波显化一座祭坛 —— 是"你主动走过去"的空间交互，不是打断节奏的强制弹窗，可以拒绝
+const ALTAR_DEALS = [
+  { id: "blood", ico: "血", name: "血祭", give: "攻击 +50%",             cost: "献祭 30% 生命上限",
+    apply() { G.altarBuffs.hpMul *= 0.7; G.altarBuffs.atkMul *= 1.5; } },
+  { id: "void",  ico: "空", name: "空槽", give: "装备掉落品阶 +1 阶",     cost: "随机卸下 1 件已穿装备",
+    apply() { const sl = ["weapon", "armor", "accessory"].filter((s) => G.equipped[s]); if (sl.length) unequipTo(sl[Math.floor(Math.random() * sl.length)]); G.altarBuffs.dropUp += 1; } },
+  { id: "curse", ico: "咒", name: "妖咒", give: "经验 ×1.5",             cost: "全场妖物移速 +25%",
+    apply() { G.altarBuffs.xpMul *= 1.5; G.altarBuffs.curseSpeed *= 1.25; } },
+  { id: "frail", ico: "脆", name: "脆骨", give: "暴击率 +18%",           cost: "生命上限 −25%",
+    apply() { G.altarBuffs.hpMul *= 0.75; G.altarBuffs.critAdd += 0.18; } },
+  { id: "lame",  ico: "缚", name: "缚足", give: "拾取范围 +140",         cost: "移速 −15%",
+    apply() { G.altarBuffs.moveMul *= 0.85; G._altarPickup = (G._altarPickup || 0) + 140; } },
+  { id: "greed", ico: "贪", name: "贪饕", give: "攻击 +30% · 经验 +30%", cost: "受到伤害 +20%",
+    apply() { G.altarBuffs.atkMul *= 1.3; G.altarBuffs.xpMul *= 1.3; G._baseDmgTaken = (G._baseDmgTaken || 1) + 0.2; } },
+];
+const ALTAR_BY_ID = {};
+for (const d of ALTAR_DEALS) ALTAR_BY_ID[d.id] = d;
+
+// 品阶提升（祭坛「空槽」用）
+function tierUp(tier, n) {
+  const i = TIER_ORDER.indexOf(tier);
+  return TIER_ORDER[Math.min(TIER_ORDER.length - 1, i + n)];
+}
+
+function spawnAltar() {
+  const ang = rand(0, TAU);
+  G.altars.push({ x: G.px + Math.cos(ang) * 330, y: G.py + Math.sin(ang) * 330, r: 48, life: 50, used: false, bob: 0 });
+  toast("祭坛显现 · 走近立血契（可直接走开拒绝）", "violet");
+}
+
+function updateAltars(dt) {
+  if (G.wave > 0 && G.wave % 5 === 0 && G._altarWave !== G.wave) { G._altarWave = G.wave; spawnAltar(); }
+  for (const a of G.altars) { a.life -= dt; a.bob += dt * 2.2; }
+  G.altars = G.altars.filter((a) => a.life > 0 && !a.used);
+  if (G.state !== "play") return;
+  for (const a of G.altars) {
+    if (dist(a.x, a.y, G.px, G.py) < a.r + G.pr) { openAltar(a); break; }
+  }
+}
+
+function openAltar(a) {
+  a.used = true;
+  G.state = "altar";
+  const pool = ALTAR_DEALS.slice();
+  const picks = [];
+  for (let i = 0; i < 3 && pool.length; i++) picks.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+  G._altarPicks = picks;
+  if (ui.altarChoices) {
+    ui.altarChoices.innerHTML = "";
+    for (const d of picks) {
+      const btn = document.createElement("button");
+      btn.className = "choice-card altar-card";
+      btn.dataset.deal = d.id;
+      btn.innerHTML = `<span class="choice-ico">${d.ico}</span><b>${d.name}</b>`
+        + `<span class="choice-desc">${d.give}</span><span class="altar-cost">代价 · ${d.cost}</span>`;
+      btn.addEventListener("click", () => takeAltarDeal(d.id));
+      ui.altarChoices.appendChild(btn);
+    }
+  }
+  if (ui.altarModal) ui.altarModal.classList.remove("hidden");
+  AudioSys.level();
+}
+
+function takeAltarDeal(id) {
+  const d = ALTAR_BY_ID[id];
+  if (!d) return closeAltar();
+  d.apply();
+  equipRec();
+  G.hp = Math.min(G.hp, G.hpMax);
+  burst(G.px, G.py, "#c084fc", 26, 220, 4);
+  G.shake = Math.max(G.shake, 6);
+  showBigBanner("血契成立", `${d.name} · ${d.give}`, "purple");
+  toast(`血契 · ${d.name} · ${d.give}`, "violet");
+  closeAltar();
+}
+
+function closeAltar() {
+  if (ui.altarModal) ui.altarModal.classList.add("hidden");
+  // 立契或拒绝后祭坛都消散，避免重复触发
+  G.altars = G.altars.filter((a) => !a.used);
+  G.state = "play";
+}
+
 // ---------- Combat ----------
 function comboMul() {
   return 1 + Math.min(G.combo, 40) * 0.03;
@@ -2782,7 +2983,24 @@ function damagePlayer(amount) {
     if (amount <= 0) return;
   }
   amount *= (G.nodeDmgTakenMul || 1) * (G.dmgTakenMul || 1);   // 玄冰剑阵 / 转职：减伤
+  // v6.0 B 联动 · 玄铁壁：护盾还在时，减伤再 −20%
+  if (synOn("syn_ironwall") && G.shield > 0) amount *= 0.8;
   const hadShield = G.shield > 0;
+  // v6.0 B 联动 · 荆棘壁垒：护盾还在时，受击反弹 ×3 给周围 3 敌
+  if (synOn("syn_thornwall") && hadShield && amount > 0) {
+    const back = amount * 0.25 * 3;
+    let n = 0;
+    for (const e of G.enemies) {
+      if (e.dead || n >= 3) continue;
+      if (dist(e.x, e.y, G.px, G.py) < 180) {
+        e.hp -= back;
+        spawnFloater(e.x, e.y - e.r, String(Math.round(back)), "#a3e635", 11);
+        if (e.hp <= 0) killEnemy(e);
+        n++;
+      }
+    }
+    if (n > 0) burst(G.px, G.py, "#a3e635", 10, 150, 3);
+  }
   if (G.shield > 0) {
     const abs = Math.min(G.shield, amount);
     G.shield -= abs;
@@ -2848,7 +3066,9 @@ function damagePlayer(amount) {
 // 御风圆满：御风之后短时间攻速大涨
 function atkSpeedNow() {
   const h = (G.gemFx && G.gemFx.dashHaste && G.hasteT > 0) ? 1 + G.gemFx.dashHaste : 1;
-  return G.atkSpeed * h;
+  // v6.0 B 联动 · 狂血：击杀后 2s 攻速 ×2
+  const f = (G._frenzyT || 0) > 0 ? 2 : 1;
+  return G.atkSpeed * h * f;
 }
 
 function playerDamageMult() {
@@ -2891,7 +3111,11 @@ function killEnemy(e, byPlayer = true) {
   e.dead = true;
   G.kills += 1;
   onKillCombo();
-  const xp = Math.round(e.xp * G.xpMul * comboMul() * (G.nodeXpMul || 1));
+  // v6.0 B 联动 · 悟道：击杀经验 +50%
+  const synXpMul = synOn("syn_enlight") ? 1.5 : 1;
+  const xp = Math.round(e.xp * G.xpMul * comboMul() * (G.nodeXpMul || 1) * synXpMul);
+  // v6.0 B 联动 · 狂血：击杀后 2s 攻速 ×2
+  if (synOn("syn_frenzy")) G._frenzyT = 2;
   gainXP(xp);
   if (G.lifesteal > 0) G.hp = Math.min(G.hpMax, G.hp + G.lifesteal);
   if (e.boss) {
@@ -2931,12 +3155,12 @@ function killEnemy(e, byPlayer = true) {
     // v3.0 装备掉落
     if (Math.random() < DROP_EQ_ELITE_W) {
       const slots = ["weapon", "armor", "accessory"];
-      const eq = makeEquip(pick(slots), "white");
+      const eq = makeEquip(pick(slots), tierUp("white", (G.altarBuffs || {}).dropUp || 0));
       dropPickup(e.x + rand(-30, 30), e.y + rand(-30, 30), "equip", { equip: eq });
     }
     if (Math.random() < DROP_EQ_ELITE_G) {
       const slots = ["weapon", "armor", "accessory"];
-      const eq = makeEquip(pick(slots), "green");
+      const eq = makeEquip(pick(slots), tierUp("green", (G.altarBuffs || {}).dropUp || 0));
       dropPickup(e.x + rand(-30, 30), e.y + rand(-30, 30), "equip", { equip: eq });
     }
   } else {
@@ -2945,7 +3169,7 @@ function killEnemy(e, byPlayer = true) {
     // v3.0 小妖掉装备
     if (Math.random() < DROP_EQ_MOB) {
       const slots = ["weapon", "armor", "accessory"];
-      const eq = makeEquip(pick(slots), "white");
+      const eq = makeEquip(pick(slots), tierUp("white", (G.altarBuffs || {}).dropUp || 0));
       dropPickup(e.x + rand(-20, 20), e.y + rand(-20, 20), "equip", { equip: eq });
     }
   }
@@ -2954,25 +3178,25 @@ function killEnemy(e, byPlayer = true) {
     const wN = randInt(DROP_EQ_BOSS_W_MIN, DROP_EQ_BOSS_W_MAX);
     for (let i = 0; i < wN; i++) {
       const slots = ["weapon", "armor", "accessory"];
-      const eq = makeEquip(pick(slots), "white");
+      const eq = makeEquip(pick(slots), tierUp("white", (G.altarBuffs || {}).dropUp || 0));
       dropPickup(e.x + rand(-60, 60), e.y + rand(-60, 60), "equip", { equip: eq });
     }
     if (Math.random() < DROP_EQ_BOSS_G) {
       const n = randInt(1, 2);
       for (let i = 0; i < n; i++) {
         const slots = ["weapon", "armor", "accessory"];
-        const eq = makeEquip(pick(slots), "green");
+        const eq = makeEquip(pick(slots), tierUp("green", (G.altarBuffs || {}).dropUp || 0));
         dropPickup(e.x + rand(-60, 60), e.y + rand(-60, 60), "equip", { equip: eq });
       }
     }
     if (Math.random() < DROP_EQ_BOSS_B) {
       const slots = ["weapon", "armor", "accessory"];
-      const eq = makeEquip(pick(slots), "blue");
+      const eq = makeEquip(pick(slots), tierUp("blue", (G.altarBuffs || {}).dropUp || 0));
       dropPickup(e.x + rand(-60, 60), e.y + rand(-60, 60), "equip", { equip: eq });
     }
     if (Math.random() < DROP_EQ_BOSS_O) {
       const slots = ["weapon", "armor", "accessory"];
-      const eq = makeEquip(pick(slots), "orange");
+      const eq = makeEquip(pick(slots), tierUp("orange", (G.altarBuffs || {}).dropUp || 0));
       dropPickup(e.x + rand(-60, 60), e.y + rand(-60, 60), "equip", { equip: eq });
       toast(`妖王赐 · 橙·${ITEM_TYPES[eq.typeKey].name}`, "orange");
     }
@@ -3032,6 +3256,40 @@ function killEnemy(e, byPlayer = true) {
       child.xp = Math.round(e.xp * 0.3);
       child.splits = false;
     }
+  }
+  // v6.0 A 词缀 · 分裂：裂成 2 只小妖（与幽魂自带分裂叠加，但各自只裂一次）
+  if (e.mods && e.mods.indexOf("split") >= 0 && G.enemies.filter((x) => !x.dead).length < 85) {
+    for (let i = 0; i < 2; i++) {
+      const ang = rand(0, TAU);
+      const child = spawnEnemy("fox", e.x + Math.cos(ang) * 14, e.y + Math.sin(ang) * 14, Math.max(0, G.wave - 1));
+      child.r = e.r * 0.6;
+      child.hp = child.hpMax = e.hpMax * 0.3;
+      child.xp = Math.round(e.xp * 0.25);
+      child.mods = [];
+    }
+    burst(e.x, e.y, "#a3e635", 14, 170, 3);
+  }
+  // v6.0 A 词缀 · 自爆：死亡炸一圈，玩家在范围内要吃伤害
+  if (e.mods && e.mods.indexOf("bomb") >= 0) {
+    const R = 90 + e.r;
+    G.particles.push({
+      x: e.x, y: e.y, vx: 0, vy: 0, life: 0.4, max: 0.4,
+      color: "#fb923c", size: 5, ring: { r0: e.r, r1: R },
+    });
+    burst(e.x, e.y, "#fb923c", 20, 220, 4);
+    if (dist(e.x, e.y, G.px, G.py) < R) {
+      damagePlayer(e.atk * 2.2);
+      G.shake = Math.max(G.shake, 8);
+    }
+    for (const o of G.enemies) {
+      if (o === e || o.dead) continue;
+      if (dist(o.x, o.y, e.x, e.y) < R) { o.hp -= e.atk * 1.2; if (o.hp <= 0) killEnemy(o); }
+    }
+  }
+  // v6.0 A 词缀 · 冰霜：死亡留下减速力场（8s）
+  if (e.mods && e.mods.indexOf("frost") >= 0) {
+    G.zones.push({ x: e.x, y: e.y, r: 100, life: 8, max: 8, kind: "slow", mul: 0.45 });
+    burst(e.x, e.y, "#67e8f9", 16, 140, 3);
   }
 }
 
@@ -3234,13 +3492,30 @@ function applyHit(e, dmg, opts = {}) {
   // 共鸣 · 跨阶归一：圆满特效（含溅射/暴击溅血/落雷引线等）整段再 ×1.5
   const kuaJieOn = !!(G.resonance && G.resonance.kuaJie);
   if (kuaJieOn) d *= 1.5;
+  // v6.0 B 联动 · 熔炉：被减速的敌人受火伤 ×3（机制质变，不是加法）
+  if (synOn("syn_forge") && (e.slow || 0) > 0) {
+    d *= 3;
+    spawnFloater(e.x, e.y - e.r - 26, "熔炉 ×3", "#fb923c", 12);
+  }
   const isCrit = Math.random() < G.crit;
   if (isCrit) {
     d *= G.critMul;
     hitStop(45);
     AudioSys.crit();
   }
+  // v6.0 A 词缀 · 护盾：伤害先打护盾，碎前不掉血
+  if (e.ward > 0) {
+    const abs = Math.min(e.ward, d);
+    e.ward -= abs; d -= abs;
+    if (e.ward <= 0) {
+      e.ward = 0;
+      burst(e.x, e.y, "#94a3b8", 16, 170, 3);
+      spawnFloater(e.x, e.y - e.r - 22, "护盾碎", "#cbd5e1", 12);
+    }
+  }
   e.hp -= d;
+  // v6.0 A 词缀 · 荆棘：玩家打它会被反弹
+  if (e.mods && e.mods.indexOf("thorns") >= 0 && d > 0) damagePlayer(d * 0.18);
   e.flash = 0.1;
   if (opts.burn) { e.burn = opts.burn; e.burnDmg = opts.burnDmg; }
   if (opts.slow) { e.slow = opts.slow; e.slowMul = opts.slowMul || 0.55; }
@@ -3250,6 +3525,38 @@ function applyHit(e, dmg, opts = {}) {
     if (c.onHit) c.onHit(e, d);
   }
   if (isCrit) gemOnCrit(e, d);       // 血剑流：暴击溅血爆裂
+  // v6.0 B 联动 · 血怒：暴击溅射周围 4 敌 50% 伤害
+  if (isCrit && synOn("syn_bloodrage")) {
+    let n = 0;
+    for (const o of G.enemies) {
+      if (o === e || o.dead || n >= 4) continue;
+      if (dist(o.x, o.y, e.x, e.y) < 150) {
+        o.hp -= d * 0.5;
+        spawnFloater(o.x, o.y - o.r, String(Math.round(d * 0.5)), "#f87171", 10);
+        if (o.hp <= 0) killEnemy(o);
+        n++;
+      }
+    }
+    if (n > 0) burst(e.x, e.y, "#f87171", 12, 180, 3);
+  }
+  // v6.0 B 联动 · 雷暴：暴击引雷 3 个目标
+  if (isCrit && synOn("syn_storm")) {
+    let n = 0;
+    for (const o of G.enemies) {
+      if (o === e || o.dead || n >= 3) continue;
+      if (dist(o.x, o.y, e.x, e.y) < 230) {
+        o.hp -= d * 0.8;
+        G.particles.push({
+          x: e.x, y: e.y, vx: 0, vy: 0, life: 0.22, max: 0.22, color: "#818cf8", size: 3,
+          line: { x2: o.x, y2: o.y },
+        });
+        spawnFloater(o.x, o.y - o.r - 12, "雷", "#818cf8", 12);
+        if (o.hp <= 0) killEnemy(o);
+        n++;
+      }
+    }
+    if (n > 0) AudioSys.skill();
+  }
   if (kuaJieOn) spawnFloater(e.x, e.y - e.r - 12, "跨阶 ×1.5", "#a78bfa", 12);
   // size by damage magnitude
   const mag = Math.min(1, Math.log10(1 + d) / 3.2);
@@ -3743,6 +4050,7 @@ function toast(msg, kind) {
 function update(dt) {
   if (G.state === "menu" || G.state === "over" || G.state === "shop" || G.state === "pause" || G.state === "codex") return;
   if (G.state === "level" || G.state === "job" || G.state === "forge") return;
+  if (G.state === "altar") { updateHUD(); return; }   // v6.0 C 祭坛：暂停世界等玩家抉择
 
   // hit-stop
   if (G.hitStop > 0) {
@@ -3770,6 +4078,8 @@ function update(dt) {
     if (G.skillCD[i] > 0) G.skillCD[i] = Math.max(0, G.skillCD[i] - dt);
   }
   // v4.0 装备主动技能持续时长 tick（如剑气护体 +6s）
+  // v6.0 B 联动 · 狂血：CD tick
+  G._frenzyT = Math.max(0, (G._frenzyT || 0) - dt);
   G._swordArrayT = Math.max(0, (G._swordArrayT || 0) - dt);
   G._shadowT = Math.max(0, (G._shadowT || 0) - dt);
   // v4.0 装备被动技能 tick（按 G.passiveSkills 列表）
@@ -3820,7 +4130,11 @@ function update(dt) {
   }
 
   const mv = readMove();
-  const speed = G.moveSpeed * (G.nodeMoveMul || 1) * (G.dashTimer > 0 ? G.dashSpeedMul : 1);
+  let speed = G.moveSpeed * (G.nodeMoveMul || 1) * (G.dashTimer > 0 ? G.dashSpeedMul : 1) * (G.altarBuffs.moveMul || 1);
+  // v6.0 A 词缀 · 冰霜：站在减速力场里移速大减，逼你绕开
+  for (const z of G.zones) {
+    if (z.kind === "slow" && dist(z.x, z.y, G.px, G.py) < z.r) { speed *= z.mul; break; }
+  }
   G.px += mv.x * speed * dt;
   G.py += mv.y * speed * dt;
   const dFromOrigin = Math.hypot(G.px, G.py);
@@ -3902,7 +4216,18 @@ function update(dt) {
       mx += px * swirl; my += py * swirl;
       const n = Math.hypot(mx, my) || 1; mx /= n; my /= n;
     }
-    const spd = e.speed * (e.slowMul || 1);
+    // v6.0 A 词缀 · 噬魂：贴近玩家就持续回血，得优先点掉
+    if (e.mods && e.mods.indexOf("drain") >= 0) {
+      e.drainT = (e.drainT || 0) + dt;
+      if (e.drainT >= 0.6) {
+        e.drainT = 0;
+        if (dist(e.x, e.y, G.px, G.py) < 210 && e.hp < e.hpMax) {
+          e.hp = Math.min(e.hpMax, e.hp + e.hpMax * 0.035);
+          spawnFloater(e.x, e.y - e.r - 10, "噬", "#c084fc", 10);
+        }
+      }
+    }
+    const spd = e.speed * (e.slowMul || 1) * (G.altarBuffs.curseSpeed || 1);
     e.x += mx * spd * dt;
     e.y += my * spd * dt;
 
@@ -3934,13 +4259,20 @@ function update(dt) {
   }
   G.enemies = G.enemies.filter((e) => !e.dead);
 
+  // v6.0 A 冰霜力场衰减
+  for (const z of G.zones) z.life -= dt;
+  G.zones = G.zones.filter((z) => z.life > 0);
+  // v6.0 C 祭坛：走近自动触发
+  updateAltars(dt);
+
   for (const p of G.pickups) {
     p.life -= dt;
     p.bob += dt * 3;
     const d = dist(p.x, p.y, G.px, G.py);
-    if (d < 100) {
+    const pullR = 100 + (G._altarPickup || 0);   // v6.0 C 祭坛「缚足」：拾取范围
+    if (d < pullR) {
       const a = angleTo(p.x, p.y, G.px, G.py);
-      const pull = lerp(120, 320, 1 - d / 100);
+      const pull = lerp(120, 320, 1 - d / pullR);
       p.x += Math.cos(a) * pull * dt;
       p.y += Math.sin(a) * pull * dt;
       // vacuum sparks
@@ -4073,6 +4405,8 @@ function draw() {
     drawMenuAmbient();
   } else {
     drawNodes(camX, camY);
+    drawZones();      // v6.0 A 冰霜力场（地面）
+    drawAltars();     // v6.0 C 祭坛
     for (const p of G.pickups) drawPickup(p);
     // magnet tether when close
     for (const p of G.pickups) {
@@ -4799,6 +5133,38 @@ function drawEnemy(e) {
     ctx.setLineDash([]);
     ctx.restore();
   }
+  // v6.0 A 词缀徽标：头顶挂牌，一眼看出这只怪该怎么打
+  if (e.mods && e.mods.length) {
+    ctx.save();
+    const n = e.mods.length;
+    const bw = 24, bh = 17;
+    for (let i = 0; i < n; i++) {
+      const m = ENEMY_MODS[e.mods[i]];
+      const ox = (i - (n - 1) / 2) * (bw + 4);
+      const oy = -r - 22 - Math.sin(G.time * 2.2 + i * 1.3) * 2;
+      ctx.fillStyle = "rgba(6,10,18,0.82)";
+      ctx.strokeStyle = m.color;
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.rect(ox - bw / 2, oy - bh / 2, bw, bh);
+      ctx.fill(); ctx.stroke();
+      ctx.fillStyle = m.color;
+      ctx.font = "600 11px system-ui, sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(m.name, ox, oy + 0.5);
+    }
+    ctx.restore();
+  }
+  // v6.0 A 词缀 · 护盾：头顶护盾条
+  if (e.wardMax > 0 && e.ward > 0) {
+    const ww = r * 2;
+    ctx.save();
+    ctx.fillStyle = "rgba(148,163,184,0.35)";
+    ctx.fillRect(-ww / 2, -r - 12, ww, 4);
+    ctx.fillStyle = "#cbd5e1";
+    ctx.fillRect(-ww / 2, -r - 12, ww * (e.ward / e.wardMax), 4);
+    ctx.restore();
+  }
   if (e.burn > 0) {
     ctx.fillStyle = "rgba(251,146,60,0.25)";
     ctx.beginPath();
@@ -4969,6 +5335,72 @@ function drawNameplate(cx, cy, label, kind) {
   ctx.shadowBlur = 8;
   ctx.fillText(label, cx, py + ph / 2);
   ctx.shadowBlur = 0;
+}
+
+// v6.0 A 冰霜力场：地面减速区，站进去移速大减
+function drawZones() {
+  for (const z of G.zones) {
+    const s = w2s(z.x, z.y);
+    if (s.x < -220 || s.y < -220 || s.x > view.w + 220 || s.y > view.h + 220) continue;
+    const a = Math.min(1, z.life / 2);
+    ctx.save();
+    ctx.globalAlpha = a;
+    const g = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, z.r);
+    g.addColorStop(0, "rgba(103,232,249,0.40)");
+    g.addColorStop(1, "rgba(103,232,249,0)");
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(s.x, s.y, z.r, 0, TAU); ctx.fill();
+    ctx.strokeStyle = "rgba(103,232,249,0.5)";
+    ctx.lineWidth = 1.6;
+    ctx.setLineDash([6, 6]);
+    ctx.beginPath(); ctx.arc(s.x, s.y, z.r, 0, TAU); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+  }
+}
+
+// v6.0 C 祭坛：走近触发血契选择
+function drawAltars() {
+  for (const a of G.altars) {
+    const s = w2s(a.x, a.y);
+    if (s.x < -180 || s.y < -180 || s.x > view.w + 180 || s.y > view.h + 180) continue;
+    const pulse = 1 + Math.sin(a.bob) * 0.08;
+    ctx.save();
+    const g = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, a.r * 2.2 * pulse);
+    g.addColorStop(0, "rgba(192,132,252,0.34)");
+    g.addColorStop(1, "rgba(192,132,252,0)");
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(s.x, s.y, a.r * 2.2 * pulse, 0, TAU); ctx.fill();
+    ctx.translate(s.x, s.y);
+    ctx.rotate(G.time * 0.6);
+    ctx.strokeStyle = "rgba(216,180,254,0.75)";
+    ctx.lineWidth = 2;
+    ctx.setLineDash([9, 7]);
+    ctx.beginPath(); ctx.arc(0, 0, a.r * pulse, 0, TAU); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.rotate(-G.time * 1.1);
+    ctx.strokeStyle = "rgba(251,191,36,0.5)";
+    ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.arc(0, 0, a.r * 0.62, 0, TAU); ctx.stroke();
+    ctx.rotate(G.time * 1.1);
+    ctx.fillStyle = "rgba(15,10,28,0.88)";
+    ctx.strokeStyle = "#c084fc";
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.rect(-13, -20, 26, 34); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = "#f5d0fe";
+    ctx.font = "700 16px system-ui, sans-serif";
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText("祭", 0, -3);
+    ctx.restore();
+    if (dist(a.x, a.y, G.px, G.py) < 280) {
+      ctx.save();
+      ctx.fillStyle = "rgba(233,213,255,0.92)";
+      ctx.font = "600 12px system-ui, sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText("走近立血契 · 可直接走开拒绝", s.x, s.y + a.r + 28);
+      ctx.restore();
+    }
+  }
 }
 
 function drawPickup(p) {
@@ -5615,6 +6047,11 @@ if (ui.forgeBtn) ui.forgeBtn.addEventListener("click", () => { AudioSys.init(); 
 if (ui.btnForgeClose) ui.btnForgeClose.addEventListener("click", closeForge);
 if (ui.invBtn) ui.invBtn.addEventListener("click", () => { AudioSys.init(); openInventory(); });
 if (ui.btnInvClose) ui.btnInvClose.addEventListener("click", closeInventory);
+// v6.0 C 祭坛：拒绝按钮（不立契，转身走开，不惩罚）
+if (ui.btnAltarSkip) ui.btnAltarSkip.addEventListener("click", () => {
+  toast("未立血契 · 祭坛消散", "cyan");
+  closeAltar();
+});
 ui.btnResume.addEventListener("click", resumeGame);
 ui.btnPauseHome.addEventListener("click", () => {
   ui.pauseScreen.classList.add("hidden");
@@ -5722,5 +6159,9 @@ window.__XTJ__ = {
   // v5.0 PM 视角
   showBigBanner, showTutorial, hideTutorial, advanceTutorial, tickTutorial, updateGoalBar, setStoneSlot,
   PURITY_BONUS, PURITY_PARTIAL, STONE_SLOT_BONUS, BOSS_PURPLE_DROP,
+  // v6.0 A 怪物词缀 / B 词条联动 / C 祭坛赌注
+  ENEMY_MODS, ENEMY_MOD_KEYS, modCountFor, rollEnemyMods,
+  SYNERGIES, SYNERGY_BY_ID, synOn, synHudSync,
+  ALTAR_DEALS, ALTAR_BY_ID, tierUp, spawnAltar, updateAltars, openAltar, takeAltarDeal, closeAltar,
 };
 })();

@@ -98,6 +98,11 @@
 
     <div id="coreHud" class="core-hud hidden"><span id="coreHudList"></span></div>
 
+    <div id="synHud" class="syn-hud hidden">
+      <span class="syn-hud-tag">联动 <b id="synHudCount">0/8</b></span>
+      <span id="synHudList" class="syn-hud-list"></span>
+    </div>
+
     <div class="hud-bottom">
       <div id="relicRow" class="relic-row hidden"></div>
       <div class="xp-wrap">
@@ -181,6 +186,17 @@
         <div id="forgeResonance" class="res-list"></div>
       </div>
       <button id="btnForgeClose" class="btn-primary forge-close" type="button"><span>收工 · 继续战斗</span></button>
+    </div>
+  </div>
+
+  <!-- v6.0 C 祭坛赌注：走近祭坛触发，3 选 1，可拒绝 -->
+  <div id="altarModal" class="modal hidden">
+    <div class="modal-card level-card altar-modal-card">
+      <div class="modal-ornament"></div>
+      <h2>血契祭坛</h2>
+      <p class="modal-sub">三契择一 · 皆有所偿 —— 拿得越狠，代价越重</p>
+      <div id="altarChoices" class="choices"></div>
+      <button id="btnAltarSkip" class="btn-ghost altar-skip" type="button">不立契 · 转身离去</button>
     </div>
   </div>
 

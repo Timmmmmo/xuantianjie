@@ -11,16 +11,12 @@ const ui = {
   hud: $("hud"),
   hpFill: $("hpFill"), hpText: $("hpText"),
   mpFill: $("mpFill"), mpText: $("mpText"),
-  waveText: $("waveText"), waveElem: $("waveElem"), killText: $("killText"), timeText: $("timeText"),
+  waveText: $("waveText"), killText: $("killText"), timeText: $("timeText"),
   coinText: $("coinText"), weaponHint: $("weaponHint"), waveFill: $("waveFill"),
   xpFill: $("xpFill"), levelText: $("levelText"), titleText: $("titleText"),
   comboBadge: $("comboBadge"), comboNum: $("comboNum"),
   bossBar: $("bossBar"), bossBarName: $("bossBarName"), bossBarFill: $("bossBarFill"),
   levelModal: $("levelModal"), levelChoices: $("levelChoices"),
-  jobModal: $("jobModal"), jobChoices: $("jobChoices"),
-  jobTitle: $("jobTitle"), jobSub: $("jobSub"),
-  jobHud: $("jobHud"), jobHudIco: $("jobHudIco"),
-  jobHudPath: $("jobHudPath"), jobHudBranch: $("jobHudBranch"),
   startScreen: $("startScreen"), overScreen: $("overScreen"),
   shopScreen: $("shopScreen"), shopList: $("shopList"), shopCoins: $("shopCoins"),
   pauseScreen: $("pauseScreen"), btnResume: $("btnResume"), btnPauseHome: $("btnPauseHome"),
@@ -33,43 +29,12 @@ const ui = {
   overCombo: $("overCombo"), overLevel: $("overLevel"), overCoins: $("overCoins"),
   overTitle: $("overTitle"), overMsg: $("overMsg"),
   toast: $("toast"),
+  modeRow: $("modeRow"), dailyList: $("dailyList"), dailyCount: $("dailyCount"),
+  btnRevive: $("btnRevive"),
   joystick: $("joystick"), joyKnob: $("joyKnob"), joyZone: $("joyZone"),
   btnSkill1: $("btnSkill1"), btnSkill2: $("btnSkill2"),
   cd1: $("cd1"), cd2: $("cd2"),
   levelBadge: document.querySelector(".level-badge"),
-  nodeHud: $("nodeHud"), nodeHudIco: $("nodeHudIco"), nodeHudName: $("nodeHudName"),
-  nodeHudBuff: $("nodeHudBuff"), nodeHudFill: $("nodeHudFill"),
-  beastHud: $("beastHud"), beastHudIco: $("beastHudIco"), beastHudName: $("beastHudName"),
-  relicRow: $("relicRow"),
-  codexScreen: $("codexScreen"), codexProgress: $("codexProgress"),
-  codexArtifacts: $("codexArtifacts"), codexBeasts: $("codexBeasts"),
-  btnCodex: $("btnCodex"), btnCodexBack: $("btnCodexBack"),
-  // 炼宝台
-  stoneRow: $("stoneRow"), forgeBtn: $("forgeBtn"), forgeBtnCount: $("forgeBtnCount"),
-  forgeModal: $("forgeModal"), forgeStones: $("forgeStones"),
-  forgeGemCount: $("forgeGemCount"),
-  forgeGems: $("forgeGems"),
-  forgeEquip: $("forgeEquip"), forgeEquipCount: $("forgeEquipCount"),
-  forgeMelt: $("forgeMelt"), forgeMeltWrap: $("forgeMeltWrap"),
-  btnForgeClose: $("btnForgeClose"),
-  forgeResonance: $("forgeResonance"),
-  forgeCores: $("forgeCores"),
-  resHud: $("resHud"), resHudList: $("resHudList"),
-  coreHud: $("coreHud"), coreHudList: $("coreHudList"),
-  // 背包 v3.0
-  invBtn: $("invBtn"), invBtnCount: $("invBtnCount"),
-  invModal: $("invModal"), invGrid: $("invGrid"), invDetail: $("invDetail"),
-  invSlotWeapon: $("invSlotWeapon"), invSlotArmor: $("invSlotArmor"), invSlotAccessory: $("invSlotAccessory"),
-  invSlotStone: $("invSlotStone"),   // v5.0 灵石槽位
-  btnInvClose: $("btnInvClose"),
-  // v5.0 PM 视角：目标进度条 / 大字报 / 教程
-  goalBar: $("goalBar"), goalIco: $("goalIco"), goalText: $("goalText"), goalFill: $("goalFill"), goalDetail: $("goalDetail"),
-  bigBanner: $("bigBanner"), bigBannerSub: $("bigBannerSub"), bigBannerText: $("bigBannerText"),
-  tutOverlay: $("tutOverlay"), tutCard: $("tutCard"), tutStepNum: $("tutStepNum"), tutStepTotal: $("tutStepTotal"),
-  tutTitle: $("tutTitle"), tutBody: $("tutBody"), tutTip: $("tutTip"), tutNext: $("tutNext"),
-  // v6.0 B 词条联动 HUD / C 祭坛赌注
-  synHud: $("synHud"), synHudList: $("synHudList"), synHudCount: $("synHudCount"),
-  altarModal: $("altarModal"), altarChoices: $("altarChoices"), btnAltarSkip: $("btnAltarSkip"),
 };
 
 // ---------- Audio ----------
@@ -115,7 +80,6 @@ const AudioSys = {
 // ---------- Utils ----------
 const TAU = Math.PI * 2;
 const rand = (a, b) => a + Math.random() * (b - a);
-const randInt = (a, b) => Math.floor(rand(a, b));
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const lerp = (a, b, t) => a + (b - a) * t;
 const dist = (ax, ay, bx, by) => Math.hypot(ax - bx, ay - by);
@@ -131,122 +95,7 @@ function shuffle(arr) {
 }
 const RealmTitle = (lv) => lv >= 40 ? "化神" : lv >= 30 ? "元婴" : lv >= 20 ? "金丹" : lv >= 12 ? "筑基" : "炼气";
 
-// ---------- Meta save ----------
-const META_KEY = "xuantianjie_meta_v2";
-const SHOP_DEFS = [
-  { id: "atk", name: "锋锐灵纹", desc: "开局攻击 +6%/级", max: 10, base: 40, ico: "锐", tier: "cyan", apply: (s) => { s.atkMul += 0.06; } },
-  { id: "hp", name: "厚土诀", desc: "开局生命 +8/级", max: 10, base: 35, ico: "体", tier: "green", apply: (s) => { s.hpBonus += 8; } },
-  { id: "spd", name: "清风步", desc: "开局移速 +3%/级", max: 8, base: 45, ico: "疾", tier: "cyan", apply: (s) => { s.spdMul += 0.03; } },
-  { id: "xp", name: "悟性", desc: "经验 +5%/级", max: 8, base: 50, ico: "悟", tier: "violet", apply: (s) => { s.xpMul += 0.05; } },
-  { id: "coin", name: "聚灵玉", desc: "灵石获取 +8%/级", max: 5, base: 80, ico: "玉", tier: "gold", apply: (s) => { s.coinMul += 0.08; } },
-  { id: "sword", name: "剑胚", desc: "开局飞剑更利", max: 5, base: 60, ico: "剑", tier: "cyan", apply: (s) => { s.swordBonus += 1; } },
-  { id: "luck", name: "机缘", desc: "升级更易出稀有项", max: 5, base: 70, ico: "缘", tier: "gold", apply: (s) => { s.luck += 1; } },
-];
-
-const Meta = {
-  load() {
-    try {
-      const d = JSON.parse(localStorage.getItem(META_KEY)) || {};
-      return {
-        coins: d.coins || 0,
-        bestWave: d.bestWave || 0,
-        bestKills: d.bestKills || 0,
-        bestTime: d.bestTime || 0,
-        bestCombo: d.bestCombo || 0,
-        shop: d.shop || {},
-        selectedChar: d.selectedChar || "sword",
-        codex: d.codex && typeof d.codex === "object" ? d.codex : { artifacts: {}, beasts: {} },
-        contract: d.contract || null,
-      };
-    } catch (_) {
-      return {
-        coins: 0, bestWave: 0, bestKills: 0, bestTime: 0, bestCombo: 0,
-        shop: {}, selectedChar: "sword",
-        codex: { artifacts: {}, beasts: {} }, contract: null,
-      };
-    }
-  },
-  save(d) {
-    try { localStorage.setItem(META_KEY, JSON.stringify(d)); } catch (_) {}
-  },
-  shopLevel(id) { return this.load().shop[id] || 0; },
-  shopCost(def) {
-    const lv = this.shopLevel(def.id);
-    return Math.floor(def.base * Math.pow(1.55, lv));
-  },
-  buy(id) {
-    const def = SHOP_DEFS.find((s) => s.id === id);
-    if (!def) return { ok: false, msg: "无效" };
-    const d = this.load();
-    const lv = d.shop[id] || 0;
-    if (lv >= def.max) return { ok: false, msg: "已满级" };
-    const cost = Math.floor(def.base * Math.pow(1.55, lv));
-    if (d.coins < cost) return { ok: false, msg: "灵石不足" };
-    d.coins -= cost;
-    d.shop[id] = lv + 1;
-    this.save(d);
-    return { ok: true, msg: `${def.name} Lv${lv + 1}` };
-  },
-  statsFromShop() {
-    const d = this.load();
-    const s = { atkMul: 0, hpBonus: 0, spdMul: 0, xpMul: 0, coinMul: 0, swordBonus: 0, luck: 0 };
-    for (const def of SHOP_DEFS) {
-      const lv = d.shop[def.id] || 0;
-      for (let i = 0; i < lv; i++) def.apply(s);
-    }
-    return s;
-  },
-  endRun(wave, kills, time, comboPeak, coinsEarned) {
-    const d = this.load();
-    d.bestWave = Math.max(d.bestWave, wave);
-    d.bestKills = Math.max(d.bestKills, kills);
-    d.bestTime = Math.max(d.bestTime, Math.floor(time));
-    d.bestCombo = Math.max(d.bestCombo, comboPeak);
-    d.coins += coinsEarned;
-    this.save(d);
-    return d;
-  },
-  // ---- 图鉴 ----
-  recordArtifact(id) {
-    const d = this.load();
-    d.codex.artifacts[id] = (d.codex.artifacts[id] || 0) + 1;
-    this.save(d);
-    return d;
-  },
-  recordBeast(id) {
-    const d = this.load();
-    d.codex.beasts[id] = (d.codex.beasts[id] || 0) + 1;
-    this.save(d);
-    return d;
-  },
-  codexStats() {
-    const d = this.load();
-    return {
-      art: Object.keys(d.codex.artifacts).length,
-      beast: Object.keys(d.codex.beasts).length,
-      artTotal: ARTIFACTS.length,
-      beastTotal: BEASTS.length,
-    };
-  },
-  beastUnlocked(id) {
-    const def = BEAST_BY_ID[id];
-    if (!def) return false;
-    const d = this.load();
-    if (d.codex.beasts[id]) return true;
-    const u = def.unlock;
-    if (u.type === "wave") return d.bestWave >= u.need;
-    if (u.type === "kills") return d.bestKills >= u.need;
-    if (u.type === "relic") return Object.keys(d.codex.artifacts).length >= u.need;
-    return false;
-  },
-  toggleContract(id) {
-    const d = this.load();
-    d.contract = d.contract === id ? null : id;
-    if (d.contract) d.codex.beasts[id] = (d.codex.beasts[id] || 0) + 1;
-    this.save(d);
-    return d.contract;
-  },
-};
+// Meta / SHOP_DEFS 由 js/meta.js 提供（window.Meta / window.SHOP_DEFS）
 
 // ---------- Characters ----------
 const CHARS = {
@@ -254,1098 +103,6 @@ const CHARS = {
   mage: { id: "mage", name: "法修", icon: "法", desc: "灵力充沛 技能冷却-20%", portrait: "assets/char-mage.png" },
   body: { id: "body", name: "体修", icon: "体", desc: "气血厚 受击反伤 移速稍慢", portrait: "assets/char-body.png" },
 };
-
-// ---------- 法宝 & 灵兽（图鉴收藏） ----------
-const TIER_KEY = { 凡: "fan", 灵: "ling", 宝: "bao", 仙: "xian" };
-
-// 法宝：局内由「法宝匣」开出，拾取即永久收录进图鉴
-const ARTIFACTS = [
-  { id: "qingfeng", name: "青锋剑匣", ico: "锋", tier: "凡", color: "#7dd3fc",
-    desc: "飞剑 +1 · 攻击 +12%",
-    apply: () => { G.swordCount += 1; G.atk *= 1.12; } },
-  { id: "xuanjia", name: "玄武宝甲", ico: "甲", tier: "凡", color: "#86efac",
-    desc: "护盾上限 +25 · 立即获得 40 护盾",
-    apply: () => { G.shieldMax += 25; G.shield += 40; } },
-  { id: "huoling", name: "火灵珠", ico: "焰", tier: "灵", color: "#fb923c",
-    desc: "攻击 +18% · 灼烧伤害翻倍",
-    apply: () => { G.atk *= 1.18; G.burnMul = (G.burnMul || 1) * 2; } },
-  { id: "leiyin", name: "雷音铃", ico: "雷", tier: "灵", color: "#c084fc",
-    desc: "飞剑攻速 +20% · 击杀有 12% 概率落雷",
-    apply: () => { G.atkSpeed *= 1.2; G.thunderProc = (G.thunderProc || 0) + 0.12; } },
-  { id: "hanshui", name: "寒水镜", ico: "镜", tier: "灵", color: "#93c5fd",
-    desc: "暴击率 +12% · 暴击伤害 +40%",
-    apply: () => { G.crit = Math.min(0.7, G.crit + 0.12); G.critMul += 0.4; } },
-  { id: "juling", name: "聚灵幡", ico: "幡", tier: "宝", color: "#5ce1e6",
-    desc: "经验 +30% · 灵力回复 +2/s",
-    apply: () => { G.xpMul *= 1.3; G.mpRegen += 2; } },
-  { id: "xueyu", name: "血玉葫芦", ico: "玉", tier: "宝", color: "#f87171",
-    desc: "击杀吸血 +3 · 气血上限 +50 并回复",
-    apply: () => { G.lifesteal += 3; G.hpMax += 50; G.hp = Math.min(G.hpMax, G.hp + 50); } },
-  { id: "tianji", name: "天机盘", ico: "机", tier: "仙", color: "#f0c14b",
-    desc: "攻击 / 攻速 / 移速 +10% · 暴击率 +6%",
-    apply: () => { G.atk *= 1.1; G.atkSpeed *= 1.1; G.moveSpeed *= 1.1; G.crit = Math.min(0.7, G.crit + 0.06); } },
-];
-const ARTIFACT_BY_ID = Object.fromEntries(ARTIFACTS.map((a) => [a.id, a]));
-const MAX_RELICS = 5;          // 单局法宝携带上限，满则化为护盾气血
-
-// 灵兽：图鉴条件达成后可「契约」，每局带 1 只，跟随作战
-const BEASTS = [
-  { id: "qingluan", name: "青鸾", ico: "鸾", tier: "凡", color: "#7dd3fc", kind: "bolt",
-    desc: "周期射出穿云风刃，命中最近敌及其后方",
-    unlock: { type: "wave", need: 5, text: "单局撑过第 5 波" },
-    cd: 1.15, mul: 0.85, pierce: 2 },
-  { id: "xuangui", name: "玄龟", ico: "龟", tier: "凡", color: "#86efac", kind: "ward",
-    desc: "每 6s 为你生出一层护盾",
-    unlock: { type: "kills", need: 300, text: "累计斩妖 300" },
-    cd: 6, shield: 22 },
-  { id: "huoqilin", name: "火麒麟", ico: "麟", tier: "灵", color: "#fb923c", kind: "aura",
-    desc: "身周烈焰环绕，持续灼烧靠近的妖物",
-    unlock: { type: "wave", need: 10, text: "单局撑过第 10 波" },
-    cd: 0.5, radius: 86, mul: 0.5, burn: true },
-  { id: "leipeng", name: "雷鹏", ico: "鹏", tier: "灵", color: "#c084fc", kind: "nova",
-    desc: "周期引落天雷，重创身周群妖",
-    unlock: { type: "wave", need: 15, text: "单局撑过第 15 波" },
-    cd: 2.6, radius: 150, mul: 1.6 },
-  { id: "baize", name: "白泽", ico: "泽", tier: "宝", color: "#5ce1e6", kind: "ward",
-    desc: "周期回复气血灵力，并让经验 +15%",
-    unlock: { type: "relic", need: 6, text: "图鉴收录 6 件法宝" },
-    cd: 5, heal: 0.06, mp: 8, xpMul: 0.15 },
-  { id: "zhulong", name: "烛龙", ico: "烛", tier: "仙", color: "#f0c14b", kind: "nova",
-    desc: "真龙吐息，横扫大范围妖潮",
-    unlock: { type: "wave", need: 25, text: "单局撑过第 25 波" },
-    cd: 3.4, radius: 230, mul: 2.6 },
-];
-const BEAST_BY_ID = Object.fromEntries(BEASTS.map((b) => [b.id, b]));
-
-// ---------- 角色专属灵石 & 流派宝石 ----------
-// 灵感取自「人族无敌RPG」的装备合成：灵石是**角色绑定的有限资源**，
-// 每个角色三系，各由一种专属灵石主导。攒够同一系的主石，按配方凝出
-// 「流派宝石」——属性与技能大增，甚至长出特殊攻击效果；
-// 若图快，也可花两颗任意灵石换「通用装备」，那就只有普通攻击效果。
-// 槽位只有两个 ⇒ 三条路只能取其二，这是本系统的核心取舍。
-const ELEMENTS = [
-  { key: "jin", name: "金", ico: "锐", color: "#f1e9d2", attrs: "锋锐" },
-  { key: "mu", name: "木", ico: "生", color: "#86efac", attrs: "生发" },
-  { key: "shui", name: "水", ico: "寒", color: "#93c5fd", attrs: "寒凝" },
-  { key: "huo", name: "火", ico: "焚", color: "#fb923c", attrs: "焚灼" },
-  { key: "tu", name: "土", ico: "坚", color: "#d6a86a", attrs: "坚壁" },
-];
-const ELEM_BY_KEY = Object.fromEntries(ELEMENTS.map((e) => [e.key, e]));
-const ELEM_KEYS = ELEMENTS.map((e) => e.key);
-
-// 每派系 3 颗灵石 ——「着力收集所属派系」的资源池
-// school 字段表示派系归属；randStone() 按"本角色三派系权重 ×3"加权采样
-const CHAR_STONES = {
-  sword: [
-    { key: "chifeng",    name: "赤锋石", ico: "锋", elem: "huo",  color: "#fb923c", attrs: "剑罡", school: "赤锋" },
-    { key: "fengren",    name: "锋刃石", ico: "刃", elem: "huo",  color: "#f97316", attrs: "锋锐", school: "赤锋" },
-    { key: "lieyan",     name: "烈焰石", ico: "焰", elem: "huo",  color: "#ef4444", attrs: "炽焰", school: "赤锋" },
-    { key: "jifeng",     name: "疾风石", ico: "疾", elem: "mu",   color: "#86efac", attrs: "御风", school: "疾风" },
-    { key: "chuanyun",   name: "穿云石", ico: "穿", elem: "mu",   color: "#a7f3d0", attrs: "穿云", school: "疾风" },
-    { key: "cuiye",      name: "翠叶石", ico: "翠", elem: "mu",   color: "#4ade80", attrs: "青木", school: "疾风" },
-    { key: "xuesha",     name: "血煞石", ico: "煞", elem: "jin",  color: "#e2c9a0", attrs: "血煞", school: "血煞" },
-    { key: "baigu",      name: "白骨石", ico: "骨", elem: "jin",  color: "#d6d3d1", attrs: "白骨", school: "血煞" },
-    { key: "suijin",     name: "碎金石", ico: "碎", elem: "jin",  color: "#facc15", attrs: "碎金", school: "血煞" },
-  ],
-  mage: [
-    { key: "leiling",    name: "雷灵石", ico: "雷", elem: "jin",  color: "#e2c9a0", attrs: "雷霆", school: "雷灵" },
-    { key: "tianlei",    name: "天雷石", ico: "天", elem: "jin",  color: "#fef08a", attrs: "天威", school: "雷灵" },
-    { key: "jinlei",     name: "金雷石", ico: "金", elem: "jin",  color: "#fde68a", attrs: "金雷", school: "雷灵" },
-    { key: "shuangjing", name: "霜晶石", ico: "霜", elem: "shui", color: "#93c5fd", attrs: "玄冰", school: "霜晶" },
-    { key: "bingpo",     name: "冰魄石", ico: "魄", elem: "shui", color: "#bae6fd", attrs: "冰魄", school: "霜晶" },
-    { key: "xuanshui",   name: "玄水石", ico: "玄", elem: "shui", color: "#7dd3fc", attrs: "玄水", school: "霜晶" },
-    { key: "fentianshi", name: "焚天石", ico: "焚", elem: "huo",  color: "#fb923c", attrs: "焚天", school: "焚天" },
-    { key: "zhuque",     name: "朱雀石", ico: "雀", elem: "huo",  color: "#f87171", attrs: "朱雀", school: "焚天" },
-    { key: "lihuo",      name: "离火石", ico: "离", elem: "huo",  color: "#fbbf24", attrs: "离火", school: "焚天" },
-  ],
-  body: [
-    { key: "xuantie",    name: "玄铁石", ico: "铁", elem: "jin",  color: "#e2c9a0", attrs: "铁骨", school: "玄铁" },
-    { key: "gengjin",    name: "庚金石", ico: "庚", elem: "jin",  color: "#e5e7eb", attrs: "庚金", school: "玄铁" },
-    { key: "yuntie",     name: "陨铁石", ico: "陨", elem: "jin",  color: "#94a3b8", attrs: "陨铁", school: "玄铁" },
-    { key: "longxue",    name: "龙血石", ico: "龙", elem: "huo",  color: "#f87171", attrs: "龙血", school: "龙血" },
-    { key: "zhulong",    name: "朱龙石", ico: "朱", elem: "huo",  color: "#ef4444", attrs: "朱龙", school: "龙血" },
-    { key: "yanxue",     name: "炎血石", ico: "炎", elem: "huo",  color: "#fbbf24", attrs: "炎血", school: "龙血" },
-    { key: "panshishi",  name: "磐石石", ico: "磐", elem: "tu",   color: "#d6a86a", attrs: "磐石", school: "磐石" },
-    { key: "houtu",      name: "厚土石", ico: "厚", elem: "tu",   color: "#a3a380", attrs: "厚土", school: "磐石" },
-    { key: "kunyuan",    name: "坤元石", ico: "坤", elem: "tu",   color: "#b08968", attrs: "坤元", school: "磐石" },
-  ],
-};
-const STONE_BY_KEY = {};
-const STONES_ALL = [];   // 全部 27 颗
-for (const cid in CHAR_STONES) {
-  for (const st of CHAR_STONES[cid]) {
-    STONE_BY_KEY[st.key] = st;
-    STONES_ALL.push(st);
-  }
-}
-const STONE_BY_SCHOOL = {};   // school → [stone...]
-for (const st of STONES_ALL) {
-  (STONE_BY_SCHOOL[st.school] = STONE_BY_SCHOOL[st.school] || []).push(st);
-}
-const SCHOOLS_ALL = Object.keys(STONE_BY_SCHOOL);   // 9 个派系
-
-const ORDINARY_COST = 2;    // 保留常量（兼容测试引用，无副作用）
-const MAX_ORDINARY = 3;     // 保留常量（兼容测试引用）
-const MAX_GEMS = 2;         // 流派宝石的槽位 —— 三系只能取其二
-const INVENTORY_MAX = 30;   // 背包容量
-const EQUIP_SLOTS_MAX = 3;  // 装备槽位上限（武器/防具/饰品）
-const MAX_SCHOOL_CORES = 2; // 派系核心的装备槽位 —— 9 个核心只能同时装 2 个
-const CORE_NEED_STONES = 5; // 解锁一个派系核心所需的同派系灵石数
-// v5.0 PM 视角常量
-const PURITY_BONUS = 0.30;        // 3 件同派系纯度 100% 时,所有数值词条 ×1.30
-const PURITY_PARTIAL = 0.10;      // 2 件同派系纯度 ~66% 时 ×1.10
-const STONE_SLOT_BONUS = 0.30;    // 灵石槽装该派系灵石 → 该派系词条效果 ×1.30
-const BOSS_PURPLE_DROP = 1;       // 妖王必掉 1 件本派系紫装
-
-// —— 合成逻辑：三阶配方，越往上越贵，也越强 ——
-// 主石决定是哪一系宝石，配料（任意本角色灵石）决定能否升阶。
-const GEM_TIERS = [
-  { rank: 1, label: "初凝", main: 2, any: 0, desc: "属性大增" },
-  { rank: 2, label: "化形", main: 2, any: 1, desc: "属性 + 技能增益" },
-  { rank: 3, label: "圆满", main: 3, any: 2, desc: "再长出特殊攻击效果" },
-];
-
-// —— 经济调参（手感校准集中在这里）——
-// 10 分钟目标：1 个派系核心（约 5 颗同派系）+ 1 颗流派宝石 + 余量做通用/淬体
-const DROP_MOB = 0.008;     // 小妖掉灵石概率（v2.0 提高）
-const DROP_ELITE = 0.3;     // 精英 30% 额外掉 1 颗
-const DROP_BOSS = 3;        // 妖王必掉 3 颗（v2.0 提高：凑派系核心）
-const ESSENCE_GAIN = 3;     // 灵石精魄择一所得颗数（v2.0 提高到 3）
-const MELT_COST = 2;        // 灵石淬体：宝石与通用皆满后，2 颗任意灵石的去处
-const SCH_PACK_DROP = 0.05; // 5% 概率掉「派系包」= 5 颗同派系（v2.0 新增，直接凑满核心）
-// v3.0 装备掉落
-const DROP_EQ_MOB    = 0.05;  // 小妖 5% 掉白装
-const DROP_EQ_ELITE_W = 0.3;  // 精英 30% 掉白
-const DROP_EQ_ELITE_G = 0.1;  // 精英 10% 掉绿
-const DROP_EQ_BOSS_W_MIN = 3;
-const DROP_EQ_BOSS_W_MAX = 5;
-const DROP_EQ_BOSS_G = 0.5;   // 妖王 50% 掉绿 1-2 件
-const DROP_EQ_BOSS_B = 0.05;  // 妖王 5% 掉蓝
-const DROP_EQ_BOSS_O = 0.01;  // 妖王 1% 极小概率掉橙（欧皇专用）
-
-// 流派宝石：每角色三颗，各由一种专属灵石（主石）主导
-// apply(rank) 只施加「该阶新增」的那一份，逐阶调用即自然叠加
-const GEMS = [
-  // ---- 剑修 ----
-  { id: "gem_jiangang", char: "sword", stone: "chifeng", elem: "huo", name: "裂天剑罡", ico: "罡",
-    color: "#fb923c", school: "剑罡流",
-    tierText: ["飞剑穿透 +1 · 攻击 +10%", "剑气范围 +25% · 剑气冷却 -15%", "飞剑 +1 · 命中溅射剑气（40% 伤害）"],
-    apply: (r) => {
-      if (r === 1) { G.swordPierce += 1; G.atk *= 1.1; }
-      else if (r === 2) { G.aoeRange *= 1.25; G.aoeCD *= 0.85; }
-      else { G.swordCount += 1; G.gemFx.cleave = 0.4; }
-    } },
-  { id: "gem_yufeng", char: "sword", stone: "jifeng", elem: "mu", name: "流云御风", ico: "云",
-    color: "#86efac", school: "御风流",
-    tierText: ["攻速 +12% · 移速 +8%", "御风冷却 -30%", "御风后 3s 攻速 +30%"],
-    apply: (r) => {
-      if (r === 1) { G.atkSpeed *= 1.12; G.moveSpeed *= 1.08; }
-      else if (r === 2) { G.dashCD *= 0.7; }
-      else { G.gemFx.dashHaste = 0.3; }
-    } },
-  { id: "gem_xuejian", char: "sword", stone: "xuesha", elem: "jin", name: "噬血剑心", ico: "血",
-    color: "#f87171", school: "血剑流",
-    tierText: ["暴击率 +8% · 暴击伤害 +25%", "击杀吸血 +3", "暴击时溅血爆裂（50% 伤害）"],
-    apply: (r) => {
-      if (r === 1) { G.crit = Math.min(0.7, G.crit + 0.08); G.critMul += 0.25; }
-      else if (r === 2) { G.lifesteal += 3; }
-      else { G.gemFx.critBurst = 0.5; }
-    } },
-  // ---- 法修 ----
-  { id: "gem_leiting", char: "mage", stone: "leiling", elem: "jin", name: "九霄雷印", ico: "雷",
-    color: "#c084fc", school: "雷霆流",
-    tierText: ["灵力上限 +25 · 回灵 +1/s", "技能冷却 -15%", "击杀 20% 概率落雷"],
-    apply: (r) => {
-      if (r === 1) { G.mpMax += 25; G.mp = G.mpMax; G.mpRegen += 1; }
-      else if (r === 2) { G.aoeCD *= 0.85; G.dashCD *= 0.85; }
-      else { G.thunderProc = (G.thunderProc || 0) + 0.2; }
-    } },
-  { id: "gem_xuanbing", char: "mage", stone: "shuangjing", elem: "shui", name: "太阴冰魄", ico: "魄",
-    color: "#93c5fd", school: "玄冰流",
-    tierText: ["命中必附寒毒减速 · 寒毒加深", "对精英有 15% 概率冰封", "受寒毒影响者额外受 25% 伤害"],
-    apply: (r) => {
-      if (r === 1) { G.gemFx.chill = true; }
-      else if (r === 2) { G.gemFx.freezeChance = 0.15; }
-      else { G.gemFx.deepFreeze = true; }
-    } },
-  { id: "gem_fentian", char: "mage", stone: "fentianshi", elem: "huo", name: "焚天赤篆", ico: "篆",
-    color: "#fb923c", school: "焚天流",
-    tierText: ["灼烧伤害 ×1.8", "命中 25% 概率附带灼烧", "命中必附灼烧 · 灼烧伤害再 ×1.6"],
-    apply: (r) => {
-      if (r === 1) { G.burnMul *= 1.8; }
-      else if (r === 2) { G.gemFx.burnChance = 0.25; }
-      else { G.gemFx.burn = true; G.burnMul *= 1.6; }
-    } },
-  // ---- 体修 ----
-  { id: "gem_tiegu", char: "body", stone: "xuantie", elem: "jin", name: "玄铁不坏", ico: "铁",
-    color: "#cbd5e1", school: "铁骨流",
-    tierText: ["护盾上限 +30 · 护盾再生", "受击减伤 10%", "护盾破碎时爆发冲击波"],
-    apply: (r) => {
-      if (r === 1) { G.shieldMax += 30; G.shield += 30; G.gemFx.shieldRegen = (G.gemFx.shieldRegen || 0) + 2.5; }
-      else if (r === 2) { G.dmgTakenMul *= 0.9; }
-      else { G.gemFx.shieldBreak = true; }
-    } },
-  { id: "gem_longxue", char: "body", stone: "longxue", elem: "huo", name: "龙血战体", ico: "龙",
-    color: "#f87171", school: "龙血流",
-    tierText: ["气血上限 +60 · 击杀回血 +2", "气血低于 45% 时攻击 +25%", "每 8s 回复 8% 气血"],
-    apply: (r) => {
-      if (r === 1) { G.hpMax += 60; G.hp = Math.min(G.hpMax, G.hp + 60); G.lifesteal += 2; }
-      else if (r === 2) { G.gemFx.rage = true; }
-      else { G.gemFx.regenPct = 0.08; }
-    } },
-  { id: "gem_panshi", char: "body", stone: "panshishi", elem: "tu", name: "磐石镇岳", ico: "磐",
-    color: "#d6a86a", school: "磐石流",
-    tierText: ["受击反伤 +15%", "护盾上限 +20", "受击 25% 概率震波（范围伤害）"],
-    apply: (r) => {
-      if (r === 1) { G.thorns += 0.15; }
-      else if (r === 2) { G.shieldMax += 20; }
-      else { G.gemFx.quake = 0.25; }
-    } },
-];
-const GEM_BY_ID = Object.fromEntries(GEMS.map((g) => [g.id, g]));
-
-// ---------- 装备系统（v3.0） — 怪物掉落 · 背包自动合成 · 3 高级槽位 ----------
-// 装备品阶：5 阶，2→1 自动合成链
-const TIERS = {
-  white:  { name: "白", color: "#e5e7eb", mult: 1.0, affMin: 1, affMax: 2 },
-  green:  { name: "绿", color: "#86efac", mult: 1.4, affMin: 2, affMax: 2 },
-  blue:   { name: "蓝", color: "#93c5fd", mult: 1.8, affMin: 2, affMax: 3 },
-  purple: { name: "紫", color: "#d8b4fe", mult: 2.4, affMin: 3, affMax: 3, equipable: true },
-  orange: { name: "橙", color: "#fb923c", mult: 3.2, affMin: 4, affMax: 4, equipable: true },
-};
-const TIER_ORDER = ["white", "green", "blue", "purple", "orange"];
-// 装备槽位（3 席）
-const SLOT_DEFS = {
-  weapon:    { name: "武器", ico: "⚔", color: "#fbbf24", pool: ["jian", "zhang", "zhua"], mainStat: "atk", mainLabel: "攻击" },
-  armor:     { name: "防具", ico: "🛡", color: "#94a3b8", pool: ["jia", "pao", "yi"],     mainStat: "hp",  mainLabel: "生命" },
-  accessory: { name: "饰品", ico: "◆",  color: "#86efac", pool: ["jie", "lian", "fu"],     mainStat: "spd", mainLabel: "移速" },
-};
-// 底材池（9 种）
-const ITEM_TYPES = {
-  jian:  { name: "青锋剑", ico: "剑" },
-  zhang: { name: "玄铁杖", ico: "杖" },
-  zhua:  { name: "龙骨爪", ico: "爪" },
-  jia:   { name: "玄铁甲", ico: "甲" },
-  pao:   { name: "流云袍", ico: "袍" },
-  yi:    { name: "龙鳞衣", ico: "衣" },
-  jie:   { name: "碧玉戒", ico: "戒" },
-  lian:  { name: "紫金链", ico: "链" },
-  fu:    { name: "驱邪符", ico: "符" },
-};
-// 词条库：v4.0 纯打装流 —— 每件装备 2-3 词条里至少 1 个是「技能词条」
-// 数值词条（已有）+ 技能词条（新增 SKILL_AFFIXES）
-const AFFIX_POOL = {
-  // —— 派系数值词条（保留）——
-  huo_dmg:     { name: "赤锋·炎",  type: "派系", school: "赤锋", desc: "火伤 +12%" },
-  mu_speed:    { name: "疾风·逸",  type: "派系", school: "疾风", desc: "移速 +8%" },
-  shui_slow:   { name: "霜晶·凝",  type: "派系", school: "霜晶", desc: "命中减速 +10%" },
-  jin_crit:    { name: "血煞·噬",  type: "派系", school: "血煞", desc: "击杀回血 +5" },
-  tu_shield:   { name: "磐石·固",  type: "派系", school: "磐石", desc: "护盾 +10" },
-  huo_burn:    { name: "焚天·灼",  type: "派系", school: "焚天", desc: "灼烧伤害 +25%" },
-  jin_thunder: { name: "雷灵·震",  type: "派系", school: "雷灵", desc: "雷伤 +25%" },
-  huo_fire:    { name: "龙血·炎",  type: "派系", school: "龙血", desc: "受击火反伤 +15" },
-  jin_iron:    { name: "玄铁·坚",  type: "派系", school: "玄铁", desc: "减伤 +8%" },
-  // —— 稀有数值词条（保留）——
-  crit_pct:   { name: "锐利",  type: "稀有", desc: "暴击率 +5%" },
-  haste_pct:  { name: "急速",  type: "稀有", desc: "急速 +8%" },
-  lifesteal:  { name: "吸血",  type: "稀有", desc: "击杀回血 +2" },
-  xp_bonus:   { name: "悟性",  type: "稀有", desc: "经验 +15%" },
-  shield_max: { name: "护体",  type: "稀有", desc: "护盾上限 +15" },
-  // —— v4.0 新增：技能词条（每件装备 2-3 词条里至少带 1 个）——
-  // skill 字段定义技能形态；cd/cdMax 是主动技能 CD（秒）；passive=true 表示被动
-  sk_fire_jet:    { name: "炽焰喷射",  type: "技能", kind: "active",   cd: 4.0, ico: "喷", desc: "主动 J/K · 喷 6 道穿透火焰（攻击 ×180%）" },
-  sk_wind_step:   { name: "御风行步",  type: "技能", kind: "passive",  ico: "逸", desc: "被动 · 闪避后 1.5s 移速 +80%" },
-  sk_ice_prison:  { name: "玄冰囚笼",  type: "技能", kind: "passive",  ico: "囚", desc: "被动 · 击杀 30% 在死处 1.5s 冰冻圈" },
-  sk_stone_wall:  { name: "磐石壁垒",  type: "技能", kind: "passive",  ico: "壁", desc: "被动 · 每 8s 受击生 3s 石墙挡伤" },
-  sk_thunder:     { name: "落雷引线",  type: "技能", kind: "passive",  ico: "雷", desc: "被动 · 暴击时 30% 周围 3 敌人引雷" },
-  sk_sword_array: { name: "剑气护体",  type: "技能", kind: "active",   cd: 8.0,  ico: "阵", desc: "主动 J/K · 200 范围剑阵护体 6s" },
-  sk_blood_suck:  { name: "血煞噬魂",  type: "技能", kind: "passive",  ico: "噬", desc: "被动 · 击杀回 HP +15" },
-  sk_crit_burst:  { name: "暴击溅血",  type: "技能", kind: "passive",  ico: "暴", desc: "被动 · 暴击溅射 4 个目标 50% 伤害" },
-  sk_wind_shadow: { name: "疾风残影",  type: "技能", kind: "active",   cd: 6.0,  ico: "影", desc: "主动 J/K · 留 3s 残影吸引火力" },
-  sk_fire_burn:   { name: "朱雀灼烧",  type: "技能", kind: "passive",  ico: "灼", desc: "被动 · 命中 25% 灼烧目标 ×3" },
-  sk_iron_skin:   { name: "金刚铁皮",  type: "技能", kind: "passive",  ico: "铁", desc: "被动 · 受击 30% 概率完全免伤" },
-  sk_hp_regen:    { name: "生生不息",  type: "技能", kind: "passive",  ico: "生", desc: "被动 · 每 5s 回 HP +12" },
-};
-const AFFIX_BY_KEY = AFFIX_POOL;        // 别名（兼容旧引用）
-const AFFIX_KEYS = Object.keys(AFFIX_POOL);
-const RARE_AFFIX_KEYS = AFFIX_KEYS.filter((k) => AFFIX_POOL[k].type === "稀有");
-const SKILL_AFFIX_KEYS = AFFIX_KEYS.filter((k) => AFFIX_POOL[k].type === "技能");
-const ACTIVE_SKILL_KEYS = SKILL_AFFIX_KEYS.filter((k) => AFFIX_POOL[k].kind === "active");
-const PASSIVE_SKILL_KEYS = SKILL_AFFIX_KEYS.filter((k) => AFFIX_POOL[k].kind === "passive");
-const MAX_ACTIVE_SLOTS = 2;              // 玩家主动技能槽 2 个（J/K）
-
-// ================= v6.0 A · 怪物词缀 =================
-// 精英 / 大妖随机带 1-2 个词缀，让"每一只怪不一样"，逼玩家换打法
-const ENEMY_MODS = {
-  thorns: { name: "荆棘", ico: "棘", color: "#f87171", desc: "受击反弹 18% 伤害给玩家" },
-  swift:  { name: "迅捷", ico: "迅", color: "#7dd3fc", desc: "移速 +60%" },
-  split:  { name: "分裂", ico: "裂", color: "#a3e635", desc: "死亡裂成 2 只小妖" },
-  ward:   { name: "护盾", ico: "盾", color: "#94a3b8", desc: "带护盾，需先打碎" },
-  drain:  { name: "噬魂", ico: "噬", color: "#c084fc", desc: "靠近玩家持续回血" },
-  bomb:   { name: "自爆", ico: "爆", color: "#fb923c", desc: "死亡爆炸，范围伤害" },
-  mirror: { name: "镜像", ico: "镜", color: "#f472b6", desc: "攻击力复制玩家 25%" },
-  frost:  { name: "冰霜", ico: "霜", color: "#67e8f9", desc: "死亡留下减速力场" },
-};
-const ENEMY_MOD_KEYS = Object.keys(ENEMY_MODS);
-// 按波次决定挂几个词缀：精英 1（8 波起 2）；大妖 1（10 波起 2）
-function modCountFor(e, wave) {
-  if (e.boss) return wave >= 10 ? 2 : 1;
-  if (e.elite) return wave >= 8 ? 2 : 1;
-  return 0;
-}
-function rollEnemyMods(e, wave) {
-  const n = modCountFor(e, wave);
-  if (n <= 0) return [];
-  const pool = ENEMY_MOD_KEYS.slice();
-  const out = [];
-  for (let i = 0; i < n && pool.length; i++) {
-    const k = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
-    out.push(k);
-  }
-  return out;
-}
-
-// ================= v6.0 B · 词条联动 Synergy =================
-// 两个特定词条同时在身 ⇒ 触发质变（不是加法，是机制）
-const SYNERGIES = [
-  { id: "syn_forge",    name: "熔炉",     ico: "熔", color: "#fb923c", need: ["huo_dmg", "shui_slow"],    desc: "被减速的敌人受火伤 ×3" },
-  { id: "syn_bloodrage",name: "血怒",     ico: "怒", color: "#f87171", need: ["crit_pct", "lifesteal"],   desc: "暴击溅射周围 4 敌 50% 伤害" },
-  { id: "syn_thornwall",name: "荆棘壁垒", ico: "棘", color: "#a3e635", need: ["tu_shield", "huo_fire"],   desc: "护盾存在时反伤 ×3" },
-  { id: "syn_frenzy",   name: "狂血",     ico: "狂", color: "#facc15", need: ["haste_pct", "jin_crit"],   desc: "击杀后 2s 攻速 ×2" },
-  { id: "syn_storm",    name: "雷暴",     ico: "雷", color: "#818cf8", need: ["jin_thunder", "crit_pct"], desc: "暴击时引雷 3 个目标" },
-  { id: "syn_burnwheel",name: "焚轮",     ico: "焚", color: "#fb7185", need: ["huo_burn", "haste_pct"],   desc: "灼烧跳伤速度 ×2" },
-  { id: "syn_ironwall", name: "玄铁壁",   ico: "壁", color: "#94a3b8", need: ["jin_iron", "tu_shield"],   desc: "护盾存在时减伤再 −20%" },
-  { id: "syn_enlight",  name: "悟道",     ico: "悟", color: "#5ce1e6", need: ["xp_bonus", "sk_hp_regen"], desc: "击杀经验 +50%" },
-];
-const SYNERGY_BY_ID = {};
-for (const s of SYNERGIES) SYNERGY_BY_ID[s.id] = s;
-// 当前是否激活某联动（读 G._synergies）
-function synOn(id) { return !!(G._synergies && G._synergies.includes(id)); }
-
-
-// 生成装备：slot × tier × type × 词条（v4.0：紫+橙 至少 1 个技能词条）
-function makeEquip(slot, tier, opts = {}) {
-  const slotDef = SLOT_DEFS[slot];
-  const tierDef = TIERS[tier];
-  const typeKey = opts.typeKey || slotDef.pool[Math.floor(Math.random() * slotDef.pool.length)];
-  const typeDef = ITEM_TYPES[typeKey];
-  const n = randInt(tierDef.affMin, tierDef.affMax);
-  // 词条池：v4.0 紫+橙 至少 1 个技能词条（被动 + 主动 随机）
-  const used = new Set(opts.fixedAffixes || []);
-  const affixes = [...(opts.fixedAffixes || [])];
-  // v4.0：紫+橙 起步带 1 技能词条（没有的话补）
-  if (tierDef.equipable && affixes.filter((a) => AFFIX_POOL[a].type === "技能").length === 0 && SKILL_AFFIX_KEYS.some((k) => !used.has(k))) {
-    const avail = SKILL_AFFIX_KEYS.filter((k) => !used.has(k));
-    const k = avail[Math.floor(Math.random() * avail.length)];
-    affixes.push(k); used.add(k);
-  }
-  // 紫+橙 起步补 1 稀有（数值）
-  if (tierDef.equipable && affixes.filter((a) => AFFIX_POOL[a].type === "稀有").length === 0 && RARE_AFFIX_KEYS.some((k) => !used.has(k))) {
-    const avail = RARE_AFFIX_KEYS.filter((k) => !used.has(k));
-    const k = avail[Math.floor(Math.random() * avail.length)];
-    affixes.push(k); used.add(k);
-  }
-  while (affixes.length < n) {
-    const k = AFFIX_KEYS[Math.floor(Math.random() * AFFIX_KEYS.length)];
-    if (used.has(k)) continue;
-    affixes.push(k); used.add(k);
-  }
-  // 主属性按 slot × 阶倍率
-  const baseMain = slot === "weapon" ? 8 : slot === "armor" ? 20 : 5;
-  const main = Math.round(baseMain * tierDef.mult);
-  return {
-    uid: "eq_" + Date.now().toString(36) + "_" + Math.floor(Math.random() * 1e6).toString(36),
-    slot, typeKey, tier, affixes,
-    name: `${tierDef.name}·${typeDef.name}`,
-    ico: typeDef.ico,
-    color: tierDef.color,
-    atk: slot === "weapon"    ? main : 0,
-    hp:  slot === "armor"     ? main : 0,
-    spd: slot === "accessory" ? main : 0,
-  };
-}
-
-// 合成判断：同 slot 同 tier 至少 1 词条重叠；顶级橙不能再合
-function canMerge(a, b) {
-  if (!a || !b) return false;
-  if (a.slot !== b.slot || a.tier !== b.tier) return false;
-  if (a.tier === "orange") return false;
-  return a.affixes.some((x) => b.affixes.includes(x));
-}
-// 合并：高一阶，词条并集（截断到新阶上限），随机丢多余
-function mergeEquip(a, b) {
-  const idx = TIER_ORDER.indexOf(a.tier);
-  const newTier = TIER_ORDER[idx + 1];
-  const tierDef = TIERS[newTier];
-  const merged = Array.from(new Set([...a.affixes, ...b.affixes]));
-  while (merged.length > tierDef.affMax) merged.splice(Math.floor(Math.random() * merged.length), 1);
-  return makeEquip(a.slot, newTier, { typeKey: a.typeKey, fixedAffixes: merged });
-}
-// 自动合成（递归：合完一次继续找可合的）
-function autoMergeEquip() {
-  let any = true;
-  let count = 0;
-  while (any) {
-    any = false;
-    for (let i = 0; i < G.inventory.length; i++) {
-      for (let j = i + 1; j < G.inventory.length; j++) {
-        const a = G.inventory[i], b = G.inventory[j];
-        if (canMerge(a, b)) {
-          const eq = mergeEquip(a, b);
-          G.inventory.splice(j, 1);
-          G.inventory.splice(i, 1);
-          G.inventory.push(eq);
-          count++;
-          burst(G.px, G.py, eq.color, 14, 160, 3);
-          spawnFloater(G.px, G.py - G.pr - 26, `合成 · ${eq.name}`, eq.color, 12, true);
-          any = true;
-          break;
-        }
-      }
-      if (any) break;
-    }
-  }
-  return count;
-}
-// 拾取装备入背包（满则卖金币）
-// 装备变更后重建缓存
-function equipRec() {
-  G._eqCache = equipBonuses();
-  // v3.0：装备带来的增量叠加到玩家基础值（v6.0 C 祭坛赌注：atk/crit/xp 再乘修正）
-  G.atk = ((G._baseAtk || G.atk) + (G._eqCache.atk || 0)) * (G.altarBuffs.atkMul || 1);
-  G.hpMax = ((G._baseHpMax || G.hpMax) + (G._eqCache.hp || 0)) * (G.altarBuffs.hpMul || 1);
-  G.hp = Math.min(G.hp, G.hpMax);
-  G.moveSpeed = (G._baseMoveSpeed || G.moveSpeed) * (1 + (G._eqCache.spd || 0) / 100);
-  G.crit = (G._baseCrit || 0.08) + (G._eqCache.crit || 0) + (G.altarBuffs.critAdd || 0);
-  G.lifesteal = (G._baseLS || 0) + (G._eqCache.lifesteal || 0);
-  G.xpMul = ((G._baseXpMul || 1) + (G._eqCache.xp || 0)) * (G.altarBuffs.xpMul || 1);
-  G.shieldMax = (G._baseShieldMax || 0) + (G._eqCache.shield || 0);
-  G.burnMul = (G._baseBurnMul || 1) * (G._eqCache.burnMul || 1);
-  G.dmgTakenMul = Math.max(0.1, (G._baseDmgTaken || 1) + (G._eqCache.dmgTaken || 0));
-  // v4.0: 主动技能槽位同步
-  G.activeSkills = G._eqCache.activeSkillIds.slice();
-  G.passiveSkills = G._eqCache.passiveSkillIds.slice();
-  // 确保 cd 数组长度对齐
-  while (G.skillCD.length < G.activeSkills.length) G.skillCD.push(0);
-  while (G.skillCD.length > G.activeSkills.length) G.skillCD.pop();
-  // v4.0: 套装自动转职 —— 3 件同派系装备在槽位 ⇒ 自动设 G.jobPath = 同源道途 id
-  autoJobFromSet();
-  // v6.0 B: 词条联动 HUD 同步 + 新激活大字报
-  synHudSync();
-}
-
-// v6.0 B 词条联动 HUD：显示已激活联动，新凑齐时弹大字报（"啊哈时刻"）
-function synHudSync() {
-  const ids = G._synergies || [];
-  if (ui.synHudCount) ui.synHudCount.textContent = `${ids.length}/${SYNERGIES.length}`;
-  if (ui.synHudList) {
-    ui.synHudList.innerHTML = ids.map((id) => {
-      const s = SYNERGY_BY_ID[id];
-      return `<span class="syn-chip" style="--sc:${s.color}">${s.ico} ${s.name}</span>`;
-    }).join("");
-  }
-  if (ui.synHud) ui.synHud.classList.toggle("hidden", ids.length === 0);
-  const prev = G._synPrev || [];
-  for (const id of ids) {
-    if (prev.indexOf(id) < 0) {
-      const s = SYNERGY_BY_ID[id];
-      showBigBanner("词条联动", `${s.name} · ${s.desc}`, "purple");
-      burst(G.px, G.py, s.color, 24, 220, 4);
-      AudioSys.level();
-    }
-  }
-  G._synPrev = ids.slice();
-}
-
-// v4.0 套装自动转职：本角色所有 9 套派系武器 3 件同派系 ⇒ 对应道途
-function autoJobFromSet() {
-  const schools = {};
-  for (const slot in G.equipped) {
-    const eq = G.equipped[slot];
-    if (!eq) continue;
-    const aff = (eq.affixes || []).find((a) => AFFIX_POOL[a] && AFFIX_POOL[a].school);
-    if (!aff) continue;
-    const sch = AFFIX_POOL[aff].school;
-    schools[sch] = (schools[sch] || 0) + 1;
-  }
-  // 找套数最多的派系
-  let bestSchool = null, bestN = 0;
-  for (const s in schools) if (schools[s] > bestN) { bestN = schools[s]; bestSchool = s; }
-  // 任意派系集齐 3 件 ⇒ 转职
-  if (bestN >= 3) {
-    const path = CHAR_TO_PATH[G.charId];
-    if (path && (!G.jobPath || G.jobPath !== path)) {
-      G.jobPath = path;
-      G.jobStage = 1;
-      jobSyncHud(true);
-      toast(`套装转职 · ${(JOB_PATHS.find((p) => p.id === path) || {}).name || "道途"}`, "gold");
-      burst(G.px, G.py, "#fde68a", 26, 240, 5);
-      AudioSys.level();
-      // v5.0 大字报：套装转职
-      showBigBanner("套装转职", `${(JOB_PATHS.find((p) => p.id === path) || {}).name || "道途"} · ${bestSchool}派`, "job");
-    }
-    G._setBonus = (G._setBonus || 0) + 0;   // 占位扩展
-  }
-}
-const CHAR_TO_PATH = { sword: "sword", mage: "mage", body: "body" };   // 角色→对应道途
-
-// v4.0 装备主动技能触发 —— v5.0 技能轮盘：J/K 优先按 CD 最小自动选
-// 轮盘算法：固定 CD 最短优先（≤0 的可用技能里 CD 最小的那个先放）
-// 仍然接受 idx 参数：>0 直接用 idx（手动锁）；-1 / undefined 走轮盘
-function triggerEquipSkill(idx = -1) {
-  let useIdx = idx;
-  if (useIdx < 0) {
-    // 轮盘：找 CD ≤ 0 的可用主动技能里"CD 上限"最小的（短 CD 优先放）
-    let best = -1, bestDef = null;
-    for (let i = 0; i < (G.activeSkills || []).length; i++) {
-      const id = G.activeSkills[i];
-      const def = AFFIX_POOL[id];
-      if (!def || def.kind !== "active") continue;
-      if ((G.skillCD[i] || 0) > 0) continue;
-      if (best < 0 || (def.cd || 99) < (bestDef.cd || 99)) {
-        best = i; bestDef = def;
-      }
-    }
-    if (best < 0) {
-      // 都在冷却中 → 提示
-      const anyCd = (G.skillCD || []).findIndex((c) => c > 0);
-      if (anyCd >= 0 && G._lastSklCDWarn !== "wheel") {
-        toast(`技能轮转中 · ${G.skillCD[anyCd].toFixed(1)}s`, "warn");
-        G._lastSklCDWarn = "wheel";
-      }
-      return false;
-    }
-    useIdx = best;
-  }
-  if (useIdx < 0 || useIdx >= G.activeSkills.length) return false;
-  const id = G.activeSkills[useIdx];
-  const def = AFFIX_POOL[id];
-  if (!def || def.kind !== "active") return false;
-  if ((G.skillCD[useIdx] || 0) > 0) {
-    if (G._lastSklCDWarn !== id) { toast(`${def.name} · 冷却中（${G.skillCD[useIdx].toFixed(1)}s）`, "warn"); G._lastSklCDWarn = id; }
-    return false;
-  }
-  // 各技能的 effect
-  switch (id) {
-    case "sk_fire_jet": {    // 炽焰喷射：喷 6 道火焰穿透
-      const dmg = G.atk * 1.8 * playerDamageMult();
-      for (let i = 0; i < 6; i++) {
-        const ang = (i / 6) * TAU + (Math.random() - 0.5) * 0.2;
-        G.projectiles.push({ x: G.px, y: G.py, vx: Math.cos(ang) * 380, vy: Math.sin(ang) * 380,
-          life: 1.2, max: 1.2, pierce: 6, dmg, r: 8, color: "#fb923c", hitIds: new Set(), source: "sk_fire_jet" });
-      }
-      burst(G.px, G.py, "#fb923c", 18, 200, 4);
-      spawnFloater(G.px, G.py - G.pr - 16, def.name, "#fb923c", 13);
-      break;
-    }
-    case "sk_sword_array": { // 剑气护体：200 范围剑阵
-      G.shieldMax = Math.max(G.shieldMax, 60);
-      G.shield = Math.min(G.shieldMax, G.shield + 60);
-      burst(G.px, G.py, "#7dd3fc", 22, 240, 4);
-      spawnFloater(G.px, G.py - G.pr - 16, def.name + " · 护体", "#7dd3fc", 13);
-      // 6s 内增伤
-      G._swordArrayT = 6;
-      break;
-    }
-    case "sk_wind_shadow": { // 疾风残影：留 3s 残影
-      G._shadowT = 3;
-      burst(G.px, G.py, "#86efac", 16, 180, 3);
-      spawnFloater(G.px, G.py - G.pr - 16, def.name, "#86efac", 13);
-      break;
-    }
-  }
-  G.skillCD[useIdx] = def.cd || 5;
-  AudioSys.hit();
-  return true;
-}
-
-function pickUpEquip(eq) {
-  if (G.inventory.length >= INVENTORY_MAX) {
-    // 白绿自动卖，紫橙提示
-    const tier = TIERS[eq.tier];
-    if (!tier.equipable) {
-      const gold = Math.round(8 * tier.mult);
-      G.gold = (G.gold || 0) + gold;
-      spawnFloater(G.px, G.py - G.pr - 18, `+${gold} 金 · ${eq.name}`, "#fbbf24", 10);
-      return false;
-    }
-    toast(`背包满！${eq.name} 已丢弃`, "warn");
-    return false;
-  }
-  G.inventory.push(eq);
-  const merged = autoMergeEquip();
-  if (merged === 0) {
-    spawnFloater(G.px, G.py - G.pr - 10, `${eq.name} +1`, eq.color, 10);
-    burst(G.px, G.py, eq.color, 6, 110, 2);
-  }
-  invHudSync();
-  // v5.0 PM 视角：紫装入手里程碑
-  if (eq.tier === "purple" && !G._milestone.purple) {
-    G._milestone.purple = true;
-    showBigBanner("紫装入手", `第一件紫装 · ${eq.name}`, "purple");
-    toast(`紫装入手 · ${eq.name} · 点背包换上`, "gold");
-  }
-  // v5.0 橙装觉醒：慢镜 + 屏幕震动 + 金色光柱 + 大字报
-  if (eq.tier === "orange") {
-    G._orangeT = 0.6;
-    G._orangeName = eq.name;
-    G.shake = Math.max(G.shake || 0, 12);
-    hitStop(140);
-    showBigBanner("橙装觉醒", `${eq.name} · 妖王赐福`, "orange");
-    AudioSys.level();
-    if (!G._milestone.orange) {
-      G._milestone.orange = true;
-      toast(`橙装觉醒 · ${eq.name}`, "gold");
-    }
-  }
-  // v5.0 教程推进：第 2 步"捡起装备"
-  if (G.tutStep === 2) advanceTutorial();
-  return true;
-}
-// 装备 / 卸下槽位
-function equipTo(uid) {
-  const idx = G.inventory.findIndex((e) => e.uid === uid);
-  if (idx < 0) return false;
-  const eq = G.inventory[idx];
-  if (!TIERS[eq.tier].equipable) { toast("白/绿/蓝只能在背包里", "warn"); return false; }
-  const cur = G.equipped[eq.slot];
-  if (cur) G.inventory.push(cur);                  // 卸下旧装备回背包
-  G.equipped[eq.slot] = eq;
-  G.inventory.splice(idx, 1);
-  invHudSync();
-  equipRec();
-  return true;
-}
-function unequipTo(slot) {
-  const cur = G.equipped[slot];
-  if (!cur) return false;
-  if (slot === "stone") {                          // v5.0 灵石槽卸下
-    G._stoneSlot = null;
-    equipRec();
-    invHudSync();
-    return true;
-  }
-  if (G.inventory.length >= INVENTORY_MAX) { toast("背包满，无法卸下", "warn"); return false; }
-  G.equipped[slot] = null;
-  G.inventory.push(cur);
-  invHudSync();
-  equipRec();
-  return true;
-}
-// v5.0 装备/卸下灵石槽（独立函数：放任意派系灵石×1 → 该派系词条 ×1.30）
-function setStoneSlot(stoneKey) {
-  if (!stoneKey) {
-    G._stoneSlot = null;
-  } else {
-    const def = STONE_BY_KEY[stoneKey];
-    if (!def) return false;
-    G._stoneSlot = { stoneKey, school: def.school, name: def.name, color: def.color };
-  }
-  equipRec();
-  invHudSync();
-  return true;
-}
-// 装备属性汇总（v4.0：同时收集 主动/被动 技能）
-function equipBonuses() {
-  const b = { atk: 0, hp: 0, spd: 0, crit: 0, lifesteal: 0, xp: 0, shield: 0, dmgTaken: 0,
-              huoMul: 1, burnMul: 1,
-              activeSkillIds: [], passiveSkillIds: [] };
-  // v5.0 派系纯度：3 件同派系装备（武器/防具/饰品）⇒ 全派系词条 ×1.30
-  // 计算各装备的"派系主词条"（取第一个带 school 的）
-  const slotSchools = [];
-  for (const slot in G.equipped) {
-    if (slot === "stone") continue;
-    const eq = G.equipped[slot];
-    if (!eq) continue;
-    const ax = (eq.affixes || []).find((a) => AFFIX_POOL[a] && AFFIX_POOL[a].school);
-    slotSchools.push(ax ? AFFIX_POOL[ax].school : null);
-  }
-  let purity = 0;
-  const valid = slotSchools.filter(Boolean);
-  if (valid.length === slotSchools.length && slotSchools.length >= 3) {
-    // 全有派系 ⇒ 取众数
-    const counts = {};
-    for (const s of valid) counts[s] = (counts[s] || 0) + 1;
-    let top = 0, topSch = null;
-    for (const s in counts) if (counts[s] > top) { top = counts[s]; topSch = s; }
-    purity = top / 3;
-  } else if (valid.length >= 2) {
-    const counts = {};
-    for (const s of valid) counts[s] = (counts[s] || 0) + 1;
-    let top = 0;
-    for (const s in counts) if (counts[s] > top) top = counts[s];
-    purity = (top - 1) / 3;     // 2/3 → 0.33; 3/3 → 0.67
-  }
-  // 派系纯度系数：3 件全同 ⇒ ×1.30；2 件同 ⇒ ×1.10
-  const purityMul = purity >= 0.95 ? (1 + PURITY_BONUS)
-                  : purity >= 0.55 ? (1 + PURITY_PARTIAL)
-                  : 1;
-  G._purity = purityMul;
-  // v5.0 灵石槽位加成：装了某派系灵石 ⇒ 该派系词条 ×1.30
-  const stoneSchool = G._stoneSlot && G._stoneSlot.school;
-  for (const slot in G.equipped) {
-    const eq = G.equipped[slot];
-    if (!eq) continue;
-    b.atk += eq.atk || 0;
-    b.hp += eq.hp || 0;
-    b.spd += eq.spd || 0;
-    for (const ax of eq.affixes) {
-      const def = AFFIX_POOL[ax];
-      if (def && def.type === "技能") {
-        if (def.kind === "active") {
-          if (!b.activeSkillIds.includes(ax)) b.activeSkillIds.push(ax);
-        } else {
-          if (!b.passiveSkillIds.includes(ax)) b.passiveSkillIds.push(ax);
-        }
-        continue;
-      }
-      // v5.0 派系词条按纯度 + 灵石槽加成
-      const isSchool = def && def.school;
-      const stoneBoost = (isSchool && stoneSchool && def.school === stoneSchool) ? STONE_SLOT_BONUS : 0;
-      const mult = purityMul * (1 + stoneBoost);
-      switch (ax) {
-        case "huo_dmg":     b.huoMul += 0.12 * mult; break;
-        case "mu_speed":    b.spd += 8 * mult; break;
-        case "shui_slow":   /* 命中减速 +10%（在 applyHit 里实现） */ break;
-        case "jin_crit":    /* 击杀回血 +5（在 killEnemy 里实现） */ break;
-        case "tu_shield":   b.shield += 10 * mult; break;
-        case "huo_burn":    b.burnMul += 0.25 * mult; break;
-        case "jin_thunder": /* 雷伤 +25% */ break;
-        case "huo_fire":    /* 受击火反伤 +15 */ break;
-        case "jin_iron":    b.dmgTaken -= 0.08 * mult; break;
-        case "crit_pct":    b.crit += 0.05 * mult; break;
-        case "haste_pct":   /* 急速 +8%（atkSpeedNow 已支持 G._eqCache.haste）*/ break;
-        case "lifesteal":   b.lifesteal += 2 * mult; break;
-        case "xp_bonus":    b.xp += 0.15 * mult; break;
-        case "shield_max":  b.shield += 15 * mult; break;
-      }
-    }
-  }
-  // 主动槽只保留 MAX_ACTIVE_SLOTS 个（按装备装槽顺序 = weapon → armor → accessory）
-  if (b.activeSkillIds.length > MAX_ACTIVE_SLOTS) {
-    b.activeSkillIds = b.activeSkillIds.slice(0, MAX_ACTIVE_SLOTS);
-  }
-  // v6.0 B · 词条联动：收集身上所有词条，need 全中即激活（机制质变，非数值叠加）
-  const allAx = new Set();
-  for (const sl in G.equipped) {
-    if (sl === "stone") continue;
-    const eq = G.equipped[sl];
-    if (!eq) continue;
-    for (const ax of (eq.affixes || [])) allAx.add(ax);
-  }
-  b.synergies = SYNERGIES.filter((s) => s.need.every((n) => allAx.has(n))).map((s) => s.id);
-  G._synergies = b.synergies;
-  return b;
-}
-
-// ---------- 派系核心（v2.0） ----------
-// 攒齐 5 颗同派系灵石即可解锁；最多同时装备 2 个；效果是"永久被动 + 终极技能"
-const SCH_CORES = [
-  // 赤锋派（火）—— 焚天剑阵
-  { id: "sc_chifeng", school: "赤锋", elem: "huo", char: "sword",
-    name: "焚天剑阵", ico: "焚", color: "#fb923c",
-    desc: "每 8 秒释放 8 道剑气，攻击 ×200% 范围伤害（最远 240）",
-    onEquip() { G.schoolFx.fentian = true; },
-    onUnequip() { G.schoolFx.fentian = false; },
-    tick(dt) {
-      G._coreFireT = (G._coreFireT || 0) - dt;
-      if (G._coreFireT <= 0) {
-        G._coreFireT = 8;
-        AudioSys.skill();
-        const mv = readMove();
-        const baseAng = (Math.hypot(mv.x, mv.y) > 0.1) ? Math.atan2(mv.y, mv.x) : rand(0, TAU);
-        for (let i = 0; i < 8; i++) {
-          const ang = baseAng + (i / 8) * TAU;
-          G.projectiles.push({
-            kind: "sword", x: G.px, y: G.py,
-            vx: Math.cos(ang) * 520, vy: Math.sin(ang) * 520,
-            r: 10, dmg: G.atk * 2 * playerDamageMult(),
-            pierce: 999, life: 0.6, hitIds: new Set(),
-            color: "#fb923c", big: true,
-          });
-        }
-        burst(G.px, G.py, "#fb923c", 28, 220, 5);
-        G.shake = Math.max(G.shake, 5);
-        spawnFloater(G.px, G.py - G.pr - 18, "焚天剑阵", "#fb923c", 14, true);
-      }
-    } },
-  // 疾风派（木）—— 御风化神
-  { id: "sc_jifeng", school: "疾风", elem: "mu", char: "sword",
-    name: "御风化神", ico: "风", color: "#86efac",
-    desc: "永久移速 +20%、御风 CD -50%、受击免伤 5%",
-    onEquip() { G.schoolFx.yufeng = true; G.moveSpeed *= 1.20; G.dashCD *= 0.5; G.dmgTakenMul *= 0.95; },
-    onUnequip() { G.schoolFx.yufeng = false; G.moveSpeed /= 1.20; G.dashCD /= 0.5; G.dmgTakenMul /= 0.95; } },
-  // 血煞派（金）—— 血月当空
-  { id: "sc_xuesha", school: "血煞", elem: "jin", char: "sword",
-    name: "血月当空", ico: "血", color: "#f87171",
-    desc: "HP <30% 时全伤 ×2.0；击杀回血 +10",
-    onEquip() { G.schoolFx.xuesha = true; G.lifesteal += 10; },
-    onUnequip() { G.schoolFx.xuesha = false; G.lifesteal -= 10; },
-    damageMult(m) {
-      if (G.schoolFx.xuesha && G.hp < G.hpMax * 0.3) m *= 2.0;
-      return m;
-    } },
-  // 雷灵派（金）—— 九霄雷域
-  { id: "sc_leiling", school: "雷灵", elem: "jin", char: "mage",
-    name: "九霄雷域", ico: "雷", color: "#c084fc",
-    desc: "每秒对周围 200 范围造成攻击 ×30% 雷电伤害",
-    onEquip() { G.schoolFx.leiling = true; },
-    onUnequip() { G.schoolFx.leiling = false; },
-    tick(dt) {
-      G._coreLeiYuT = (G._coreLeiYuT || 0) + dt;
-      if (G._coreLeiYuT >= 1) {
-        G._coreLeiYuT -= 1;
-        const dmg = G.atk * 0.3 * playerDamageMult();
-        let hit = 0;
-        for (const e of G.enemies) {
-          if (e.dead) continue;
-          if (dist(e.x, e.y, G.px, G.py) < 200) {
-            applyHit(e, dmg);
-            hit++;
-            if (hit >= 8) break;
-          }
-        }
-        burst(G.px, G.py, "#c084fc", 6, 110, 2);
-      }
-    } },
-  // 霜晶派（水）—— 绝对零度
-  { id: "sc_shuangjing", school: "霜晶", elem: "shui", char: "mage",
-    name: "绝对零度", ico: "冻", color: "#93c5fd",
-    desc: "命中 50% 概率冰封 1.5 秒；受冰封目标受伤害 +30%",
-    onEquip() { G.schoolFx.shuangjing = true; },
-    onUnequip() { G.schoolFx.shuangjing = false; },
-    onHit(e) {
-      if (G.schoolFx.shuangjing && Math.random() < 0.5) {
-        e.slow = 1.5; e.slowMul = 0.0;
-        e.frozen = Math.max(e.frozen || 0, 1.5);
-        spawnFloater(e.x, e.y - e.r, "冻结", "#93c5fd", 12);
-        burst(e.x, e.y, "#bae6fd", 6, 80, 2);
-      }
-    } },
-  // 焚天派（火）—— 朱雀降世
-  { id: "sc_fentianshi", school: "焚天", elem: "huo", char: "mage",
-    name: "朱雀降世", ico: "雀", color: "#fb923c",
-    desc: "灼烧伤害 ×3；灼烧扩散到周围敌人（200 范围）",
-    onEquip() { G.schoolFx.fentianshi = true; G.burnMul *= 3; },
-    onUnequip() { G.schoolFx.fentianshi = false; G.burnMul /= 3; },
-    onHit(e, d) {
-      if (G.schoolFx.fentianshi && e.burn) {
-        for (const e2 of G.enemies) {
-          if (e2.dead || e2.id === e.id) continue;
-          if (dist(e2.x, e2.y, e.x, e.y) < 200) {
-            e2.burn = Math.max(e2.burn || 0, 1.5);
-            e2.burnDmg = Math.max(e2.burnDmg || 0, d * 0.2);
-          }
-        }
-      }
-    } },
-  // 玄铁派（金）—— 金刚不坏
-  { id: "sc_xuantie", school: "玄铁", elem: "jin", char: "body",
-    name: "金刚不坏", ico: "铁", color: "#cbd5e1",
-    desc: "护盾上限 ×2，再生 +5/s；受击 30% 完全免伤",
-    onEquip() {
-      G.schoolFx.xuantie = true;
-      G.shieldMax *= 2; G.shield = Math.min(G.shieldMax, G.shield * 2);
-      G.gemFx.shieldRegen = (G.gemFx.shieldRegen || 0) + 5;
-    },
-    onUnequip() {
-      G.schoolFx.xuantie = false;
-      G.shieldMax = Math.ceil(G.shieldMax / 2);
-      G.shield = Math.min(G.shieldMax, G.shield);
-      G.gemFx.shieldRegen = Math.max(0, (G.gemFx.shieldRegen || 0) - 5);
-    },
-    tick(dt) {
-      // 装备时：每帧给玩家 +5/s 护盾回复（叠加在 gemFx.shieldRegen 之外，这里靠 shieldRegen 已经包含）
-    },
-    damageTaken(a) {
-      if (G.schoolFx.xuantie && Math.random() < 0.3) return 0;
-      return a;
-    } },
-  // 龙血派（火）—— 浴火重生
-  { id: "sc_longxue", school: "龙血", elem: "huo", char: "body",
-    name: "浴火重生", ico: "龙", color: "#f87171",
-    desc: "HP 归零时满血复活一次（每局限一次）",
-    onEquip() { G.schoolFx.longxue = true; G._coreDiedOnce = false; },
-    onUnequip() { G.schoolFx.longxue = false; },
-    onDeathCheck() {
-      if (G.schoolFx.longxue && !G._coreDiedOnce) {
-        G._coreDiedOnce = true;
-        G.hp = G.hpMax; G.shield = G.shieldMax; G.invuln = 2;
-        burst(G.px, G.py, "#f87171", 36, 260, 6);
-        G.shake = Math.max(G.shake, 10);
-        AudioSys.level();
-        spawnFloater(G.px, G.py - G.pr - 18, "浴火重生", "#f87171", 16, true);
-        toast("浴火重生 · 复活一次", "violet");
-        return true;   // 取消死亡
-      }
-      return false;
-    } },
-  // 磐石派（土）—— 镇岳之势
-  { id: "sc_panshishi", school: "磐石", elem: "tu", char: "body",
-    name: "镇岳之势", ico: "磐", color: "#d6a86a",
-    desc: "受击反伤 50%；每次受击护盾 +5（上限 100）",
-    onEquip() {
-      G.schoolFx.panshishi = true;
-      G.thorns = (G.thorns || 0) + 0.5;
-    },
-    onUnequip() {
-      G.schoolFx.panshishi = false;
-      G.thorns = Math.max(0, (G.thorns || 0) - 0.5);
-    },
-    tick(dt) {
-      G._coreFenshiT = (G._coreFenshiT || 0);
-    } },
-];
-const SCH_CORE_BY_ID = Object.fromEntries(SCH_CORES.map((c) => [c.id, c]));
-const SCH_CORE_BY_SCHOOL = Object.fromEntries(SCH_CORES.map((c) => [c.school, c]));
-
-// 当前角色的所有派系核心
-function coresOfChar() { return SCH_CORES.filter((c) => c.char === G.charId); }
-function coresEquipped() { return (G.cores || []).map((id) => SCH_CORE_BY_ID[id]).filter(Boolean); }
-function coresHasSlot() { return (G.cores || []).length < MAX_SCHOOL_CORES; }
-function canUnlockCore(school) {
-  const def = SCH_CORE_BY_SCHOOL[school];
-  if (!def || def.char !== G.charId) return false;
-  if (G.schoolUnlocked && G.schoolUnlocked[school]) return false;
-  return countSchool(school) >= CORE_NEED_STONES;
-}
-// v4.0 自动解锁：每次灵石数变化时检查所有派系，凑齐 5 颗就 unlock
-function autoUnlockCoreCheck(school) {
-  const checkList = school ? [school] : Object.keys(STONE_BY_SCHOOL);
-  for (const s of checkList) if (canUnlockCore(s)) unlockCore(s);
-}
-function unlockCore(school) {
-  if (!canUnlockCore(school)) return false;
-  const def = SCH_CORE_BY_SCHOOL[school];
-  if (!spendSchool(school, CORE_NEED_STONES)) return false;   // 真正花掉 5 颗同派系灵石
-  G.schoolUnlocked[school] = true;
-  // 自动装上（如果槽位有空）；满了就放进"未装备"池，玩家可手动换上
-  if (coresHasSlot()) {
-    equipCore(def.id);
-  }
-  burst(G.px, G.py, def.color, 32, 240, 5);
-  G.shake = Math.max(G.shake, 8);
-  AudioSys.level();
-  G.goldFlash = Math.max(G.goldFlash || 0, 0.4);
-  spawnFloater(G.px, G.py - G.pr - 22, `觉醒 · ${def.name}`, def.color, 18, true);
-  toast(`派系核心觉醒 · ${def.name}`, "violet");
-  // v5.0 大字报：派系核心觉醒
-  showBigBanner("派系核心觉醒", `${def.name} · ${school}派`, "purple");
-  return true;
-}
-function equipCore(id) {
-  const def = SCH_CORE_BY_ID[id];
-  if (!def || def.char !== G.charId) return false;
-  if (!G.schoolUnlocked[def.school]) return false;
-  if ((G.cores || []).includes(id)) return true;   // 已装备
-  if ((G.cores || []).length >= MAX_SCHOOL_CORES) return false;
-  G.cores.push(id);
-  if (def.onEquip) def.onEquip();
-  return true;
-}
-function unequipCore(id) {
-  const def = SCH_CORE_BY_ID[id];
-  if (!def) return false;
-  const i = (G.cores || []).indexOf(id);
-  if (i < 0) return false;
-  G.cores.splice(i, 1);
-  if (def.onUnequip) def.onUnequip();
-  return true;
-}
-function spendSchool(school, n) {
-  // 从同派系多颗灵石中花掉 n 颗（解锁/淬体用），优先花「非主石」即不破坏你在攒的宝石主石
-  const arr = (STONE_BY_SCHOOL[school] || []).slice();
-  arr.sort((a, b) => stoneAt(a.key) - stoneAt(b.key));
-  let left = n;
-  for (const st of arr) {
-    if (left <= 0) break;
-    const take = Math.min(stoneAt(st.key), left);
-    if (take > 0) { G.stones[st.key] -= take; left -= take; }
-  }
-  return left === 0;
-}
-
-// 当前角色的三系专属灵石
-function stonesOf(charId) { return CHAR_STONES[charId || G.charId] || CHAR_STONES.sword; }
-function stoneKeys() { return stonesOf().map((s) => s.key); }
-function stoneTotal() {
-  const st = G.stones || {};
-  return stoneKeys().reduce((s, k) => s + (st[k] || 0), 0);
-}
-function stoneAt(key) { return (G.stones && G.stones[key]) || 0; }
-function schoolOf(key) { const s = STONE_BY_KEY[key]; return s ? s.school : null; }
-function schoolElem(school) { const arr = STONE_BY_SCHOOL[school]; return arr && arr[0] ? arr[0].elem : null; }
-function countSchool(school) {
-  const arr = STONE_BY_SCHOOL[school] || [];
-  let n = 0;
-  for (const st of arr) n += stoneAt(st.key);
-  return n;
-}
-function gemsOf(charId) { return GEMS.filter((g) => g.char === (charId || G.charId)); }
-function gemSlotsUsed() { return Object.keys(G.gems || {}).length; }
-function waveElemKey() {
-  return ELEMENTS[(Math.max(1, G.wave) - 1) % ELEMENTS.length].key;
-}
-// 加权掉落：本角色 3 派系 9 颗权重 ×3，其他 6 派系 18 颗权重 ×1
-// ⇒ 本派系实际占比 ≈ 9×3 / (9×3 + 18×1) = 60%
-function randStone() {
-  const pool = [];
-  const my = new Set(stoneKeys());
-  for (const st of STONES_ALL) {
-    const w = my.has(st.key) ? 3 : 1;
-    for (let i = 0; i < w; i++) pool.push(st.key);
-  }
-  return pool[Math.floor(Math.random() * pool.length)];
-}
-
-// ---------- 五行相生相克 ----------
-// 相克：金克木 · 木克土 · 土克水 · 水克火 · 火克金
-// 相生：金生水 · 水生木 · 木生火 · 火生土 · 土生金
-// 每波妖物统一带当前波属性；你已铸的专属按「最优那一行」参与判定。
-const ELEM_OVERCOME = { jin: "mu", mu: "tu", tu: "shui", shui: "huo", huo: "jin" };
-const ELEM_GENERATE = { jin: "shui", shui: "mu", mu: "huo", huo: "tu", tu: "jin" };
-// 三道侣伴五行：剑道火/木/金；玄法金/水/火；体道金/火/土。道途与这些元素共鸣时视为「同属」
-const PATH_ELEMS = {
-  sword: new Set(["huo", "mu", "jin"]),
-  mage:  new Set(["jin", "shui", "huo"]),
-  body:  new Set(["jin", "huo", "tu"]),
-};
-const REL_SAME = { key: "same", mul: 1, tag: "", color: null };
-const REL_BEAT = { key: "beat", mul: 1.35, tag: "克", color: "#fbbf24" };    // 我克它
-const REL_LOSE = { key: "lose", mul: 0.8, tag: "被克", color: "#93c5fd" };   // 它克我
-const REL_FED = { key: "fed", mul: 1.15, tag: "得生", color: "#86efac" };    // 它生我
-const REL_DRAIN = { key: "drain", mul: 0.9, tag: "泄力", color: "#94a3b8" }; // 我生它
-
-function elemRelation(atkElem, defElem) {
-  if (!atkElem || !defElem || atkElem === defElem) return REL_SAME;
-  if (ELEM_OVERCOME[atkElem] === defElem) return REL_BEAT;
-  if (ELEM_OVERCOME[defElem] === atkElem) return REL_LOSE;
-  if (ELEM_GENERATE[defElem] === atkElem) return REL_FED;
-  if (ELEM_GENERATE[atkElem] === defElem) return REL_DRAIN;
-  return REL_SAME;
-}
-// 多颗宝石时取「最优那一行」；若全是被克，就老实吃下减益
-// 五行由「流派宝石」的灵石属性决定，通用装备不参与
-function bestElemRelation(defElem) {
-  if (!defElem) return REL_SAME;
-  const ids = Object.keys(G.gems || {});
-  if (!ids.length) return REL_SAME;
-  let best = null;
-  for (const id of ids) {
-    const d = GEM_BY_ID[id];
-    if (!d) continue;
-    const r = elemRelation(d.elem, defElem);
-    if (!best || r.mul > best.mul) best = r;
-  }
-  return best || REL_SAME;
-}
-function elemMulVs(defElem) { return bestElemRelation(defElem).mul; }
-// 专属装备的克制/被克文案，用于铸器台与灵髓弹窗
-function elemMatchText(elem) {
-  const beats = ELEM_KEYS.filter((k) => ELEM_OVERCOME[elem] === k)[0];
-  const loses = ELEM_KEYS.filter((k) => ELEM_OVERCOME[k] === elem)[0];
-  return `克${ELEM_BY_KEY[beats].name} · 被${ELEM_BY_KEY[loses].name}克`;
-}
 
 // ---------- 设备识别 & 画质自适应 ----------
 const isTouch = ("ontouchstart" in window) || (navigator.maxTouchPoints || 0) > 0;
@@ -1545,9 +302,6 @@ window.addEventListener("keydown", (e) => {
   input.keys[k] = true;
   if (k === "1" || k === "q") castSkill(0);
   if (k === "2" || k === "w") castSkill(1);
-  // v4.0 装备主动技能槽：J 触发槽 0，K 触发槽 1
-  if (k === "j" || k === "3") triggerEquipSkill(0);
-  if (k === "k" || k === "4") triggerEquipSkill(1);
   if (k === "escape" || k === "p") togglePause();
   if (k === "f") toggleFullscreen();
   if (k === " " || k.startsWith("arrow")) e.preventDefault();
@@ -1562,198 +316,6 @@ function readMove() {
   const d = Math.hypot(x, y);
   if (d > 1) { x /= d; y /= d; }
   return { x, y };
-}
-
-// ---------- 剑阵守卫（Sword Formation Nodes） ----------
-// 站入剑阵 → 充能 → 阵成；站在阵中获得增益 + 阵法自动袭敌；
-// 离开后阵法「余威」维持数秒，逼迫玩家在「走位安全」与「守阵收益」之间取舍。
-const NODE_R = 78;
-const NODE_CHARGE_TIME = 1.1;   // 站入后充满所需秒数
-const NODE_HOLD = 5.0;          // 离阵后余威维持秒数
-const NODE_LAYOUT = [
-  { x: 260, y: -260 },
-  { x: 260, y: 260 },
-  { x: -260, y: 260 },
-  { x: -260, y: -260 },
-];
-const NODE_DEFS = [
-  { id: "fire",    name: "烈焰剑阵", ico: "焰", color: "#fb923c", rgb: "251,146,60",  buff: "攻击 +25%", effect: "阵内妖物持续燃烧" },
-  { id: "frost",   name: "玄冰剑阵", ico: "冰", color: "#7dd3fc", rgb: "125,211,252", buff: "受击 -20%",  effect: "阵内妖物大幅减速" },
-  { id: "thunder", name: "天雷剑阵", ico: "雷", color: "#c084fc", rgb: "192,132,252", buff: "移速 +18%",   effect: "阵内周期落雷" },
-  { id: "spirit",  name: "聚灵剑阵", ico: "灵", color: "#86efac", rgb: "134,239,172", buff: "经验 +35%",   effect: "阵内持续回血回灵" },
-];
-
-function initNodes() {
-  G.nodes = NODE_DEFS.map((def, i) => ({
-    id: def.id, def,
-    x: NODE_LAYOUT[i].x, y: NODE_LAYOUT[i].y,
-    r: NODE_R, charge: 0, active: false, holdT: 0,
-    strikeCD: 0, burnCD: 0, glow: 0,
-  }));
-  G.nodeInside = null; G.nodeActive = false; G.nodeHoldT = 0;
-  G.nodeAtkMul = 1; G.nodeXpMul = 1; G.nodeDmgTakenMul = 1; G.nodeMoveMul = 1;
-}
-
-function applyNodeAura(n, dt, standing) {
-  if (n.id === "fire") {
-    n.burnCD -= dt;
-    if (n.burnCD > 0) return;
-    n.burnCD = 0.5;
-    for (const e of G.enemies) {
-      if (e.dead) continue;
-      if (dist(e.x, e.y, n.x, n.y) > n.r) continue;
-      e.burn = Math.max(e.burn || 0, 1.4);
-      e.burnDmg = Math.max(e.burnDmg || 0, 4 + G.wave * 1.0);
-    }
-  } else if (n.id === "frost") {
-    for (const e of G.enemies) {
-      if (e.dead) continue;
-      if (dist(e.x, e.y, n.x, n.y) > n.r) continue;
-      e.slow = Math.max(e.slow || 0, 0.45);
-      e.slowMul = 0.45;
-    }
-  } else if (n.id === "thunder") {
-    n.strikeCD -= dt;
-    if (n.strikeCD > 0) return;
-    n.strikeCD = 1.0;
-    let target = null, best = 1e9;
-    for (const e of G.enemies) {
-      if (e.dead) continue;
-      const d = dist(e.x, e.y, n.x, n.y);
-      if (d < n.r + 50 && d < best) { best = d; target = e; }
-    }
-    if (!target) return;
-    G.particles.push({
-      x: target.x, y: target.y, vx: 0, vy: 0, life: 0.22, max: 0.22,
-      color: "#c084fc", size: 5, ring: { r0: 4, r1: 36 },
-    });
-    burst(target.x, target.y, "#c084fc", 8, 170, 3);
-    applyHit(target, G.atk * 1.7 * playerDamageMult());
-    AudioSys.hit();
-  } else if (n.id === "spirit") {
-    if (standing) {
-      G.hp = Math.min(G.hpMax, G.hp + 3.5 * dt);
-      G.mp = Math.min(G.mpMax, G.mp + 5 * dt);
-    }
-  }
-}
-
-function updateNodes(dt) {
-  let insideId = null;
-  for (const n of G.nodes) {
-    const inside = dist(G.px, G.py, n.x, n.y) < n.r + G.pr * 0.3;
-    if (inside) {
-      n.charge = Math.min(1, n.charge + dt / NODE_CHARGE_TIME);
-      if (n.charge >= 1) {
-        if (!n.active) {
-          n.active = true; n.glow = 1;
-          toast(`${n.def.name} · 阵成`, "cyan");
-          AudioSys.level();
-          burst(n.x, n.y, n.def.color, 20, 200, 4);
-          G.particles.push({
-            x: n.x, y: n.y, vx: 0, vy: 0, life: 0.5, max: 0.5,
-            color: n.def.color, size: 4, ring: { r0: 8, r1: n.r + 24 },
-          });
-        }
-        n.holdT = NODE_HOLD + (G.nodeHoldBonus || 0);
-        insideId = n.id;
-      }
-    } else if (n.active) {
-      n.holdT -= dt;
-      if (n.holdT <= 0) { n.active = false; n.charge = 0; n.holdT = 0; }
-    } else if (n.charge > 0) {
-      n.charge = Math.max(0, n.charge - dt * 0.6);
-    }
-
-    if (n.glow > 0) n.glow = Math.max(0, n.glow - dt * 1.8);
-    if (n.active) applyNodeAura(n, dt, insideId === n.id);
-  }
-
-  // 玩家增益只在自己站在「已激活」的阵上时才生效
-  let atkMul = 1, xpMul = 1, dmgMul = 1, moveMul = 1;
-  if (insideId) {
-    const n = G.nodes.find((x) => x.id === insideId);
-    if (n && n.active) {
-      if (n.id === "fire") atkMul = 1.25;
-      else if (n.id === "frost") dmgMul = 0.8;
-      else if (n.id === "thunder") moveMul = 1.18;
-      else if (n.id === "spirit") xpMul = 1.35;
-      G.nodeHoldT = n.holdT;
-    }
-  }
-  G.nodeInside = insideId;
-  G.nodeActive = !!insideId;
-  G.nodeAtkMul = atkMul;
-  G.nodeXpMul = xpMul;
-  G.nodeDmgTakenMul = dmgMul;
-  G.nodeMoveMul = moveMul;
-}
-
-function drawNodes(camX, camY) {
-  if (!G.nodes || !G.nodes.length) return;
-  const t = G.time || 0;
-  for (const n of G.nodes) {
-    const sx = n.x - camX + view.w / 2;
-    const sy = n.y - camY + view.h / 2;
-    const R = n.r;
-    if (sx < -R - 90 || sy < -R - 90 || sx > view.w + R + 90 || sy > view.h + R + 90) continue;
-    const on = n.active;
-    ctx.save();
-    ctx.translate(sx, sy);
-
-    const glowR = R + 16 + (on ? 10 + Math.sin(t * 3 + n.x) * 6 : 0) + n.glow * 30;
-    const g = ctx.createRadialGradient(0, 0, R * 0.1, 0, 0, glowR);
-    g.addColorStop(0, `rgba(${n.def.rgb},${on ? 0.26 : 0.07 + n.charge * 0.1})`);
-    g.addColorStop(0.72, `rgba(${n.def.rgb},${on ? 0.12 : 0.03})`);
-    g.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(0, 0, glowR, 0, TAU); ctx.fill();
-
-    ctx.strokeStyle = `rgba(${n.def.rgb},${on ? 0.95 : 0.4})`;
-    ctx.lineWidth = on ? 3 : 2;
-    ctx.beginPath(); ctx.arc(0, 0, R, 0, TAU); ctx.stroke();
-
-    if (on) {
-      ctx.save();
-      ctx.rotate(t * 0.55);
-      ctx.setLineDash([10, 14]);
-      ctx.strokeStyle = `rgba(${n.def.rgb},0.6)`;
-      ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(0, 0, R - 11, 0, TAU); ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.restore();
-      const pr = R * (0.5 + 0.09 * Math.sin(t * 3.2));
-      ctx.strokeStyle = `rgba(${n.def.rgb},0.3)`;
-      ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.arc(0, 0, pr, 0, TAU); ctx.stroke();
-    }
-
-    if (!on && n.charge > 0.01) {
-      ctx.strokeStyle = `rgba(${n.def.rgb},0.95)`;
-      ctx.lineWidth = 5;
-      ctx.lineCap = "round";
-      ctx.beginPath();
-      ctx.arc(0, 0, R + 7, -Math.PI / 2, -Math.PI / 2 + TAU * n.charge);
-      ctx.stroke();
-      ctx.lineCap = "butt";
-    }
-
-    ctx.globalAlpha = on ? 1 : 0.45 + n.charge * 0.35;
-    ctx.fillStyle = n.def.color;
-    ctx.font = `bold ${Math.round(R * 0.4)}px "STKaiti","KaiTi",serif`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(n.def.ico, 0, 3);
-
-    if (on) {
-      ctx.globalAlpha = 0.92;
-      ctx.fillStyle = "#e8e6d9";
-      ctx.font = 'bold 12px system-ui,"Microsoft YaHei",sans-serif';
-      ctx.fillText(n.def.name, 0, -R - 15);
-    }
-    ctx.globalAlpha = 1;
-    ctx.restore();
-  }
 }
 
 // ---------- Game state ----------
@@ -1788,49 +350,25 @@ const G = {
   },
   charId: "sword",
   coinsRun: 0,
-  // 剑阵
-  nodes: [], nodeInside: null, nodeActive: false, nodeHoldT: 0, nodeBonus: 0,
-  nodeAtkMul: 1, nodeXpMul: 1, nodeDmgTakenMul: 1, nodeMoveMul: 1,
-  nodeHoldBonus: 0, dmgTakenMul: 1,
-  // 转职（3 系 × 3 分支）
-  jobStage: 0, jobPath: null, jobBranches: {},
-  // 法宝 & 灵兽
-  relics: [], pendingRelic: 0, beast: null,
-  burnMul: 1, thunderProc: 0,
-  // 角色专属灵石 & 流派宝石（三系择二的岔路）
-  stones: { chifeng: 0, jifeng: 0, xuesha: 0 },
-  gems: {}, ordinary: [], gemFx: {}, pendingEssence: 0,
-  meltCount: 0, hasteT: 0, regenT: 0,
-  // v3.0 装备系统（背包 + 3 槽位）
-  inventory: [], equipped: { weapon: null, armor: null, accessory: null },
-  _eqCache: { atk: 0, hp: 0, spd: 0, crit: 0, lifesteal: 0, xp: 0, shield: 0, dmgTaken: 0,
-              huoMul: 1, burnMul: 1,
-              activeSkillIds: [], passiveSkillIds: [] },
-  // v4.0 装备主动技能槽（J/K = 3/4）：存当前 CD + 装备附带的技能 id
-  activeSkills: [], passiveSkills: [], skillCD: [],
-  // v4.0 装备主动技能状态
-  _swordArrayT: 0, _shadowT: 0,
-  // v5.0 PM 视角
-  tutStep: 0,                       // 0=关闭 / 1=教学1 / 2=教学2 / 3=教学3 / 4=完成
-  _bigBannerT: 0, _bigBannerMode: "",
-  _stoneSlot: null,                 // v5.0 灵石槽位：{ stoneKey, school } | null
-  _purity: 0,                       // v5.0 派系纯度 0~1
-  _milestone: { purple: false, job: false, school: false, orange: false },
-  _orangeT: 0, _orangeName: "",
-  // v6.0 A 怪物词缀 / B 词条联动 / C 祭坛赌注
-  _synergies: [],                   // B：当前激活的联动 id 列表
-  zones: [],                        // A：冰霜力场等地面区域
-  altars: [],                       // C：场上祭坛
-  _frenzyT: 0,                      // B：狂血剩余秒数
-  altarBuffs: { atkMul: 1, hpMul: 1, moveMul: 1, xpMul: 1, dropUp: 0, curseSpeed: 1, critAdd: 0 },
-  _altarWave: 0,                    // C：上次刷祭坛的波次
+  mode: "endless",
+  win: false,
+  reviveUsed: false,
+  deathCause: "",
+  lastHit: "",
 };
 
-function resetRun(charId) {
+function resetRun(charId, modeId) {
   const shop = Meta.statsFromShop();
+  const mode = getMode(modeId || Meta.load().lastMode || "endless");
+  G.mode = mode.id;
+  G.win = false;
+  G.reviveUsed = false;
+  G.deathCause = "";
+  G.lastHit = "";
   G.charId = charId || Meta.load().selectedChar || "sword";
   G.hitStop = 0;
-  G.time = 0; G.wave = 0; G.kills = 0; G.waveTimer = 3;
+  G.time = 0; G.wave = 0; G.kills = 0; G.waveTimer = mode.id === "quick" ? 2 : 3;
+  G.waveInterval = mode.waveInterval;
   G.spawnQueue = []; G._trickle = 0;
   G.px = 0; G.py = 0;
   G.hpMax = 100 + shop.hpBonus;
@@ -1859,52 +397,6 @@ function resetRun(charId) {
   G.shieldHit = 0;
   G.combo = 0; G.comboTimer = 0; G.comboPeak = 0; G.comboMul = 1;
   G.coinsRun = 0;
-  G.nodeBonus = 0;
-  G.nodeHoldBonus = 0;
-  G.dmgTakenMul = 1;
-  G.jobStage = 0; G.jobPath = null; G.jobBranches = {};
-  G.relics = []; G.pendingRelic = 0; G.beast = null;
-  G.burnMul = 1; G.thunderProc = 0;
-  G.stones = {};
-  for (const st of STONES_ALL) G.stones[st.key] = 0;   // 全部 27 颗都可拾取
-  G.gems = {}; G.gemFx = {}; G.pendingEssence = 0;
-  G.inventory = []; G.equipped = { weapon: null, armor: null, accessory: null };   // v3.0 装备系统
-  G._eqCache = { atk: 0, hp: 0, spd: 0, crit: 0, lifesteal: 0, xp: 0, shield: 0, dmgTaken: 0,
-                 huoMul: 1, burnMul: 1,
-                 activeSkillIds: [], passiveSkillIds: [] };
-  // v4.0 主动技能状态
-  G.activeSkills = []; G.passiveSkills = []; G.skillCD = [];
-  G._swordArrayT = 0; G._shadowT = 0;
-  // v3.0 装备系统基础值（reset 后装备带来的增量叠加用）
-  G._baseAtk = G.atk; G._baseHpMax = G.hpMax; G._baseMoveSpeed = G.moveSpeed;
-  G._baseCrit = G.crit; G._baseLS = G.lifesteal; G._baseXpMul = G.xpMul;
-  G._baseShieldMax = G.shieldMax; G._baseBurnMul = G.burnMul;
-  G._baseDmgTaken = G.dmgTakenMul;
-  G.cores = []; G.schoolUnlocked = {}; G.schoolFx = {};
-  G._coreFireT = 0; G._coreZhenboT = 0; G._coreLeiYuT = 0; G._coreFenshiT = 0; G._coreBingfengT = 0; G._coreDiedOnce = false;
-  G.meltCount = 0; G.hasteT = 0; G.regenT = 0;
-  G._schoolHinted = null;
-  G._forgeHinted = false;
-  G.resonance = recomputeResonance();
-  equipRec();   // v3.0 装备缓存初始化（先空）
-  invHudSync();
-  initNodes();
-  // v5.0 灵石槽 + 派系纯度 + 里程碑 + 教程
-  G._stoneSlot = null;
-  G._purity = 0;
-  G._milestone = { purple: false, job: false, school: false, orange: false };
-  G.tutStep = 1;
-  // v6.0 A/B/C
-  G._synergies = [];
-  G.zones = [];
-  G.altars = [];
-  G._frenzyT = 0;
-  G.altarBuffs = { atkMul: 1, hpMul: 1, moveMul: 1, xpMul: 1, dropUp: 0, curseSpeed: 1, critAdd: 0 };
-  G._altarWave = 0;
-  G._altarPickup = 0;
-  G._synPrev = [];
-  synHudSync();
-  G._orangeT = 0; G._orangeName = "";
   G.weapons = {
     sword: { lv: 1, evo: false },
     orbit: { lv: 1, evo: false },
@@ -1930,820 +422,115 @@ function resetRun(charId) {
   }
   G._shopLuck = shop.luck;
   G._shopCoin = shop.coinMul;
-  spawnBeast();   // 契约的灵兽入场
 }
 
 // ---------- Upgrades ----------
-// v4.0 砍掉「升级 3 选 1」面板：所有被动成长都在 gainXP 完成
-// 升级弹窗 / buildUpgradePool / rollUpgrades / pendingChoices 已全部删除
-function openLevelUp() { /* 升级不弹窗 */ }
-// 占位函数供测试残留引用（_XTJ__ 等）和老 ui 引用
-function buildUpgradePool() { return []; }
-function rollUpgrades() { return []; }
-function shouldOfferJob() { return false; }
-function openJobModal() { /* 转职不弹窗，由套装触发 */ }
+const UPGRADE_ICO = {
+  atk: "攻", atk2: "剑", spd: "疾", as: "速", hp: "体", mp: "灵",
+  swords: "分", orbit: "域", pierce: "破", crit: "暴", critd: "诛",
+  ls: "噬", aoe: "气", aoe2: "扇", cd: "风", shield: "甲", xp: "丹",
+  low: "血", chain: "雷", size: "巨", thorn: "棘",
+  fire: "火", lightning: "电", frost: "冰", array: "阵", sword: "飞", orbitw: "环",
+  e_fire: "燎", e_lightning: "霆", e_frost: "封", e_array: "归",
+  e_sword: "光", e_orbit: "罡",
+};
 
-// ---------- 转职（3 系 × 3 分支） ----------
-// 设计意图：把「塔防的站位/流派决策」搬进幸存者。
-// 境界到 5 / 10 / 15 时，本应出的升级三选一，改为一次转职抉择：
-//   5 级「择道」→ 从 3 系里选一条道途
-//   10 级「择法」→ 在本道 3 个法门里择一精修
-//   15 级「精进」→ 再次择法（同法门可叠层至 Lv.2，也可改修他法）
-const JOB_LEVELS = [5, 10, 15];
+function buildUpgradePool() {
+  const w = G.weapons;
+  const withIco = (o) => ({ ...o, ico: UPGRADE_ICO[o.id] || "道" });
+  const pool = [
+    { id: "atk", name: "灵力灌注", desc: "攻击 +20%", tag: "输出", rare: false, apply: () => { G.atk *= 1.2; } },
+    { id: "atk2", name: "剑意淬炼", desc: "攻击 +15%", tag: "输出", rare: false, apply: () => { G.atk *= 1.15; } },
+    { id: "spd", name: "疾风步", desc: "移速 +12%", tag: "身法", rare: false, apply: () => { G.moveSpeed *= 1.12; } },
+    { id: "as", name: "剑心如电", desc: "飞剑攻速 +18%", tag: "输出", rare: false, apply: () => { G.atkSpeed *= 1.18; } },
+    { id: "hp", name: "炼体", desc: "气血上限 +30，并回满", tag: "生存", rare: false, apply: () => { G.hpMax += 30; G.hp = G.hpMax; } },
+    { id: "mp", name: "聚灵", desc: "灵力上限 +20，回复 +1", tag: "续航", rare: false, apply: () => { G.mpMax += 20; G.mp = G.mpMax; G.mpRegen += 1; } },
+    { id: "swords", name: "御剑分光", desc: "环绕飞剑 +1", tag: "飞剑", rare: true, apply: () => { G.swordCount += 1; G.arenaR += 40; } },
+    { id: "orbit", name: "剑域扩张", desc: "环绕半径 +18", tag: "飞剑", rare: false, apply: () => { G.swordOrbit += 18; } },
+    { id: "pierce", name: "破甲剑意", desc: "飞剑穿透 +1", tag: "飞剑", rare: true, apply: () => { G.swordPierce += 1; } },
+    { id: "crit", name: "血煞", desc: "暴击率 +10%", tag: "爆发", rare: false, apply: () => { G.crit = Math.min(0.7, G.crit + 0.1); } },
+    { id: "critd", name: "诛心", desc: "暴击伤害 +30%", tag: "爆发", rare: true, apply: () => { G.critMul += 0.3; } },
+    { id: "ls", name: "噬灵", desc: "击杀吸血 +2", tag: "续航", rare: false, apply: () => { G.lifesteal += 2; } },
+    { id: "aoe", name: "剑气纵横·极", desc: "剑气伤害 +30%，范围 +20%", tag: "剑气", rare: false, apply: () => { G.aoeDamageMul *= 1.3; G.aoeRange *= 1.2; } },
+    { id: "aoe2", name: "扇形天罗", desc: "剑气扇形角 +25%", tag: "剑气", rare: false, apply: () => { G.aoeAngle *= 1.25; } },
+    { id: "cd", name: "御风诀", desc: "主动技能冷却 -15%", tag: "身法", rare: false, apply: () => { G.aoeCD *= 0.85; G.dashCD *= 0.85; } },
+    { id: "shield", name: "玄武甲", desc: "获得 40 点护盾，上限 +20", tag: "生存", rare: true, apply: () => { G.shieldMax += 20; G.shield += 40; } },
+    { id: "xp", name: "妖丹纳灵", desc: "经验获取 +25%", tag: "成长", rare: false, apply: () => { G.xpMul *= 1.25; } },
+    { id: "low", name: "血祭", desc: "气血低于40%时伤害 +35%", tag: "爆发", rare: true, apply: () => { G.lowHpBonus += 0.35; } },
+    { id: "chain", name: "紫电青霜", desc: "飞剑命中有 15% 弹射", tag: "飞剑", rare: true, apply: () => { G.chain += 0.15; } },
+    { id: "size", name: "巨剑真形", desc: "飞剑体积 +20%，伤害 +10%", tag: "飞剑", rare: false, apply: () => { G.swordSize *= 1.2; G.atk *= 1.1; } },
+    { id: "thorn", name: "荆棘罡气", desc: "反伤 +10%", tag: "生存", rare: true, apply: () => { G.thorns += 0.1; } },
+  ].map(withIco);
 
-const JOB_PATHS = [
-  {
-    id: "sword", name: "剑道", ico: "剑", tagCls: "t-sword", color: "#7dd3fc",
-    desc: "以飞剑为锋 · 走位即杀伐",
-    branches: [
-      { id: "sword_multi", name: "万剑归流", ico: "分", desc: "环绕飞剑 +2 · 剑域半径 +16",
-        apply: () => { G.swordCount += 2; G.swordOrbit += 16; } },
-      { id: "sword_pierce", name: "破锋无相", ico: "破", desc: "飞剑穿透 +2 · 暴击率 +12%",
-        apply: () => { G.swordPierce += 2; G.crit = Math.min(0.7, G.crit + 0.12); } },
-      { id: "sword_qi", name: "剑气冲霄", ico: "气", desc: "剑气伤害 +50% · 范围 +25% · 扇形角 +35%",
-        apply: () => { G.aoeDamageMul *= 1.5; G.aoeRange *= 1.25; G.aoeAngle *= 1.35; } },
-    ],
-  },
-  {
-    id: "mage", name: "玄法", ico: "法", tagCls: "t-mp", color: "#c084fc",
-    desc: "引术法之力 · 焚天封地",
-    branches: [
-      { id: "mage_fire", name: "业火焚天", ico: "火", desc: "业火球 +1 级 · 攻击 +15%",
-        apply: () => { const w = G.weapons.fire; w.lv = w.lv === 0 ? 1 : Math.min(5, w.lv + 1); G.atk *= 1.15; } },
-      { id: "mage_thunder", name: "九霄雷法", ico: "电", desc: "紫电 +1 级 · 飞剑攻速 +15%",
-        apply: () => { const w = G.weapons.lightning; w.lv = w.lv === 0 ? 1 : Math.min(5, w.lv + 1); G.atkSpeed *= 1.15; } },
-      { id: "mage_frost", name: "玄冰封天", ico: "冰", desc: "寒冰锥 +1 级 · 受击伤害 -12%",
-        apply: () => { const w = G.weapons.frost; w.lv = w.lv === 0 ? 1 : Math.min(5, w.lv + 1); G.dmgTakenMul *= 0.88; } },
-    ],
-  },
-  {
-    id: "body", name: "体道", ico: "体", tagCls: "t-hp", color: "#86efac",
-    desc: "以身为炉 · 守阵不破",
-    branches: [
-      { id: "body_blood", name: "血战不灭", ico: "血", desc: "气血上限 +80 并回复 · 残血伤害 +25%",
-        apply: () => { G.hpMax += 80; G.hp = Math.min(G.hpMax, G.hp + 80); G.lowHpBonus += 0.25; } },
-      { id: "body_thorn", name: "荆棘铁壁", ico: "棘", desc: "立即获得 60 护盾（上限 +40）· 反伤 +10%",
-        apply: () => { G.shieldMax += 40; G.shield += 60; G.thorns += 0.10; } },
-      { id: "body_formation", name: "守阵天君", ico: "阵", desc: "剑阵范围 +25% · 站阵伤害 +20% · 余威 +2s",
-        apply: () => { for (const n of G.nodes) n.r *= 1.25; G.nodeBonus += 0.20; G.nodeHoldBonus += 2; } },
-    ],
-  },
-];
-
-const JOB_STAGES = [
-  { title: "择道", sub: "三途择一 · 道途自此分野" },
-  { title: "择法", sub: "于本道之内，择一法门精修" },
-  { title: "精进", sub: "再进一步 · 已修法门可叠层" },
-];
-
-function jobStage() { return G.jobStage || 0; }
-
-function jobPathOf(id) { return JOB_PATHS.find((p) => p.id === id) || null; }
-
-// 到了转职节点吗？（境界 ≥ 该阶段门槛）
-function shouldOfferJob() {
-  const s = jobStage();
-  return s < JOB_LEVELS.length && G.level >= JOB_LEVELS[s];
-}
-
-function jobSyncHud(flash) {
-  if (!ui.jobHud) return;
-  const p = jobPathOf(G.jobPath);
-  if (!p || !G.jobStage) { ui.jobHud.classList.add("hidden"); return; }
-  const parts = [];
-  for (const b of p.branches) {
-    const lv = G.jobBranches[b.id] || 0;
-    if (lv > 0) parts.push(b.name + (lv > 1 ? "·Lv." + lv : ""));
-  }
-  ui.jobHudIco.textContent = p.ico;
-  ui.jobHudIco.style.setProperty("--jc", p.color);
-  ui.jobHudPath.textContent = p.name;
-  ui.jobHudBranch.textContent = parts.join(" ＋ ") || "未择法门";
-  ui.jobHud.classList.remove("hidden");
-  if (flash) {
-    ui.jobHud.classList.remove("flash");
-    void ui.jobHud.offsetWidth;
-    ui.jobHud.classList.add("flash");
-  }
-}
-
-
-// ---------- 法宝 & 灵兽 ----------
-function hexRgb(hex) {
-  const h = String(hex || "#ffffff").replace("#", "");
-  const full = h.length === 3 ? h.split("").map((c) => c + c).join("") : h;
-  const n = parseInt(full, 16) || 0;
-  return `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`;
-}
-
-// 契约的灵兽入场
-function spawnBeast() {
-  G.beast = null;
-  let id = null;
-  try { id = Meta.load().contract; } catch (_) {}
-  const def = BEAST_BY_ID[id];
-  if (!def) return;
-  G.beast = {
-    def, ang: -Math.PI / 2,
-    x: G.px + Math.cos(-Math.PI / 2) * 48,
-    y: G.py + Math.sin(-Math.PI / 2) * 48,
-    cd: def.cd * 0.6, hitFlash: 0,
-  };
-  if (def.xpMul) G.xpMul *= (1 + def.xpMul);
-}
-
-function updateBeasts(dt) {
-  const b = G.beast;
-  if (!b) return;
-  const def = b.def;
-  b.ang += dt * 0.9;
-  const tx = G.px + Math.cos(b.ang) * 48;
-  const ty = G.py + Math.sin(b.ang) * 48;
-  const k = Math.min(1, dt * 7);
-  b.x = lerp(b.x, tx, k);
-  b.y = lerp(b.y, ty, k);
-  if (b.hitFlash > 0) b.hitFlash = Math.max(0, b.hitFlash - dt * 3);
-
-  b.cd -= dt;
-  if (b.cd > 0) return;
-  const dmg = G.atk * def.mul * playerDamageMult();
-
-  if (def.kind === "bolt") {
-    const list = G.enemies
-      .filter((e) => !e.dead && dist(e.x, e.y, b.x, b.y) < 330)
-      .sort((p, q) => dist(p.x, p.y, b.x, b.y) - dist(q.x, q.y, b.x, b.y))
-      .slice(0, 1 + (def.pierce || 0));
-    if (!list.length) { b.cd = 0.25; return; }
-    b.hitFlash = 1;
-    for (const e of list) {
-      G.particles.push({
-        x: e.x, y: e.y, vx: 0, vy: 0, life: 0.2, max: 0.2,
-        color: def.color, size: 4, ring: { r0: 4, r1: 26 },
-      });
-      applyHit(e, dmg);
-    }
-    AudioSys.hit();
-  } else if (def.kind === "nova") {
-    const list = G.enemies.filter((e) => !e.dead && dist(e.x, e.y, b.x, b.y) < def.radius);
-    if (!list.length) { b.cd = 0.5; return; }
-    b.hitFlash = 1;
-    G.particles.push({
-      x: b.x, y: b.y, vx: 0, vy: 0, life: 0.36, max: 0.36,
-      color: def.color, size: 5, ring: { r0: 12, r1: def.radius },
-    });
-    burst(b.x, b.y, def.color, 14, 210, 4);
-    for (const e of list) applyHit(e, dmg);
-    G.shake = Math.max(G.shake, 4);
-    AudioSys.crit();
-  } else if (def.kind === "aura") {
-    const list = G.enemies.filter((e) => !e.dead && dist(e.x, e.y, b.x, b.y) < def.radius);
-    for (const e of list) {
-      applyHit(e, dmg);
-      if (def.burn && !e.dead) {
-        e.burn = Math.max(e.burn || 0, 1.0);
-        e.burnDmg = Math.max(e.burnDmg || 0, 3 + G.wave * 0.8);
-      }
-    }
-  } else if (def.kind === "ward") {
-    if (def.shield) { G.shieldMax = Math.max(G.shieldMax, 40); G.shield = Math.min(G.shieldMax, G.shield + def.shield); G.shieldHit = 0.3; }
-    if (def.heal && G.hp < G.hpMax) G.hp = Math.min(G.hpMax, G.hp + G.hpMax * def.heal);
-    if (def.mp) G.mp = Math.min(G.mpMax, G.mp + def.mp);
-    G.particles.push({
-      x: G.px, y: G.py, vx: 0, vy: 0, life: 0.4, max: 0.4,
-      color: def.color, size: 4, ring: { r0: G.pr + 8, r1: G.pr + 44 },
-    });
-    AudioSys.level();
-  }
-}
-
-function drawBeasts(camX, camY) {
-  const b = G.beast;
-  if (!b) return;
-  const sx = b.x - camX + view.w / 2;
-  const sy = b.y - camY + view.h / 2;
-  if (sx < -140 || sy < -140 || sx > view.w + 140 || sy > view.h + 140) return;
-  const def = b.def;
-  const t = G.time || 0;
-  ctx.save();
-  ctx.translate(sx, sy);
-
-  if (def.kind === "aura") {
-    const g = ctx.createRadialGradient(0, 0, 6, 0, 0, def.radius);
-    g.addColorStop(0, `rgba(${hexRgb(def.color)},0.22)`);
-    g.addColorStop(0.7, `rgba(${hexRgb(def.color)},0.07)`);
-    g.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(0, 0, def.radius, 0, TAU); ctx.fill();
-  }
-
-  const r = 13 + Math.sin(t * 3) * 1.2 + b.hitFlash * 2;
-  if (!_shadowOff) { ctx.shadowColor = def.color; ctx.shadowBlur = 14; }
-  ctx.strokeStyle = `rgba(${hexRgb(def.color)},0.85)`;
-  ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.arc(0, 0, r + 5, 0, TAU); ctx.stroke();
-  ctx.shadowBlur = 0;
-
-  ctx.fillStyle = "rgba(4,16,24,0.92)";
-  ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU); ctx.fill();
-  ctx.strokeStyle = def.color;
-  ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU); ctx.stroke();
-
-  ctx.fillStyle = def.color;
-  ctx.font = 'bold 15px "STKaiti","KaiTi",serif';
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(def.ico, 0, 1);
-
-  ctx.globalAlpha = 0.9;
-  ctx.fillStyle = "#cbd5e1";
-  ctx.font = 'bold 10px system-ui,"Microsoft YaHei",sans-serif';
-  ctx.fillText(def.name, 0, -r - 12);
-  ctx.globalAlpha = 1;
-  ctx.restore();
-}
-
-function relicHudSync() {
-  if (!ui.relicRow) return;
-  ui.relicRow.innerHTML = "";
-  if (!G.relics.length) { ui.relicRow.classList.add("hidden"); return; }
-  ui.relicRow.classList.remove("hidden");
-  for (const r of G.relics) {
-    const el = document.createElement("span");
-    el.className = "relic-chip";
-    el.style.setProperty("--rc", r.color);
-    el.textContent = r.ico;
-    ui.relicRow.appendChild(el);
-  }
-}
-
-function beastHudSync() {
-  if (!ui.beastHud) return;
-  if (!G.beast) { ui.beastHud.classList.add("hidden"); return; }
-  ui.beastHud.classList.remove("hidden");
-  ui.beastHudIco.textContent = G.beast.def.ico;
-  ui.beastHudIco.style.setProperty("--bc", G.beast.def.color);
-  ui.beastHudName.textContent = G.beast.def.name;
-}
-
-// v4.0 砍掉「法宝匣 3 选 1」面板：直接在 collectPickup 随机获得
-function openRelicModal() { /* 法宝匣不再弹窗，由 collectPickup 处理 */ }
-// v4.0 砍掉弹窗收尾器（升级 / 遗物 / 精魄 都不再排队弹）
-function resolvePendingModal() { /* v4.0 不再弹窗 */ }
-
-// ---------- 炼宝台：专属灵石 → 流派宝石 / 通用装备 ----------
-function stoneHudSync() {
-  if (!ui.stoneRow) return;
-  ui.stoneRow.classList.remove("hidden");
-  ui.stoneRow.innerHTML = "";
-  const hot = nextGemStoneKey();
-  for (const st of stonesOf()) {
-    const n = stoneAt(st.key);
-    const chip = document.createElement("span");
-    chip.className = "stone-chip" + (n > 0 ? " has" : " empty") + (st.key === hot ? " hot" : "");
-    chip.style.setProperty("--cc", st.color);
-    chip.innerHTML = `<b>${st.ico}</b><i>${n}</i>`;
-    ui.stoneRow.appendChild(chip);
-  }
-}
-
-// 派系凑齐 5 颗自动弹醒
-function schoolHintCheck(school) {
-  if (!school) return;
-  if (G._schoolHinted === school) return;
-  if (canUnlockCore(school)) {
-    G._schoolHinted = school;
-    toast(`${school}派系灵石已足 · 可开炼宝台启核心`, "gold");
-  }
-}
-
-// 一颗宝石的当前进度（下一阶配方 / 主石存量 / 能否凝成）
-function gemProgress(def) {
-  const r = G.gems[def.id] || 0;
-  const tier = r >= 3 ? null : GEM_TIERS[r];
-  const main = stoneAt(def.stone);
-  return { r, tier, main, ratio: tier ? Math.min(1, main / tier.main) : 1 };
-}
-// 最接近凝成的那一系 —— 给 HUD 灵石芯片点个灯，省得玩家自己数
-function nextGemStoneKey() {
-  let best = null, bestRatio = -1;
-  for (const def of gemsOf()) {
-    const p = gemProgress(def);
-    if (p.r >= 3) continue;
-    if (p.r === 0 && gemSlotsUsed() >= MAX_GEMS) continue;
-    if (p.ratio > bestRatio) { bestRatio = p.ratio; best = def.stone; }
-  }
-  return best;
-}
-function canCraft(def) {
-  const r = G.gems[def.id] || 0;
-  if (r >= 3) return false;
-  if (r === 0 && gemSlotsUsed() >= MAX_GEMS) return false;
-  const t = GEM_TIERS[r];
-  return stoneAt(def.stone) >= t.main && stoneTotal() >= t.main + t.any;
-}
-function gemsMaxed() {
-  const ids = Object.keys(G.gems || {});
-  return ids.length >= MAX_GEMS && ids.every((id) => (G.gems[id] || 0) >= 3);
-}
-function canMelt() {
-  return gemsMaxed() && stoneTotal() >= MELT_COST;   // v3.0 装备替换通用后，淬体只看宝石满
-}
-function forgeableAny() {
-  if (gemsOf().some(canCraft)) return true;
-  return canMelt();
-}
-
-function forgeBtnSync() {
-  if (!ui.forgeBtn) return;
-  ui.forgeBtnCount.textContent = stoneTotal();
-  ui.forgeBtn.classList.toggle("ready", forgeableAny());
-}
-
-// ---------- 背包 v3.0 渲染 ----------
-function invHudSync() {
-  if (!ui.invBtnCount) return;
-  ui.invBtnCount.textContent = `${G.inventory.length}/${INVENTORY_MAX}`;
-  const hasPurple = G.inventory.some((e) => e.tier === "purple" || e.tier === "orange");
-  ui.invBtn.classList.toggle("has-purple", hasPurple);
-}
-// 渲染装备槽位（3 席）+ 背包网格（30 格）
-let _invSelectedUid = null;
-function renderInventory() {
-  if (!ui.invGrid) return;
-  // 槽位
-  for (const slot of ["weapon", "armor", "accessory"]) {
-    const node = ui["invSlot" + slot[0].toUpperCase() + slot.slice(1)];
-    if (!node) continue;
-    const eq = G.equipped[slot];
-    const labelEl = node.querySelector(".inv-slot-label");
-    const eqEl = node.querySelector(".inv-slot-eq");
-    if (eq) {
-      node.classList.add("filled");
-      eqEl.innerHTML = `<b style="color:${TIERS[eq.tier].color}">${TIERS[eq.tier].name}·${ITEM_TYPES[eq.typeKey].name}</b><br><span style="font-size:9px;color:#a78bfa">点击卸下</span>`;
-    } else {
-      node.classList.remove("filled");
-      eqEl.innerHTML = `<span class="empty-hint">空 · 点击紫/橙装备</span>`;
-    }
-    node.onclick = () => { if (G.equipped[slot]) { unequipTo(slot); renderInventory(); } };
-  }
-  // 网格
-  ui.invGrid.innerHTML = "";
-  for (let i = 0; i < INVENTORY_MAX; i++) {
-    const cell = document.createElement("div");
-    const eq = G.inventory[i];
-    if (!eq) {
-      cell.className = "inv-cell empty";
-    } else {
-      cell.className = `inv-cell tier-${eq.tier}`;
-      cell.innerHTML = `<div>${eq.ico}</div><div class="inv-cell-name">${TIERS[eq.tier].name}${eq.ico}</div>` +
-                       (TIERS[eq.tier].equipable ? `<div class="inv-cell-affix">装</div>` : "");
-      cell.onclick = () => {
-        _invSelectedUid = eq.uid;
-        renderInventory();
-      };
-      if (_invSelectedUid === eq.uid) cell.style.outline = "2px solid #d8b4fe";
-    }
-    ui.invGrid.appendChild(cell);
-  }
-  // 详情
-  renderInvDetail();
-}
-function renderInvDetail() {
-  if (!ui.invDetail) return;
-  if (!_invSelectedUid) {
-    ui.invDetail.className = "inv-detail empty";
-    ui.invDetail.innerHTML = "点选装备查看词条，点击槽位可装备紫/橙";
-    return;
-  }
-  const eq = G.inventory.find((e) => e.uid === _invSelectedUid);
-  if (!eq) {
-    ui.invDetail.className = "inv-detail empty";
-    ui.invDetail.innerHTML = "（已被卸下/合成）";
-    return;
-  }
-  const tier = TIERS[eq.tier];
-  const slotDef = SLOT_DEFS[eq.slot];
-  const mainLabel = eq.atk ? `攻击 +${eq.atk}` : eq.hp ? `生命 +${eq.hp}` : `移速 +${eq.spd}`;
-  ui.invDetail.className = "inv-detail";
-  ui.invDetail.innerHTML = `
-    <div class="det-name" style="color:${tier.color}">${eq.name} · ${slotDef.name}</div>
-    <div><span class="det-stat">${mainLabel}</span> · <span style="color:#fbbf24">${TIER_ORDER.indexOf(eq.tier)+1}/5阶</span></div>
-    ${eq.affixes.map((a) => {
-      const af = AFFIX_POOL[a];
-      return `<div class="det-affix${af.type === "稀有" ? " rare" : ""}">· ${af.name}：${af.desc}${af.type === "稀有" ? " ✦" : ""}</div>`;
-    }).join("")}
-    <div class="det-actions">
-      ${tier.equipable ? `<button class="btn-equip" id="btnEquipNow">装备到${slotDef.name}槽</button>` : `<button class="btn-equip" disabled style="opacity:0.4">白/绿/蓝不可装</button>`}
-    </div>`;
-  const btn = ui.invDetail.querySelector("#btnEquipNow");
-  if (btn) btn.onclick = () => {
-    if (equipTo(eq.uid)) { _invSelectedUid = null; renderInventory(); invHudSync(); }
-  };
-}
-function openInventory() {
-  G.state = "pause";
-  _invSelectedUid = null;
-  renderInventory();
-  ui.invModal.classList.remove("hidden");
-}
-function closeInventory() {
-  ui.invModal.classList.add("hidden");
-  G.state = "play";
-}
-// 炼宝台里装备快览（3 槽位 + 总览）
-function renderEquipQuick() {
-  if (!ui.forgeEquip) return;
-  if (ui.forgeEquipCount) {
-    const n = Object.values(G.equipped).filter(Boolean).length;
-    ui.forgeEquipCount.textContent = `${n}/${EQUIP_SLOTS_MAX}`;
-  }
-  ui.forgeEquip.innerHTML = "";
-  for (const slot of ["weapon", "armor", "accessory"]) {
-    const eq = G.equipped[slot];
-    const card = document.createElement("div");
-    if (eq) {
-      const tier = TIERS[eq.tier];
-      card.className = `eq-quick-card tier-${eq.tier}`;
-      card.innerHTML = `<div class="eq-qc-tier" style="color:${tier.color}">${tier.name}·${SLOT_DEFS[slot].name}</div>
-                        <div class="eq-qc-name">${ITEM_TYPES[eq.typeKey].name}</div>
-                        <div style="font-size:10px;color:#a78bfa">${eq.affixes.length}词条</div>`;
-    } else {
-      card.className = "eq-quick-card empty";
-      card.innerHTML = `<div class="eq-qc-tier">${SLOT_DEFS[slot].name}</div>
-                        <div class="eq-qc-name">未装备</div>
-                        <div style="font-size:10px;color:#6c7589">紫/橙可装</div>`;
-    }
-    ui.forgeEquip.appendChild(card);
-  }
-}
-
-function forgeHintCheck() {
-  if (G._forgeHinted || !forgeableAny()) return;
-  G._forgeHinted = true;
-  if (G.state === "play") toast("灵石已足 · 可开炼宝台", "gold");
-}
-
-// 花灵石：先掏散料者，主石留到最后 —— 尽量不拆散你正在攒的那一系
-function spendStones(n, exceptKey) {
-  const order = stoneKeys().slice().sort((a, b) => {
-    const ea = a === exceptKey ? 1 : 0, eb = b === exceptKey ? 1 : 0;
-    if (ea !== eb) return ea - eb;
-    return stoneAt(a) - stoneAt(b);
+  // weapon level ups
+  const wepUp = (key, name, tag, desc) => ({
+    id: "w_" + key, name, tag, desc, rare: false,
+    ico: UPGRADE_ICO["w_" + key] || UPGRADE_ICO[key] || "升",
+    apply: () => { G.weapons[key].lv = Math.min(5, G.weapons[key].lv + 1); },
+    can: () => G.weapons[key].lv > 0 && G.weapons[key].lv < 5,
   });
-  let left = n;
-  for (const k of order) {
-    if (left <= 0) break;
-    const take = Math.min(stoneAt(k), left);
-    G.stones[k] -= take;
-    left -= take;
-  }
-  return left === 0;
+  const wepUnlock = (key, name, tag, desc) => ({
+    id: "u_" + key, name, tag, desc, rare: true,
+    ico: UPGRADE_ICO["u_" + key] || UPGRADE_ICO[key] || "解",
+    apply: () => { G.weapons[key].lv = 1; },
+    can: () => G.weapons[key].lv === 0,
+  });
+  const wepEvo = (key, name, tag, desc) => ({
+    id: "e_" + key, name: name + "·觉醒", tag: tag, desc, rare: true,
+    ico: UPGRADE_ICO["e_" + key] || UPGRADE_ICO[key] || "觉",
+    apply: () => { G.weapons[key].evo = true; },
+    can: () => G.weapons[key].lv >= 5 && !G.weapons[key].evo,
+  });
+
+  pool.push(wepUnlock("fire", "业火球", "法术", "解锁业火球：命中燃烧"));
+  pool.push(wepUp("fire", "业火精炼", "法术", "业火球伤害/射速提升"));
+  pool.push(wepEvo("fire", "业火燎原", "法术", "业火球范围扩大，燃烧更烈"));
+
+  pool.push(wepUnlock("lightning", "紫电", "法术", "解锁紫电：命中弹射3目标"));
+  pool.push(wepUp("lightning", "紫电强化", "法术", "紫电伤害与弹射提升"));
+  pool.push(wepEvo("lightning", "九天雷法", "法术", "紫电弹射至5，伤害大增"));
+
+  pool.push(wepUnlock("frost", "寒冰锥", "法术", "解锁冰锥：命中减速"));
+  pool.push(wepUp("frost", "玄冰淬炼", "法术", "冰锥伤害与减速提升"));
+  pool.push(wepEvo("frost", "千里冰封", "法术", "冰锥穿透并冻结精英"));
+
+  pool.push(wepUnlock("array", "周天剑阵", "剑阵", "解锁剑阵：周期自身AOE"));
+  pool.push(wepUp("array", "剑阵扩域", "剑阵", "剑阵半径与伤害提升"));
+  pool.push(wepEvo("array", "万剑归宗", "剑阵", "剑阵连续脉冲三次"));
+
+  // default weapons can level & evolve
+  pool.push(wepUp("sword", "飞剑精炼", "飞剑", "飞剑伤害与速度提升"));
+  pool.push(wepEvo("sword", "玄天剑光", "飞剑", "飞剑伤害大增并多穿透1"));
+  pool.push(wepUp("orbit", "环剑精修", "飞剑", "环绕剑伤害提升"));
+  pool.push(wepEvo("orbit", "剑罡环绕", "飞剑", "环绕剑伤害大幅提升"));
+
+  // filter by can()
+  return pool.filter((u) => !u.can || u.can());
 }
 
-function renderForge() {
-  // 灵石库存（本角色三系）
-  if (ui.forgeStones) {
-    ui.forgeStones.innerHTML = "";
-    for (const st of stonesOf()) {
-      const n = stoneAt(st.key);
-      const chip = document.createElement("span");
-      chip.className = "forge-crystal" + (n > 0 ? " has" : "");
-      chip.style.setProperty("--cc", st.color);
-      chip.innerHTML = `<b>${st.ico} ${st.name}</b><i>${n}</i>`;
-      ui.forgeStones.appendChild(chip);
+function rollUpgrades() {
+  let pool = buildUpgradePool();
+  const luck = G._shopLuck || 0;
+  if (luck > 0) {
+    // bias rare: duplicate rare entries
+    const weighted = [];
+    for (const u of pool) {
+      weighted.push(u);
+      if (u.rare) for (let i = 0; i < luck; i++) weighted.push(u);
     }
+    pool = weighted;
   }
-  if (ui.forgeGemCount) ui.forgeGemCount.textContent = `${gemSlotsUsed()}/${MAX_GEMS}`;
-  if (ui.forgeOrdCount) ui.forgeOrdCount.textContent = `${G.ordinary.length}/${MAX_ORDINARY}`;
-
-  // 流派宝石：三系各一颗，可逐阶凝练；槽位只有两个
-  if (ui.forgeGems) {
-    ui.forgeGems.innerHTML = "";
-    const slotsFull = gemSlotsUsed() >= MAX_GEMS;
-    for (const def of gemsOf()) {
-      const p = gemProgress(def);
-      const maxed = p.r >= 3;
-      const blocked = !maxed && p.r === 0 && slotsFull;
-      const ready = canCraft(def);
-      const disabled = maxed || blocked || !ready;
-      const st = STONE_BY_KEY[def.stone];
-      const nextLabel = p.r === 0 ? "初凝" : p.r === 1 ? "化形" : "圆满";
-      const pips = [1, 2, 3].map((i) => `<i class="gp${p.r >= i ? " on" : ""}"></i>`).join("");
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "forge-item f-excl tier-xian" + (maxed ? " owned" : disabled ? " disabled" : " can");
-      btn.style.setProperty("--fc", def.color);
-      btn.innerHTML = `
-        <span class="fi-ico">${def.ico}</span>
-        <span class="fi-body">
-          <span class="fi-name">${def.name}<em>${def.school}</em><em class="el" style="color:${def.color}">${ELEM_BY_KEY[def.elem].name}行</em></span>
-          <span class="fi-pips">${pips}<b>${maxed ? "圆满" : p.r > 0 ? nextLabel : "未凝"}</b></span>
-          <span class="fi-desc">${maxed ? "已达圆满 · 效果恒定" : def.tierText[p.r]}</span>
-          <span class="fi-desc rel">${elemMatchText(def.elem)}</span>
-        </span>
-        <span class="fi-cost">${maxed ? "圆满"
-          : blocked ? `需空出流派位`
-          : `主石 ${st.name} ${p.main}/${GEM_TIERS[p.r].main}${GEM_TIERS[p.r].any ? ` · 配 ${GEM_TIERS[p.r].any}` : ""}`}</span>`;
-      if (!disabled) btn.addEventListener("click", () => craftGem(def.id));
-      ui.forgeGems.appendChild(btn);
-    }
+  const picked = [];
+  const ids = new Set();
+  const shuffled = shuffle(pool);
+  for (const u of shuffled) {
+    if (ids.has(u.id)) continue;
+    ids.add(u.id);
+    picked.push(u);
+    if (picked.length >= 3) break;
   }
-
-  // 通用装备已由 v3.0 装备系统取代（背包自动合成 + 怪物掉落）
-  renderEquipQuick();
-
-  // 灵石淬体：宝石与通用皆满才出现
-  if (ui.forgeMelt) {
-    const open = gemsMaxed();
-    if (ui.forgeMeltWrap) ui.forgeMeltWrap.classList.toggle("hidden", !open);
-    ui.forgeMelt.innerHTML = "";
-    if (open) {
-      const can = stoneTotal() >= MELT_COST;
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "forge-item f-melt tier-ling" + (can ? " can" : " disabled");
-      btn.style.setProperty("--fc", "#5ce1e6");
-      btn.innerHTML = `
-        <span class="fi-ico">淬</span>
-        <span class="fi-body">
-          <span class="fi-name">灵石淬体<em class="ord">循环</em></span>
-          <span class="fi-desc">攻击 +2% · 护盾上限 +8 并回复（可重复）</span>
-        </span>
-        <span class="fi-cost">灵石 ${MELT_COST}${G.meltCount ? ` · 已淬 ${G.meltCount}` : ""}</span>`;
-      if (can) btn.addEventListener("click", meltStones);
-      ui.forgeMelt.appendChild(btn);
-    }
-  }
-
-  renderResonance();
-  renderCores();
+  return picked;
 }
-
-// 共鸣面板：四条共鸣实时展示（locked/active），位于熔晶淬体下方
-function renderResonance() {
-  if (!ui.forgeResonance) return;
-  G.resonance = G.resonance || recomputeResonance();
-  const r = G.resonance;
-  const stones = stonesOf();
-  const gems = gemsOfId();
-  ui.forgeResonance.innerHTML = "";
-  for (const def of RESONANCE_DEFS) {
-    const on = !!r[def.id];
-    const detail = describeResonance(def.id, r, stones, gems);
-    const btn = document.createElement("div");
-    btn.className = "res-card" + (on ? " on" : "");
-    btn.innerHTML = `
-      <span class="res-ico">${def.ico}</span>
-      <span class="res-body">
-        <span class="res-name">${def.label}${on ? "·已觉醒" : "·未启"}</span>
-        <span class="res-desc">${detail}</span>
-      </span>
-      <span class="res-state">${on ? "已" : "未"}</span>`;
-    ui.forgeResonance.appendChild(btn);
-  }
-  resHudSync();
-}
-
-function describeResonance(id, r, stones, gems) {
-  switch (id) {
-    case "benming":
-      return gems.length ? `已凝宝石 ${gems.length} 颗 · 全伤 +${(r.benPlayerMul * 100) | 0}%`
-        : "尚无已凝宝石";
-    case "daotu": {
-      const p = JOB_PATHS[G.jobPath];
-      if (!p) return "未择道途";
-      if (!r.daoTuElems.length) return `${p.name}五行未与宝石重合`;
-      return `${p.name}·[${r.daoTuElems.map((k) => ELEM_BY_KEY[k].name).join("·")}] 所克目标再 +25%`;
-    }
-    case "kuaJie":
-      return r.kuaJieStones.length
-        ? `${r.kuaJieStones.map((k) => STONE_BY_KEY[k].name).join("·")}圆满 · 整段 ×1.5`
-        : "至少一颗灵石需凝至圆满";
-    case "pobi":
-      return r.poBiElems.length
-        ? `${r.poBiElems.map((k) => ELEM_BY_KEY[k].name).join("⇿")}相克 · 余敌 +15%`
-        : "需 2 颗宝石五行相克";
-    default:
-      return id;
-  }
-}
-
-// 共鸣 HUD 缩略：右上灵兽/灵石芯片的下方
-function resHudSync() {
-  if (!ui.resHud || !ui.resHudList) return;
-  const r = G.resonance;
-  if (!r) { ui.resHud.classList.add("hidden"); return; }
-  const onNames = RESONANCE_DEFS.filter((d) => r[d.id]).map((d) => d.label);
-  if (onNames.length === 0) { ui.resHud.classList.add("hidden"); return; }
-  ui.resHud.classList.remove("hidden");
-  ui.resHudList.innerHTML = onNames.map((n) => `<span class="res-chip">${n.replace(/^[··]*/, "")}</span>`).join("");
-}
-
-// 派系核心面板：9 派系格子 + 2 装备槽位（v2.0 新增）
-function renderCores() {
-  if (!ui.forgeCores) return;
-  ui.forgeCores.innerHTML = "";
-  const cores = coresOfChar();
-  const equipped = new Set(G.cores || []);
-  const unlocked = G.schoolUnlocked || {};
-  for (const def of cores) {
-    const on = equipped.has(def.id);
-    const isOn = !!unlocked[def.school];
-    const have = countSchool(def.school);
-    const can = canUnlockCore(def.school);
-    const slotsLeft = MAX_SCHOOL_CORES - equipped.size;
-    const btn = document.createElement("div");
-    btn.className = "res-card core-card" + (on ? " on" : isOn ? " off" : can ? " ready" : "");
-    btn.style.setProperty("--cc", def.color);
-    btn.innerHTML = `
-      <span class="res-ico">${def.ico}</span>
-      <span class="res-body">
-        <span class="res-name">${def.name}<em class="el" style="color:${def.color}">${def.school}派系 · ${ELEM_BY_KEY[def.elem].name}行</em></span>
-        <span class="res-desc">${on ? "已装备 · " + def.desc : isOn ? "已觉醒 · 未装备" + (slotsLeft > 0 ? "" : "（槽位满）") : `需 ${def.school}派系灵石 ${have}/${CORE_NEED_STONES}`}</span>
-      </span>
-      <span class="res-state">${on ? "装" : isOn ? "备" : can ? "启" : "集"}</span>`;
-    btn.addEventListener("click", () => {
-      if (on) { unequipCore(def.id); toast(`卸下 · ${def.name}`, "cyan"); }
-      else if (isOn) {
-        if (slotsLeft <= 0) { toast("核心槽位已满（" + MAX_SCHOOL_CORES + " 席）"); return; }
-        if (equipCore(def.id)) toast(`装备 · ${def.name}`, "violet");
-      }
-      else if (can) {
-        if (unlockCore(def.school)) {
-          stoneHudSync(); forgeBtnSync(); renderForge();
-          return;
-        }
-      } else {
-        toast(`${def.school}派系灵石尚差 ${CORE_NEED_STONES - have} 颗`);
-      }
-      stoneHudSync(); forgeBtnSync(); renderForge();
-    });
-    ui.forgeCores.appendChild(btn);
-  }
-  coreHudSync();
-}
-
-// 派系核心 HUD chip：装备的派系核心名
-function coreHudSync() {
-  if (!ui.coreHud || !ui.coreHudList) return;
-  const cores = coresEquipped();
-  if (!cores.length) { ui.coreHud.classList.add("hidden"); return; }
-  ui.coreHud.classList.remove("hidden");
-  ui.coreHudList.innerHTML = cores.map((c) => `<span class="core-chip" style="--cc:${c.color}">${c.ico} ${c.name}</span>`).join("");
-}
-
-// 凝练：主石决定是哪一系，配料决定能到哪一阶
-// ---------- 共鸣 · 多颗已凝宝石之间的协同奖励 ----------
-// 四条共鸣，由「已凝宝石 + 角色 + 转职道」实时推出
-//   本命归一：≥ 1 颗已凝宝石          ⇒ 玩家全伤 +12%
-//   道途共鸣：宝石元素 ∈ 转职五行集    ⇒ 该宝石对「其所克」目标再 +25%
-//   跨阶归一：任一灵石同时三阶         ⇒ 圆满特效的整段伤害 ×1.5
-//   破壁者  ：任意 2 颗宝石存在相克    ⇒ 对未直接被克的目标 +15%
-const RESONANCE_DEFS = [
-  { id: "benming", label: "本命归一", ico: "命",
-    desc: "你已凝出第一颗流派宝石 · 全局伤害 +12%" },
-  { id: "daotu",   label: "道途共鸣", ico: "道",
-    desc: "宝石与转职同属 · 该系对所克目标再 +25%" },
-  { id: "kuaJie",  label: "跨阶归一", ico: "阶",
-    desc: "一颗灵石推至圆满 · 圆满特效整段 ×1.5" },
-  { id: "pobi",    label: "破壁者", ico: "破",
-    desc: "两颗宝石五行相克 · 对未被克目标 +15%" },
-];
-
-function gemsOfId() {
-  return Object.entries(G.gems || {})
-    .map(([id, t]) => ({ id, t, def: GEM_BY_ID[id] }))
-    .filter((x) => x.def);
-}
-
-function recomputeResonance() {
-  const gems = gemsOfId();
-  const res = {
-    benming: false, daotu: false, kuaJie: false, poBi: false,
-    benPlayerMul: 0, daoTuElems: [], kuaJieStones: [], poBiElems: [],
-  };
-
-  // 1. 本命归一：≥ 1 颗已凝宝石 ⇒ 玩家伤害系数 +12%（由 playerDamageMult 读取）
-  if (gems.length >= 1) {
-    res.benming = true;
-    res.benPlayerMul = 0.12;
-  }
-
-  // 2. 道途共鸣：任一已凝宝石的元素 ∈ 当前转职五行集
-  const path = JOB_PATHS[G.jobPath];
-  const set = path && PATH_ELEMS[path.id];
-  if (set) {
-    const seen = new Set();
-    for (const g of gems) if (set.has(g.def.elem)) seen.add(g.def.elem);
-    if (seen.size) {
-      res.daotu = true;
-      res.daoTuElems = [...seen];
-    }
-  }
-
-  // 3. 跨阶归一：任意一颗宝石到达 tier=3（圆满）
-  const maxTier = Math.max(0, ...gems.map((g) => g.t || 0));
-  if (maxTier >= 3) {
-    res.kuaJie = true;
-    res.kuaJieStones = gems.filter((g) => g.t >= 3).map((g) => g.def.stone);
-  }
-
-  // 4. 破壁者：两颗宝石之间存在「相克」(i.g.j 或 j.g.i)
-  for (let i = 0; i < gems.length; i++) {
-    for (let j = i + 1; j < gems.length; j++) {
-      const ei = gems[i].def.elem, ej = gems[j].def.elem;
-      if (ELEM_OVERCOME[ei] === ej || ELEM_OVERCOME[ej] === ei) {
-        res.pobi = true;
-        res.poBiElems = [...new Set([ei, ej])];
-        i = gems.length; break;
-      }
-    }
-  }
-
-  return res;
-}
-
-// 返回「刚刚首次觉醒」的共鸣列表，供 craftGem toast
-function resonanceJust(prev, now) {
-  const out = [];
-  if (!prev) return out;
-  const names = { benming: "本命归一", daotu: "道途共鸣", kuaJie: "跨阶归一", pobi: "破壁者" };
-  for (const k of ["benming", "daotu", "kuaJie", "pobi"]) {
-    if (!prev[k] && now[k]) out.push(names[k]);
-  }
-  return out;
-}
-
-function craftGem(id) {
-  const def = GEM_BY_ID[id];
-  if (!def || def.char !== G.charId) return;
-  const cur = G.gems[id] || 0;
-  const st = STONE_BY_KEY[def.stone];
-  if (cur >= 3) { toast("此宝已至圆满"); return; }
-  if (cur === 0 && gemSlotsUsed() >= MAX_GEMS) { toast(`流派之位数已满（${MAX_GEMS} 席）`); return; }
-  const t = GEM_TIERS[cur];
-  if (stoneAt(def.stone) < t.main) { toast(`${st.name}不足`); return; }
-  if (stoneTotal() < t.main + t.any) { toast("灵石不足"); return; }
-  G.stones[def.stone] -= t.main;
-  if (t.any > 0) spendStones(t.any, def.stone);
-  const nr = cur + 1;
-  G.gems[id] = nr;
-  def.apply(nr);
-  burst(G.px, G.py, def.color, 22 + nr * 8, 190 + nr * 30, 4 + nr);
-  G.goldFlash = Math.max(G.goldFlash || 0, 0.35 + nr * 0.12);
-  G.shake = Math.max(G.shake, 6 + nr * 2);
-  spawnFloater(G.px, G.py - G.pr - 22, `${def.name} · ${GEM_TIERS[nr - 1].label}`, def.color, nr >= 3 ? 20 : 16, true);
-  AudioSys.level();
-  toast(`凝成 · ${def.name}（${GEM_TIERS[nr - 1].label}）`, "gold");
-  // 重新计算共鸣 —— 任何新觉醒的都会单独再 toast 一次
-  const prevR = G.resonance || {};
-  const r = recomputeResonance();
-  G.resonance = r;
-  const just = resonanceJust(prevR, r);
-  stoneHudSync(); forgeBtnSync(); renderForge(); refreshWeaponHint();
-  if (just.length) {
-    setTimeout(() => toast("共鸣觉醒 · " + just.join(" · "), "violet"), 240);
-  }
-}
-
-function forgeOrdinary(id) {
-  // v3.0 装备替换了通用装备 —— 通用合成入口已废弃
-  toast("通用装备已下线 · 用怪物掉落的装备吧", "warn");
-}
-
-// 宝石满后的去处：把富余灵石淬进肉身（收益明显低于宝石）
-function meltStones() {
-  if (!gemsMaxed()) { toast("先凝满流派宝石"); return; }
-  if (!spendStones(MELT_COST)) { toast("灵石不足"); return; }
-  G.atk *= 1.02;
-  G.shieldMax += 8;
-  G.shield = Math.min(G.shieldMax, G.shield + 8);
-  G.meltCount = (G.meltCount || 0) + 1;
-  burst(G.px, G.py, "#5ce1e6", 12, 150, 3);
-  AudioSys.buy();
-  toast("灵石淬体 · 攻击 +2% · 护盾 +8", "cyan");
-  stoneHudSync(); forgeBtnSync(); renderForge(); refreshWeaponHint();
-}
-
-function openForge() {
-  if (G.state !== "play") return;
-  G.state = "forge";
-  releaseJoystick();
-  renderForge();
-  ui.forgeModal.classList.remove("hidden");
-  AudioSys.buy();
-}
-
-function closeForge() {
-  ui.forgeModal.classList.add("hidden");
-  if (G.state === "forge") G.state = "play";
-  last = performance.now();
-  resolvePendingModal();
-}
-
-// v4.0 砍掉灵魄 3 选 1 弹窗：collectPickup 直接自动选最大派系
-function openEssenceModal() { /* v4.0 灵魄不再弹窗 */ }
 
 // ---------- Enemies ----------
 const ENEMY_TYPES = {
@@ -2773,20 +560,7 @@ function spawnEnemy(typeId, x, y, wave) {
     elite: !!t.elite, boss: !!t.boss, splits: !!t.splits, summon: !!t.summon, slam: !!t.slam,
     flash: 0, hitCD: 0, specialCD: rand(2, 4), phase: rand(0, TAU),
     burn: 0, burnDmg: 0, slow: 0, slowMul: 1, dead: false,
-    elem: t.elem || waveElemKey(),   // 五行属性：随波轮转
   };
-  // v6.0 A · 怪物词缀：精英/大妖随机带 1-2 个，实例化时立即生效
-  e.mods = (e.elite || e.boss) ? rollEnemyMods(e, wave) : [];
-  for (const m of e.mods) {
-    if (m === "swift")  e.speed *= 1.6;
-    if (m === "mirror") e.atk += G.atk * 0.25;
-    if (m === "ward")  { e.ward = hp * 0.45; e.wardMax = e.ward; }
-    if (m === "drain") { e.drainT = 0; }
-  }
-  if (e.mods.length) {
-    const names = e.mods.map((m) => ENEMY_MODS[m].name).join("·");
-    toast(`${e.boss ? "大妖" : "精英"}词缀 · ${names}`, "violet");
-  }
   G.enemies.push(e);
   if (t.boss) {
     G.bossBanner = 2.2;
@@ -2818,27 +592,30 @@ function buildWave(wave) {
 }
 
 function updateWaves(dt) {
-  const trickleInterval = Math.max(0.8, 2.2 - G.wave * 0.04);
-  G._trickle = (G._trickle || 0) + dt;
-  if (G._trickle >= trickleInterval) {
-    G._trickle = 0;
-    if (G.enemies.length < 80) {
-      const pool = ["fox", "bat"];
-      if (G.wave >= 3) pool.push("wolf", "ghost");
-      spawnAtEdge(pick(pool), G.wave);
+  const mode = getMode(G.mode);
+  if (mode.trickle) {
+    const trickleInterval = Math.max(0.8, 2.2 - G.wave * 0.04);
+    G._trickle = (G._trickle || 0) + dt;
+    if (G._trickle >= trickleInterval) {
+      G._trickle = 0;
+      if (G.enemies.length < 80) {
+        const pool = ["fox", "bat"];
+        if (G.wave >= 3) pool.push("wolf", "ghost");
+        spawnAtEdge(pick(pool), G.wave);
+      }
     }
   }
+  const canAdvance = !mode.maxWave || G.wave < mode.maxWave;
   G.waveTimer -= dt;
-  if (G.waveTimer <= 0) {
+  if (G.waveTimer <= 0 && canAdvance) {
     G.wave += 1;
     G.waveTimer = G.waveInterval;
     G.spawnQueue = buildWave(G.wave);
-    const we = ELEM_BY_KEY[waveElemKey()];
-    const rel = bestElemRelation(we.key);
-    const relTxt = rel.tag ? ` · ${rel.tag}` : "";
-    toast(`第 ${G.wave} 波 · ${we.name}行妖潮${relTxt}`, rel.mul < 1 ? "cyan" : G.wave % 5 === 0 ? "red" : "gold");
+    toast(`第 ${G.wave} 波 · 妖潮来袭`, G.wave % 5 === 0 ? "red" : "cyan");
     G.waveBanner = 1.4;
-    G.waveBannerText = (G.wave % 5 === 0 ? `第 ${G.wave} 波 · ${we.name}行大妖` : `第 ${G.wave} 波 · ${we.name}行妖潮`) + relTxt;
+    G.waveBannerText = G.wave >= (mode.maxWave || 99) || G.wave % 5 === 0
+      ? `第 ${G.wave} 波 · 大妖将至`
+      : `第 ${G.wave} 波 · 妖潮`;
     if (G.wave % 5 === 0) AudioSys.boss();
   }
   if (G.spawnQueue.length) {
@@ -2849,90 +626,6 @@ function updateWaves(dt) {
       if (G.enemies.length < 90) spawnAtEdge(item.type, G.wave);
     }
   }
-}
-
-// ================= v6.0 C · 祭坛赌注 =================
-// 每 5 波显化一座祭坛 —— 是"你主动走过去"的空间交互，不是打断节奏的强制弹窗，可以拒绝
-const ALTAR_DEALS = [
-  { id: "blood", ico: "血", name: "血祭", give: "攻击 +50%",             cost: "献祭 30% 生命上限",
-    apply() { G.altarBuffs.hpMul *= 0.7; G.altarBuffs.atkMul *= 1.5; } },
-  { id: "void",  ico: "空", name: "空槽", give: "装备掉落品阶 +1 阶",     cost: "随机卸下 1 件已穿装备",
-    apply() { const sl = ["weapon", "armor", "accessory"].filter((s) => G.equipped[s]); if (sl.length) unequipTo(sl[Math.floor(Math.random() * sl.length)]); G.altarBuffs.dropUp += 1; } },
-  { id: "curse", ico: "咒", name: "妖咒", give: "经验 ×1.5",             cost: "全场妖物移速 +25%",
-    apply() { G.altarBuffs.xpMul *= 1.5; G.altarBuffs.curseSpeed *= 1.25; } },
-  { id: "frail", ico: "脆", name: "脆骨", give: "暴击率 +18%",           cost: "生命上限 −25%",
-    apply() { G.altarBuffs.hpMul *= 0.75; G.altarBuffs.critAdd += 0.18; } },
-  { id: "lame",  ico: "缚", name: "缚足", give: "拾取范围 +140",         cost: "移速 −15%",
-    apply() { G.altarBuffs.moveMul *= 0.85; G._altarPickup = (G._altarPickup || 0) + 140; } },
-  { id: "greed", ico: "贪", name: "贪饕", give: "攻击 +30% · 经验 +30%", cost: "受到伤害 +20%",
-    apply() { G.altarBuffs.atkMul *= 1.3; G.altarBuffs.xpMul *= 1.3; G._baseDmgTaken = (G._baseDmgTaken || 1) + 0.2; } },
-];
-const ALTAR_BY_ID = {};
-for (const d of ALTAR_DEALS) ALTAR_BY_ID[d.id] = d;
-
-// 品阶提升（祭坛「空槽」用）
-function tierUp(tier, n) {
-  const i = TIER_ORDER.indexOf(tier);
-  return TIER_ORDER[Math.min(TIER_ORDER.length - 1, i + n)];
-}
-
-function spawnAltar() {
-  const ang = rand(0, TAU);
-  G.altars.push({ x: G.px + Math.cos(ang) * 330, y: G.py + Math.sin(ang) * 330, r: 48, life: 50, used: false, bob: 0 });
-  toast("祭坛显现 · 走近立血契（可直接走开拒绝）", "violet");
-}
-
-function updateAltars(dt) {
-  if (G.wave > 0 && G.wave % 5 === 0 && G._altarWave !== G.wave) { G._altarWave = G.wave; spawnAltar(); }
-  for (const a of G.altars) { a.life -= dt; a.bob += dt * 2.2; }
-  G.altars = G.altars.filter((a) => a.life > 0 && !a.used);
-  if (G.state !== "play") return;
-  for (const a of G.altars) {
-    if (dist(a.x, a.y, G.px, G.py) < a.r + G.pr) { openAltar(a); break; }
-  }
-}
-
-function openAltar(a) {
-  a.used = true;
-  G.state = "altar";
-  const pool = ALTAR_DEALS.slice();
-  const picks = [];
-  for (let i = 0; i < 3 && pool.length; i++) picks.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
-  G._altarPicks = picks;
-  if (ui.altarChoices) {
-    ui.altarChoices.innerHTML = "";
-    for (const d of picks) {
-      const btn = document.createElement("button");
-      btn.className = "choice-card altar-card";
-      btn.dataset.deal = d.id;
-      btn.innerHTML = `<span class="choice-ico">${d.ico}</span><b>${d.name}</b>`
-        + `<span class="choice-desc">${d.give}</span><span class="altar-cost">代价 · ${d.cost}</span>`;
-      btn.addEventListener("click", () => takeAltarDeal(d.id));
-      ui.altarChoices.appendChild(btn);
-    }
-  }
-  if (ui.altarModal) ui.altarModal.classList.remove("hidden");
-  AudioSys.level();
-}
-
-function takeAltarDeal(id) {
-  const d = ALTAR_BY_ID[id];
-  if (!d) return closeAltar();
-  d.apply();
-  equipRec();
-  G.hp = Math.min(G.hp, G.hpMax);
-  burst(G.px, G.py, "#c084fc", 26, 220, 4);
-  G.shake = Math.max(G.shake, 6);
-  showBigBanner("血契成立", `${d.name} · ${d.give}`, "purple");
-  toast(`血契 · ${d.name} · ${d.give}`, "violet");
-  closeAltar();
-}
-
-function closeAltar() {
-  if (ui.altarModal) ui.altarModal.classList.add("hidden");
-  // 立契或拒绝后祭坛都消散，避免重复触发
-  G.altars = G.altars.filter((a) => !a.used);
-  G.state = "play";
 }
 
 // ---------- Combat ----------
@@ -2946,6 +639,9 @@ function onKillCombo() {
   if (G.combo === 10) toast("连杀 ×10", "gold");
   if (G.combo === 25) toast("连杀 ×25 · 妖胆俱裂", "gold");
   if (G.combo === 50) toast("连杀 ×50 · 剑心通明", "gold");
+  if (window.Analytics && (G.combo === 10 || G.combo === 25 || G.combo === 50)) {
+    Analytics.track("combo_peak", { value: G.combo, mode: G.mode });
+  }
   if (G.combo % 10 === 0 && G.combo > 50) toast(`连杀 ×${G.combo}`, "gold");
   // floating combo tick near player when stacking
   if (G.combo >= 3 && G.combo % 2 === 0) {
@@ -2962,45 +658,8 @@ function hitStop(ms) {
   G.hitStop = Math.max(G.hitStop, ms / 1000);
 }
 
-// 震波：把周围妖物推开一点（磐石/铁骨的圆满效果用）
-function knockEnemies(cx, cy, radius, force) {
-  for (const e of G.enemies) {
-    if (e.dead || e.boss) continue;
-    const d = dist(cx, cy, e.x, e.y);
-    if (d < radius && d > 0.01) {
-      const f = force * (1 - d / radius);
-      e.x += ((e.x - cx) / d) * f;
-      e.y += ((e.y - cy) / d) * f;
-    }
-  }
-}
-
 function damagePlayer(amount) {
   if (G.dashIFrame > 0 || G.invuln > 0) return;
-  // 派系核心：装备中核心的 damageTaken 钩子（如玄铁 30% 完全免伤）
-  for (const c of coresEquipped()) {
-    if (c.damageTaken) amount = c.damageTaken(amount);
-    if (amount <= 0) return;
-  }
-  amount *= (G.nodeDmgTakenMul || 1) * (G.dmgTakenMul || 1);   // 玄冰剑阵 / 转职：减伤
-  // v6.0 B 联动 · 玄铁壁：护盾还在时，减伤再 −20%
-  if (synOn("syn_ironwall") && G.shield > 0) amount *= 0.8;
-  const hadShield = G.shield > 0;
-  // v6.0 B 联动 · 荆棘壁垒：护盾还在时，受击反弹 ×3 给周围 3 敌
-  if (synOn("syn_thornwall") && hadShield && amount > 0) {
-    const back = amount * 0.25 * 3;
-    let n = 0;
-    for (const e of G.enemies) {
-      if (e.dead || n >= 3) continue;
-      if (dist(e.x, e.y, G.px, G.py) < 180) {
-        e.hp -= back;
-        spawnFloater(e.x, e.y - e.r, String(Math.round(back)), "#a3e635", 11);
-        if (e.hp <= 0) killEnemy(e);
-        n++;
-      }
-    }
-    if (n > 0) burst(G.px, G.py, "#a3e635", 10, 150, 3);
-  }
   if (G.shield > 0) {
     const abs = Math.min(G.shield, amount);
     G.shield -= abs;
@@ -3013,32 +672,12 @@ function damagePlayer(amount) {
       });
     }
   }
-  // 铁骨圆满：护盾被击碎时爆发冲击波
-  if (hadShield && G.shield <= 0 && G.gemFx.shieldBreak) {
-    burst(G.px, G.py, "#cbd5e1", 26, 240, 5);
-    G.shake = Math.max(G.shake, 7);
-    for (const e of G.enemies) {
-      if (e.dead) continue;
-      if (dist(e.x, e.y, G.px, G.py) < 150) applyHit(e, G.atk * 1.4 * playerDamageMult());
-    }
-    knockEnemies(G.px, G.py, 150, 90);
-    toast("护盾碎裂 · 冲击波外放", "cyan");
-  }
   if (amount <= 0) return;
   G.hp -= amount;
   G.playerHurt = 0.18;
   G.flash = 0.15;
   G.shake = Math.min(10, G.shake + amount * 0.08);
   AudioSys.hurt();
-  // 磐石圆满：受击有概率爆出震波
-  if (G.gemFx.quake && Math.random() < G.gemFx.quake) {
-    burst(G.px, G.py, "#d6a86a", 20, 200, 4);
-    for (const e of G.enemies) {
-      if (e.dead) continue;
-      if (dist(e.x, e.y, G.px, G.py) < 130) applyHit(e, G.atk * playerDamageMult());
-    }
-    knockEnemies(G.px, G.py, 130, 70);
-  }
   spawnFloater(G.px, G.py - G.pr - 8, `-${Math.round(amount)}`, "#f87171", 14);
   // thorns
   if (G.thorns > 0) {
@@ -3053,41 +692,15 @@ function damagePlayer(amount) {
     }
   }
   if (G.hp <= 0) {
-    // 派系核心 onDeathCheck：龙血核心「浴火重生」满血复活一次
-    let revived = false;
-    for (const c of coresEquipped()) {
-      if (c.onDeathCheck && c.onDeathCheck()) { revived = true; break; }
-    }
-    if (revived) return;
-    G.hp = 0; endRun();
+    G.hp = 0;
+    G.deathCause = G.lastHit || "swarm";
+    endRun();
   }
-}
-
-// 御风圆满：御风之后短时间攻速大涨
-function atkSpeedNow() {
-  const h = (G.gemFx && G.gemFx.dashHaste && G.hasteT > 0) ? 1 + G.gemFx.dashHaste : 1;
-  // v6.0 B 联动 · 狂血：击杀后 2s 攻速 ×2
-  const f = (G._frenzyT || 0) > 0 ? 2 : 1;
-  return G.atkSpeed * h * f;
 }
 
 function playerDamageMult() {
   let m = 1;
-  const eq = G._eqCache || equipBonuses();
   if (G.hp < G.hpMax * 0.4) m += G.lowHpBonus;
-  // 龙血流：气血低于 45% 时狂化
-  if (G.gemFx && G.gemFx.rage && G.hp < G.hpMax * 0.45) m += 0.25;
-  // 本命归一（共鸣）—— 凝出第一颗宝石即永久获得
-  if (G.resonance && G.resonance.benPlayerMul) m += G.resonance.benPlayerMul;
-  // v3.0 装备·火元素加伤（其他元素词条预留接口）
-  m *= eq.huoMul;
-  // 派系核心：每个核心可叠加一个 damageMult 钩子（血月当空等）
-  for (const c of coresEquipped()) {
-    if (c.damageMult) m = c.damageMult(m);
-  }
-  // 剑阵：站在阵上吃阵法增益，升级「阵心通明」再叠一层
-  m *= (G.nodeAtkMul || 1);
-  if (G.nodeActive) m *= (1 + (G.nodeBonus || 0));
   return m;
 }
 
@@ -3111,121 +724,11 @@ function killEnemy(e, byPlayer = true) {
   e.dead = true;
   G.kills += 1;
   onKillCombo();
-  // v6.0 B 联动 · 悟道：击杀经验 +50%
-  const synXpMul = synOn("syn_enlight") ? 1.5 : 1;
-  const xp = Math.round(e.xp * G.xpMul * comboMul() * (G.nodeXpMul || 1) * synXpMul);
-  // v6.0 B 联动 · 狂血：击杀后 2s 攻速 ×2
-  if (synOn("syn_frenzy")) G._frenzyT = 2;
+  const xp = Math.round(e.xp * G.xpMul * comboMul());
   gainXP(xp);
   if (G.lifesteal > 0) G.hp = Math.min(G.hpMax, G.hp + G.lifesteal);
-  if (e.boss) {
-    dropPickup(e.x, e.y, "boss");
-    dropPickup(e.x + rand(-26, 26), e.y + rand(-26, 26), "relic");
-    // 妖王陨落凝出「灵石精魄」——拾取后本命三系自选一系，是全流程最重的决策
-    dropPickup(e.x + rand(-34, 34), e.y + rand(-34, 34), "essence");
-    for (let i = 0; i < DROP_BOSS; i++) {
-      dropPickup(e.x + rand(-46, 46), e.y + rand(-46, 46), "stone", { stone: randStone() });
-    }
-    // 妖王必出「派系包」—— 5 颗同派系，凑派系核心的关键一跳
-    {
-      const mySchools = [...new Set(stonesOf().map((s) => s.school))];
-      const s = pick(mySchools);
-      const arr = STONE_BY_SCHOOL[s];
-      for (let i = 0; i < 5; i++) {
-        dropPickup(e.x + rand(-50, 50), e.y + rand(-50, 50), "stone", { stone: pick(arr).key });
-      }
-      toast(`妖王赐福 · ${s}派系灵石 ×5`, "gold");
-    }
-  } else if (e.elite) {
-    dropPickup(e.x, e.y, "elite");
-    if (Math.random() < 0.12) dropPickup(e.x + rand(-20, 20), e.y + rand(-20, 20), "relic");
-    if (Math.random() < DROP_ELITE) {
-      dropPickup(e.x + rand(-26, 26), e.y + rand(-26, 26), "stone", { stone: randStone() });
-    }
-    // 派系包（5% 概率）：5 颗同派系
-    if (Math.random() < SCH_PACK_DROP) {
-      const mySchools = [...new Set(stonesOf().map((s) => s.school))];
-      const s = pick(mySchools);
-      const arr = STONE_BY_SCHOOL[s];
-      for (let i = 0; i < 5; i++) {
-        dropPickup(e.x + rand(-34, 34), e.y + rand(-34, 34), "stone", { stone: pick(arr).key });
-      }
-      toast(`派系包 · ${s}灵石 ×5`, "gold");
-    }
-    // v3.0 装备掉落
-    if (Math.random() < DROP_EQ_ELITE_W) {
-      const slots = ["weapon", "armor", "accessory"];
-      const eq = makeEquip(pick(slots), tierUp("white", (G.altarBuffs || {}).dropUp || 0));
-      dropPickup(e.x + rand(-30, 30), e.y + rand(-30, 30), "equip", { equip: eq });
-    }
-    if (Math.random() < DROP_EQ_ELITE_G) {
-      const slots = ["weapon", "armor", "accessory"];
-      const eq = makeEquip(pick(slots), tierUp("green", (G.altarBuffs || {}).dropUp || 0));
-      dropPickup(e.x + rand(-30, 30), e.y + rand(-30, 30), "equip", { equip: eq });
-    }
-  } else {
-    if (Math.random() < 0.04) dropPickup(e.x, e.y, "orb");
-    if (Math.random() < DROP_MOB) dropPickup(e.x, e.y, "stone", { stone: randStone() });
-    // v3.0 小妖掉装备
-    if (Math.random() < DROP_EQ_MOB) {
-      const slots = ["weapon", "armor", "accessory"];
-      const eq = makeEquip(pick(slots), tierUp("white", (G.altarBuffs || {}).dropUp || 0));
-      dropPickup(e.x + rand(-20, 20), e.y + rand(-20, 20), "equip", { equip: eq });
-    }
-  }
-  // 妖王装备（独立分支确保必出）
-  if (e.boss) {
-    const wN = randInt(DROP_EQ_BOSS_W_MIN, DROP_EQ_BOSS_W_MAX);
-    for (let i = 0; i < wN; i++) {
-      const slots = ["weapon", "armor", "accessory"];
-      const eq = makeEquip(pick(slots), tierUp("white", (G.altarBuffs || {}).dropUp || 0));
-      dropPickup(e.x + rand(-60, 60), e.y + rand(-60, 60), "equip", { equip: eq });
-    }
-    if (Math.random() < DROP_EQ_BOSS_G) {
-      const n = randInt(1, 2);
-      for (let i = 0; i < n; i++) {
-        const slots = ["weapon", "armor", "accessory"];
-        const eq = makeEquip(pick(slots), tierUp("green", (G.altarBuffs || {}).dropUp || 0));
-        dropPickup(e.x + rand(-60, 60), e.y + rand(-60, 60), "equip", { equip: eq });
-      }
-    }
-    if (Math.random() < DROP_EQ_BOSS_B) {
-      const slots = ["weapon", "armor", "accessory"];
-      const eq = makeEquip(pick(slots), tierUp("blue", (G.altarBuffs || {}).dropUp || 0));
-      dropPickup(e.x + rand(-60, 60), e.y + rand(-60, 60), "equip", { equip: eq });
-    }
-    if (Math.random() < DROP_EQ_BOSS_O) {
-      const slots = ["weapon", "armor", "accessory"];
-      const eq = makeEquip(pick(slots), tierUp("orange", (G.altarBuffs || {}).dropUp || 0));
-      dropPickup(e.x + rand(-60, 60), e.y + rand(-60, 60), "equip", { equip: eq });
-      toast(`妖王赐 · 橙·${ITEM_TYPES[eq.typeKey].name}`, "orange");
-    }
-    // v5.0 PM 视角：妖王必掉 1 件本派系紫装（按玩家最大持派系绑定词条）
-    const mySchools = [...new Set(stonesOf().map((s) => s.school))];
-    const sortedSchools = mySchools.slice().sort((a, b) => countSchool(b) - countSchool(a));
-    const targetSchool = sortedSchools[0] || mySchools[0];
-    if (targetSchool) {
-      const affixKey = (AFFIX_KEYS.find((k) => AFFIX_POOL[k].school === targetSchool && AFFIX_POOL[k].type === "派系")) || null;
-      const lockedAff = affixKey ? [affixKey] : [];
-      const purpleEq = makeEquip(pick(["weapon", "armor", "accessory"]), "purple", { fixedAffixes: lockedAff });
-      dropPickup(e.x + rand(-66, 66), e.y + rand(-66, 66), "equip", { equip: purpleEq });
-      toast(`妖王赐·本派紫装 · ${targetSchool}派`, "violet");
-    }
-  }
-  // 雷音铃：击杀概率落雷（限深度，避免连锁递归）
-  if (G.thunderProc > 0 && (G._thunderChain || 0) < 3 && Math.random() < G.thunderProc) {
-    const tgt = nearestEnemy(e.x, e.y, 260);
-    if (tgt) {
-      G.particles.push({
-        x: tgt.x, y: tgt.y, vx: 0, vy: 0, life: 0.24, max: 0.24,
-        color: "#c084fc", size: 5, ring: { r0: 4, r1: 40 },
-      });
-      burst(tgt.x, tgt.y, "#c084fc", 8, 180, 3);
-      G._thunderChain = (G._thunderChain || 0) + 1;
-      applyHit(tgt, G.atk * 1.6 * playerDamageMult());
-      G._thunderChain = (G._thunderChain || 0) - 1;
-    }
-  }
+  if (e.elite || e.boss) dropPickup(e.x, e.y, e.boss ? "boss" : "elite");
+  else if (Math.random() < 0.04) dropPickup(e.x, e.y, "orb");
   burst(e.x, e.y, e.color, e.boss ? 28 : e.elite ? 16 : 8, e.boss ? 220 : 130, e.boss ? 5 : 3);
   if (e.elite || e.boss) {
     G.particles.push({
@@ -3257,80 +760,26 @@ function killEnemy(e, byPlayer = true) {
       child.splits = false;
     }
   }
-  // v6.0 A 词缀 · 分裂：裂成 2 只小妖（与幽魂自带分裂叠加，但各自只裂一次）
-  if (e.mods && e.mods.indexOf("split") >= 0 && G.enemies.filter((x) => !x.dead).length < 85) {
-    for (let i = 0; i < 2; i++) {
-      const ang = rand(0, TAU);
-      const child = spawnEnemy("fox", e.x + Math.cos(ang) * 14, e.y + Math.sin(ang) * 14, Math.max(0, G.wave - 1));
-      child.r = e.r * 0.6;
-      child.hp = child.hpMax = e.hpMax * 0.3;
-      child.xp = Math.round(e.xp * 0.25);
-      child.mods = [];
-    }
-    burst(e.x, e.y, "#a3e635", 14, 170, 3);
-  }
-  // v6.0 A 词缀 · 自爆：死亡炸一圈，玩家在范围内要吃伤害
-  if (e.mods && e.mods.indexOf("bomb") >= 0) {
-    const R = 90 + e.r;
-    G.particles.push({
-      x: e.x, y: e.y, vx: 0, vy: 0, life: 0.4, max: 0.4,
-      color: "#fb923c", size: 5, ring: { r0: e.r, r1: R },
-    });
-    burst(e.x, e.y, "#fb923c", 20, 220, 4);
-    if (dist(e.x, e.y, G.px, G.py) < R) {
-      damagePlayer(e.atk * 2.2);
-      G.shake = Math.max(G.shake, 8);
-    }
-    for (const o of G.enemies) {
-      if (o === e || o.dead) continue;
-      if (dist(o.x, o.y, e.x, e.y) < R) { o.hp -= e.atk * 1.2; if (o.hp <= 0) killEnemy(o); }
-    }
-  }
-  // v6.0 A 词缀 · 冰霜：死亡留下减速力场（8s）
-  if (e.mods && e.mods.indexOf("frost") >= 0) {
-    G.zones.push({ x: e.x, y: e.y, r: 100, life: 8, max: 8, kind: "slow", mul: 0.45 });
-    burst(e.x, e.y, "#67e8f9", 16, 140, 3);
-  }
 }
 
-// v4.0 纯打装流：升级不再弹窗，纯被动数值成长 —— 技能全部由装备决定
-const LV_HP_MUL = 1.08;       // 每升 1 级 HP ×1.08
-const LV_ATK_MUL = 1.05;      // 每升 1 级 ATK ×1.05
-const LV_SHIELD_MUL = 1.10;   // 每升 1 级 护盾上限 ×1.10
 function gainXP(amount) {
   G.xp += amount;
+  let shouldOpen = false;
   while (G.xp >= G.xpNeed) {
     G.xp -= G.xpNeed;
     G.level += 1;
     G.xpNeed = Math.floor(20 * Math.pow(1.18, G.level - 1));
-    // 被动成长：直接在已叠加的 atk/hpMax/shieldMax 上乘倍率
-    G.hpMax *= LV_HP_MUL;
-    G.atk *= LV_ATK_MUL;
-    G.shieldMax *= LV_SHIELD_MUL;
-    const hpDelta = G.hpMax * (1 - 1 / LV_HP_MUL);
-    const atkDelta = G.atk * (1 - 1 / LV_ATK_MUL);
-    G.hp = Math.min(G.hpMax, G.hp + hpDelta);
-    G.shield = Math.min(G.shieldMax, G.shield + G.shieldMax * (1 - 1 / LV_SHIELD_MUL));
-    if ((G.level % 3) === 0) {
-      burst(G.px, G.py, "#fde68a", 14, 150, 3);
-      spawnFloater(G.px, G.py - 28, `Lv.${G.level} · 气血攻道皆涨`, "#fde68a", 13);
-      AudioSys.level();
-    } else if (G.level >= 2) {
-      spawnFloater(G.px, G.py - 24, `Lv.${G.level} · +${Math.round(hpDelta)}HP +${Math.round(atkDelta)}攻`, "#fde68a", 10);
+    if (G.state === "play" && !shouldOpen) {
+      shouldOpen = true;
+    } else {
+      G.pendingLevel = (G.pendingLevel || 0) + 1;
     }
   }
+  if (shouldOpen) openLevelUp();
 }
 
-function dropPickup(x, y, kind, data) {
-  const big = kind === "boss" || kind === "relic" || kind === "essence";
-  const p = {
-    x, y, kind,
-    r: big ? 14 : kind === "stone" ? 9 : 10,
-    life: kind === "stone" ? 26 : 20,
-    bob: rand(0, TAU),
-  };
-  if (data) Object.assign(p, data);
-  G.pickups.push(p);
+function dropPickup(x, y, kind) {
+  G.pickups.push({ x, y, kind, r: kind === "boss" ? 14 : 10, life: 20, bob: rand(0, TAU) });
 }
 
 function collectPickup(p) {
@@ -3338,16 +787,6 @@ function collectPickup(p) {
     G.hp = Math.min(G.hpMax, G.hp + 12);
     G.mp = Math.min(G.mpMax, G.mp + 12);
     spawnFloater(p.x, p.y, "灵息", "#5ce1e6", 12);
-    AudioSys.hit();
-  } else if (p.kind === "stone") {
-    const st = STONE_BY_KEY[p.stone] || stonesOf()[0];
-    G.stones[st.key] = stoneAt(st.key) + 1;
-    spawnFloater(p.x, p.y - 6, `${st.name} +1`, st.color, 11);
-    burst(p.x, p.y, st.color, 5, 90, 2);
-    stoneHudSync();
-    forgeHintCheck();
-    // v4.0 派系核心自动解锁：5 颗同派系 ⇒ 自动 unlock
-    autoUnlockCoreCheck(st.school);
     AudioSys.hit();
   } else if (p.kind === "elite") {
     pick([
@@ -3359,212 +798,32 @@ function collectPickup(p) {
     toast("精英精魄入体 · 道行微进");
     burst(p.x, p.y, "#c084fc", 14, 160, 4);
     AudioSys.level();
-  } else if (p.kind === "relic") {
-    // v4.0 砍弹窗：法宝匣直接随机挑 1 件并入列（不再 3 选 1）
-    if (G.relics.length >= MAX_RELICS) {
-      G.hp = Math.min(G.hpMax, G.hp + G.hpMax * 0.15);
-      G.shield += 30;
-      toast("法宝已满 · 匣中灵力化为护盾与气血", "cyan");
-    } else {
-      const owned = new Set(G.relics.map((r) => r.id));
-      const pool = ARTIFACTS.filter((a) => !owned.has(a.id));
-      const a = pool[Math.floor(Math.random() * pool.length)] || ARTIFACTS[0];
-      if (a) {
-        G.relics.push(a);
-        a.apply();
-        try { Meta.recordArtifact(a.id); } catch (_) {}
-        relicHudSync();
-        toast(`法宝匣赐 · ${a.name}`, "gold");
-        burst(p.x, p.y, a.color, 26, 220, 5);
-        AudioSys.level();
-      }
-    }
-  } else if (p.kind === "essence") {
-    // v4.0 砍弹窗：灵魄自动选玩家持有最多的派系，整派系 +3 颗
-    const mySchools = [...new Set(stonesOf().map((s) => s.school))];
-    if (mySchools.length === 0) {
-      toast("灵石精魄散尽 · 无派系可取", "cyan");
-      burst(p.x, p.y, "#5ce1e6", 16, 180, 3);
-    } else {
-      // 找持有最多的派系
-      const counts = mySchools.map((s) => ({ s, n: countSchool(s) }));
-      counts.sort((a, b) => b.n - a.n);
-      const sch = counts[0].s;
-      const arr = STONE_BY_SCHOOL[sch] || [];
-      for (const st of arr) G.stones[st.key] = stoneAt(st.key) + ESSENCE_GAIN;
-      toast(`灵魄入体 · ${sch}派 +${ESSENCE_GAIN}`, "gold");
-      burst(p.x, p.y, arr[0] && arr[0].color, 26, 210, 4);
-      stoneHudSync(); forgeBtnSync(); forgeHintCheck();
-      schoolHintCheck(sch);
-      AudioSys.level();
-    }
-  } else if (p.kind === "equip") {
-    pickUpEquip(p.equip);
-    AudioSys.hit();
   } else if (p.kind === "boss") {
-    // v4.0 砍弹窗：妖王不再触发升级弹窗，纯恢复+奖励
     G.hp = G.hpMax; G.mp = G.mpMax; G.shield += 30; G.atk *= 1.1;
-    G.xpMul *= 1.05;
-    toast("斩灭大妖 · 气血回满，攻击大涨，经验+5%");
+    toast("斩灭大妖 · 气血回满，攻击大涨");
     burst(p.x, p.y, "#fbbf24", 30, 220, 5);
     AudioSys.level();
+    if (G.state === "play") openLevelUp();
   }
-}
-
-// 流派宝石的「特殊攻击效果」——通用装备永远给不了这些
-function gemOnHit(e, d) {
-  const fx = G.gemFx;
-  if (!fx || e.dead) return;
-  // 焚天流：必附灼烧 / 概率灼烧
-  if (fx.burn || (fx.burnChance && Math.random() < fx.burnChance)) {
-    e.burn = Math.max(e.burn || 0, 2.2);
-    e.burnDmg = Math.max(e.burnDmg || 0, d * 0.35);
-  }
-  // 玄冰流：必附寒毒减速；精英另有几率冰封
-  if (fx.chill) {
-    e.slow = Math.max(e.slow || 0, 1.5);
-    e.slowMul = Math.min(e.slowMul || 1, 0.55);
-    if ((e.elite || e.boss) && fx.freezeChance && Math.random() < fx.freezeChance) {
-      e.slow = 1.6; e.slowMul = 0.12;
-      spawnFloater(e.x, e.y - e.r, "冰封", "#93c5fd", 12);
-    }
-  }
-  // 剑罡流：命中溅射剑气（限深度，避免递归）
-  if (fx.cleave > 0 && (G._cleaveDepth || 0) < 1) {
-    G._cleaveDepth = (G._cleaveDepth || 0) + 1;
-    let n = 0;
-    for (const e2 of G.enemies) {
-      if (e2.dead || e2.id === e.id || n >= 2) continue;
-      if (dist(e.x, e.y, e2.x, e2.y) < 96) {
-        G.particles.push({
-          x: e.x, y: e.y, vx: 0, vy: 0, life: 0.12, max: 0.12,
-          color: "#fde68a", size: 2, line: { x: e2.x, y: e2.y },
-        });
-        applyHit(e2, d * fx.cleave);
-        n++;
-      }
-    }
-    G._cleaveDepth -= 1;
-  }
-}
-
-// 血剑流：暴击时溅血爆裂（同样限深度）
-function gemOnCrit(e, d) {
-  const fx = G.gemFx;
-  if (!fx || !fx.critBurst || (G._critBurstDepth || 0) > 0 || e.dead) return;
-  G._critBurstDepth = 1;
-  let n = 0;
-  for (const e2 of G.enemies) {
-    if (e2.dead || e2.id === e.id || n >= 3) continue;
-    if (dist(e.x, e.y, e2.x, e2.y) < 74) {
-      burst(e2.x, e2.y, "#f87171", 5, 110, 2);
-      applyHit(e2, d * fx.critBurst);
-      n++;
-    }
-  }
-  G._critBurstDepth = 0;
 }
 
 function applyHit(e, dmg, opts = {}) {
   if (e.dead) return;
   let d = dmg;
-  // 五行相生相克：由已凝宝石的五行决定，通用装备不参与
-  const rel = bestElemRelation(e.elem);
-  if (rel.mul !== 1) d *= rel.mul;
-  // 共鸣 · 道途共鸣：若宝石元素当前属于转职五行集，对该系所克的目标再叠 +25%
-  if (G.resonance && G.resonance.daoTuElems && G.resonance.daoTuElems.length) {
-    for (const ee of G.resonance.daoTuElems) {
-      if (ELEM_OVERCOME[ee] === e.elem) { d *= 1.25; break; }
-    }
-  }
-  // 共鸣 · 破壁者：敌人五行不在任何已凝宝石的「直接克制对」中时，稳步补 +15%
-  if (G.resonance && G.resonance.pobi) {
-    let beaten = false;
-    if (G.resonance.poBiElems) for (const ee of G.resonance.poBiElems) {
-      if (ELEM_OVERCOME[ee] === e.elem) { beaten = true; break; }
-    }
-    if (!beaten) d *= 1.15;
-  }
-  // 玄冰圆满：已受寒毒影响者额外受伤
-  if (G.gemFx.deepFreeze && (e.slow || 0) > 0) d *= 1.25;
-  // 霜晶核心：受冰封目标额外受 30% 伤害
-  if (G.schoolFx.shuangjing && (e.frozen || 0) > 0) d *= 1.30;
-  // 共鸣 · 跨阶归一：圆满特效（含溅射/暴击溅血/落雷引线等）整段再 ×1.5
-  const kuaJieOn = !!(G.resonance && G.resonance.kuaJie);
-  if (kuaJieOn) d *= 1.5;
-  // v6.0 B 联动 · 熔炉：被减速的敌人受火伤 ×3（机制质变，不是加法）
-  if (synOn("syn_forge") && (e.slow || 0) > 0) {
-    d *= 3;
-    spawnFloater(e.x, e.y - e.r - 26, "熔炉 ×3", "#fb923c", 12);
-  }
   const isCrit = Math.random() < G.crit;
   if (isCrit) {
     d *= G.critMul;
     hitStop(45);
     AudioSys.crit();
   }
-  // v6.0 A 词缀 · 护盾：伤害先打护盾，碎前不掉血
-  if (e.ward > 0) {
-    const abs = Math.min(e.ward, d);
-    e.ward -= abs; d -= abs;
-    if (e.ward <= 0) {
-      e.ward = 0;
-      burst(e.x, e.y, "#94a3b8", 16, 170, 3);
-      spawnFloater(e.x, e.y - e.r - 22, "护盾碎", "#cbd5e1", 12);
-    }
-  }
   e.hp -= d;
-  // v6.0 A 词缀 · 荆棘：玩家打它会被反弹
-  if (e.mods && e.mods.indexOf("thorns") >= 0 && d > 0) damagePlayer(d * 0.18);
   e.flash = 0.1;
   if (opts.burn) { e.burn = opts.burn; e.burnDmg = opts.burnDmg; }
   if (opts.slow) { e.slow = opts.slow; e.slowMul = opts.slowMul || 0.55; }
-  gemOnHit(e, d);                    // 流派宝石的特殊攻击效果
-  // 派系核心 onHit：朱雀灼烧扩散、绝对零度冻结等
-  for (const c of coresEquipped()) {
-    if (c.onHit) c.onHit(e, d);
-  }
-  if (isCrit) gemOnCrit(e, d);       // 血剑流：暴击溅血爆裂
-  // v6.0 B 联动 · 血怒：暴击溅射周围 4 敌 50% 伤害
-  if (isCrit && synOn("syn_bloodrage")) {
-    let n = 0;
-    for (const o of G.enemies) {
-      if (o === e || o.dead || n >= 4) continue;
-      if (dist(o.x, o.y, e.x, e.y) < 150) {
-        o.hp -= d * 0.5;
-        spawnFloater(o.x, o.y - o.r, String(Math.round(d * 0.5)), "#f87171", 10);
-        if (o.hp <= 0) killEnemy(o);
-        n++;
-      }
-    }
-    if (n > 0) burst(e.x, e.y, "#f87171", 12, 180, 3);
-  }
-  // v6.0 B 联动 · 雷暴：暴击引雷 3 个目标
-  if (isCrit && synOn("syn_storm")) {
-    let n = 0;
-    for (const o of G.enemies) {
-      if (o === e || o.dead || n >= 3) continue;
-      if (dist(o.x, o.y, e.x, e.y) < 230) {
-        o.hp -= d * 0.8;
-        G.particles.push({
-          x: e.x, y: e.y, vx: 0, vy: 0, life: 0.22, max: 0.22, color: "#818cf8", size: 3,
-          line: { x2: o.x, y2: o.y },
-        });
-        spawnFloater(o.x, o.y - o.r - 12, "雷", "#818cf8", 12);
-        if (o.hp <= 0) killEnemy(o);
-        n++;
-      }
-    }
-    if (n > 0) AudioSys.skill();
-  }
-  if (kuaJieOn) spawnFloater(e.x, e.y - e.r - 12, "跨阶 ×1.5", "#a78bfa", 12);
   // size by damage magnitude
   const mag = Math.min(1, Math.log10(1 + d) / 3.2);
   const size = isCrit ? 14 + mag * 8 : 11 + mag * 5;
-  const showTag = !!rel.tag && (rel.mul > 1 || Math.random() < 0.3);
-  let col = isCrit ? "#fbbf24" : "#e8e6d9";
-  if (showTag && rel.color) col = rel.color;
-  spawnFloater(e.x, e.y - e.r, `${showTag ? rel.tag + " " : ""}${Math.round(d)}`, col, size, isCrit);
+  spawnFloater(e.x, e.y - e.r, `${Math.round(d)}`, isCrit ? "#fbbf24" : "#e8e6d9", size, isCrit);
   if (!isCrit) AudioSys.hit();
   if (e.hp <= 0) killEnemy(e);
 }
@@ -3638,7 +897,6 @@ function castSkill(idx) {
     G.dashCDLeft = G.dashCD;
     G.dashTimer = G.dashTime;
     G.dashIFrame = G.dashTime + 0.05;
-    if (G.gemFx.dashHaste) { G.hasteT = 3; spawnFloater(G.px, G.py - G.pr - 12, "御风 · 攻速涨", "#86efac", 12); }
     AudioSys.skill();
     burst(G.px, G.py, "#5ce1e6", 12, 100, 3);
   }
@@ -3659,7 +917,7 @@ function updateWeapons(dt) {
   const w = G.weapons;
   // fire orb
   if (w.fire.lv > 0) {
-    w.fire.timer -= dt * (1 + w.fire.lv * 0.15) * atkSpeedNow() * 0.5;
+    w.fire.timer -= dt * (1 + w.fire.lv * 0.15) * G.atkSpeed * 0.5;
     if (w.fire.timer <= 0) {
       w.fire.timer = 1;
       const t = nearestEnemy(G.px, G.py);
@@ -3681,7 +939,7 @@ function updateWeapons(dt) {
   }
   // frost bolt
   if (w.frost.lv > 0) {
-    w.frost.timer -= dt * (0.7 + w.frost.lv * 0.1) * atkSpeedNow() * 0.4;
+    w.frost.timer -= dt * (0.7 + w.frost.lv * 0.1) * G.atkSpeed * 0.4;
     if (w.frost.timer <= 0) {
       w.frost.timer = 1;
       const t = nearestEnemy(G.px, G.py);
@@ -3702,7 +960,7 @@ function updateWeapons(dt) {
   }
   // lightning bolt (紫电)
   if (w.lightning.lv > 0) {
-    w.lightning.timer -= dt * (0.55 + w.lightning.lv * 0.1) * atkSpeedNow() * 0.35;
+    w.lightning.timer -= dt * (0.55 + w.lightning.lv * 0.1) * G.atkSpeed * 0.35;
     if (w.lightning.timer <= 0) {
       w.lightning.timer = 1;
       const t = nearestEnemy(G.px, G.py, 320);
@@ -3813,6 +1071,64 @@ function onProjectileHitEnemy(p, e) {
   return true;
 }
 
+// ---------- Level modal ----------
+let pendingChoices = [];
+const TAG_CLASS = {
+  "输出": "t-out",
+  "爆发": "t-burst",
+  "生存": "t-hp",
+  "飞剑": "t-sword",
+  "剑气": "t-aoe",
+  "身法": "t-move",
+  "续航": "t-mp",
+  "成长": "t-xp",
+};
+
+function openLevelUp() {
+  G.state = "level";
+  pendingChoices = rollUpgrades();
+  // gold burst on level
+  burst(G.px, G.py, "#f0c14b", 18, 160, 4);
+  G.particles.push({
+    x: G.px, y: G.py, vx: 0, vy: 0,
+    life: 0.4, max: 0.4, color: "#f0c14b", size: 4,
+    ring: { r0: 10, r1: 90 },
+  });
+  ui.levelChoices.innerHTML = "";
+  for (const u of pendingChoices) {
+    const btn = document.createElement("button");
+    const tagCls = TAG_CLASS[u.tag] || "t-sword";
+    btn.className = "choice-btn" + (u.rare ? " rare" : "");
+    btn.innerHTML = `
+      <div class="choice-ico ${tagCls}">${u.ico || "道"}</div>
+      <div class="choice-body">
+        <span class="c-tag ${tagCls}">${u.tag}${u.rare ? "·稀有" : ""}</span>
+        <span class="c-name">${u.name}</span>
+        <span class="c-desc">${u.desc}</span>
+      </div>`;
+    btn.addEventListener("click", () => {
+      u.apply();
+      AudioSys.level();
+      if (window.Analytics) Analytics.track("level_up", { choice_id: u.id, rare: !!u.rare });
+      toast(`领悟 · ${u.name}`, u.rare ? "gold" : "cyan");
+      if (String(u.id).startsWith("e_")) {
+        G.goldFlash = 0.55;
+        G.shake = Math.max(G.shake, 10);
+        burst(G.px, G.py, "#fde68a", 28, 220, 5);
+      }
+      ui.levelModal.classList.add("hidden");
+      G.state = "play";
+      refreshWeaponHint();
+      if (G.pendingLevel && G.pendingLevel > 0) {
+        G.pendingLevel -= 1;
+        setTimeout(() => openLevelUp(), 50);
+      }
+    });
+    ui.levelChoices.appendChild(btn);
+  }
+  ui.levelModal.classList.remove("hidden");
+}
+
 function refreshWeaponHint() {
   const w = G.weapons;
   const names = [];
@@ -3826,13 +1142,17 @@ function refreshWeaponHint() {
 }
 
 // ---------- Flow ----------
-function startRun(charId) {
+function startRun(charId, modeId) {
   AudioSys.init();
   const id = charId || Meta.load().selectedChar || "sword";
+  const mid = modeId || G._pendingMode || Meta.load().lastMode || "endless";
+  const mode = getMode(mid);
   const m = Meta.load();
   m.selectedChar = id;
+  m.lastMode = mode.id;
   Meta.save(m);
-  resetRun(id);
+  G._pendingMode = mode.id;
+  resetRun(id, mode.id);
   G.state = "play";
   setMenuBg(false);
   ui.startScreen.classList.add("hidden");
@@ -3842,43 +1162,55 @@ function startRun(charId) {
   ui.hud.classList.add("char-" + id);
   ui.comboBadge.classList.add("hidden");
   refreshWeaponHint();
-  jobSyncHud(false);
-  relicHudSync();
-  beastHudSync();
-  stoneHudSync();
-  forgeBtnSync();
-  resHudSync();
-  toast(`${CHARS[id]?.name || "修士"} · 御剑清妖`);
-  clearTimeout(startRun._hint);
-  startRun._hint = setTimeout(() => {
-    if (G.state === "play") toast("站上剑阵 · 充能阵成 · 离阵余威尚存", "cyan");
-  }, 2200);
-  clearTimeout(startRun._hint2);
-  startRun._hint2 = setTimeout(() => {
-    if (G.state === "play") toast("斩妖落灵石 · 攒本命一系可凝宝石", "gold");
-  }, 5200);
-  // v5.0 PM 视角：教程 step1 显示（开局 1.5s 后由 tickTutorial 自动弹）
-  G.tutStep = 1;
-  if (ui.tutOverlay) ui.tutOverlay.classList.remove("showed");
-  // v5.0 目标进度条
-  if (ui.goalBar) ui.goalBar.classList.remove("hidden");
+  if (window.Analytics) {
+    Analytics.track("mode_select", { mode: mode.id });
+    Analytics.track("run_start", { mode: mode.id, char_id: id });
+  }
+  toast(`${mode.name} · ${CHARS[id]?.name || "修士"}`);
 }
 
-// v5.0 PM 视角：教程"知道了"按钮
-if (ui.tutNext) {
-  ui.tutNext.addEventListener("click", () => advanceTutorial());
-}
-
-function endRun() {
+function endRun(opts) {
   if (G.state === "over") return;
+  const win = !!(opts && opts.win);
+  G.win = win;
   G.state = "over";
   releaseJoystick();
   releaseWakeLock();
   const base = G.wave * 3 + G.kills * 0.4 + G.comboPeak * 1.5;
-  const coins = Math.max(0, Math.floor(base * (1 + (G._shopCoin || 0))));
-  const best = Meta.endRun(G.wave, G.kills, G.time, G.comboPeak, coins);
+  const winBonus = win ? 40 : 0;
+  const coins = Math.max(0, Math.floor((base + winBonus) * (1 + (G._shopCoin || 0))));
+  const best = Meta.endRun(G.wave, G.kills, G.time, G.comboPeak, coins, G.mode);
+  if (win && G.mode === "quick") Meta.addQuickWin();
   G.coinsRun = coins;
   G._metaCoinsCached = best.coins;
+
+  const weaponKinds = Daily.countWeaponKinds(G.weapons);
+  const dailyRes = Daily.applyRunResult(Meta.load(), {
+    win,
+    mode: G.mode,
+    comboPeak: G.comboPeak,
+    weaponKinds,
+  });
+  Meta.save(dailyRes.meta);
+  if (dailyRes.grants.length) {
+    for (const g of dailyRes.grants) {
+      toast(g.msg, "gold");
+      if (window.Analytics) Analytics.track("daily_complete", { id: g.id, coins: g.coins });
+    }
+  }
+  if (window.Analytics) {
+    Analytics.track("run_end", {
+      mode: G.mode,
+      wave: G.wave,
+      kills: G.kills,
+      seconds: Math.round(G.time),
+      combo_peak: G.comboPeak,
+      coins,
+      win,
+      death_cause: win ? "" : (G.deathCause || "swarm"),
+    });
+  }
+
   ui.hud.classList.add("hidden");
   ui.levelModal.classList.add("hidden");
   ui.comboBadge.classList.add("hidden");
@@ -3888,152 +1220,49 @@ function endRun() {
   ui.overCombo.textContent = G.comboPeak;
   ui.overLevel.textContent = G.level;
   ui.overCoins.textContent = "+" + coins;
-  ui.overTitle.textContent = `${RealmTitle(G.level)}境 · ${CHARS[G.charId]?.name || ""}`;
-  ui.overMsg.textContent = G.wave >= best.bestWave
-    ? "刷新波次纪录，灵石已入库。"
-    : `最高波次 ${best.bestWave}，灵石可强化后再战。`;
+  const overTitleEl = document.querySelector(".over-title-row .title-glow");
+  if (overTitleEl) overTitleEl.textContent = win ? "斩妖功成" : "道消形散";
+  ui.overTitle.textContent = `${getMode(G.mode).name} · ${RealmTitle(G.level)}境 · ${CHARS[G.charId]?.name || ""}`;
+  ui.overMsg.textContent = win
+    ? "斩妖令已毕，灵石入库。再来一局可冲更快。"
+    : (G.wave >= best.bestWave
+      ? "刷新波次纪录，灵石已入库。"
+      : `最高波次 ${best.bestWave}，灵石可强化后再战。`);
+  const reviveBtn = ui.btnRevive;
+  if (reviveBtn) {
+    const mode = getMode(G.mode);
+    const can = mode.canRevive && !win && !G.reviveUsed;
+    reviveBtn.classList.toggle("hidden", !can);
+  }
   ui.overScreen.classList.remove("hidden");
   setMenuBg(true);
+  refreshDailyUI();
+}
+
+function tryRevive() {
+  const mode = getMode(G.mode);
+  if (!mode.canRevive || G.reviveUsed || G.state !== "over" || G.win) return;
+  G.reviveUsed = true;
+  if (window.Analytics) {
+    Analytics.track("ad_offer", { placement: "quick_revive" });
+    Analytics.track("ad_result", { placement: "quick_revive", completed: true, mock: true });
+  }
+  toast("灵力回溯 · 复活（演示）", "gold");
+  G.hp = Math.max(1, Math.floor(G.hpMax * 0.5));
+  G.mp = G.mpMax;
+  G.invuln = 1.2;
+  G.enemies = G.enemies.filter((e) => e.boss || e.elite);
+  G.state = "play";
+  ui.overScreen.classList.add("hidden");
+  ui.hud.classList.remove("hidden");
+  if (ui.btnRevive) ui.btnRevive.classList.add("hidden");
+  last = performance.now();
+  requestWakeLock();
 }
 
 function formatTime(s) {
   s = Math.floor(s);
   return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`;
-}
-
-// v5.0 PM 视角：大字报系统（屏幕中央上半 · 持续 2.4s）
-function showBigBanner(sub, text, mode) {
-  if (!ui.bigBanner) return;
-  ui.bigBannerSub.textContent = sub;
-  ui.bigBannerText.textContent = text;
-  ui.bigBanner.classList.remove("hidden", "s-purple", "s-orange", "s-job");
-  if (mode === "purple") ui.bigBanner.classList.add("s-purple");
-  else if (mode === "orange") ui.bigBanner.classList.add("s-orange");
-  else if (mode === "job") ui.bigBanner.classList.add("s-job");
-  // 强制重启动画
-  ui.bigBanner.style.animation = "none"; void ui.bigBanner.offsetWidth; ui.bigBanner.style.animation = "";
-  G._bigBannerT = 2.4;
-  G._bigBannerMode = mode;
-}
-
-// v5.0 PM 视角：新手教程
-const TUT_STEPS = [
-  // 0=关闭；1..3 可见
-  null,
-  {
-    title: "第一步 · 斩妖取灵石",
-    body: "拖动屏幕移动角色，飞剑会自己砍最近的妖怪。\n妖怪死亡后会掉落「灵石」，碰到自动拾取。\n攒 5 颗同派系灵石 = 解锁派系核心。",
-    tip: "走到灵石边上即可拾取",
-    advance: () => G.stones && stoneTotal() >= 1,
-  },
-  {
-    title: "第二步 · 背包与合成",
-    body: "妖怪还会掉落「装备」——白/绿/蓝/紫/橙 5 阶。\n背包里 2 件同槽位同阶且至少 1 词条重叠 ⇒ 自动合成高一阶。\n紫装才能装备，橙装是终极追求。",
-    tip: "打开背包看看现在有什么",
-    advance: () => G.inventory && G.inventory.length >= 1,
-  },
-  {
-    title: "第三步 · 穿上紫装变强",
-    body: "回到背包，点紫色装备，再点武器/防具/饰品槽即可装备。\n3 件同派系紫装自动转职为对应道途，并解锁终极技能。",
-    tip: "第 5 波会有妖王，赐你一件本派系紫装",
-    advance: () => {
-      for (const slot in G.equipped) {
-        if (slot === "stone") continue;
-        if (G.equipped[slot]) return true;
-      }
-      return false;
-    },
-  },
-];
-function showTutorial(step) {
-  if (!ui.tutOverlay || step < 1 || step > TUT_STEPS.length - 1) return;
-  const s = TUT_STEPS[step];
-  ui.tutStepNum.textContent = step;
-  ui.tutStepTotal.textContent = TUT_STEPS.length - 1;
-  ui.tutTitle.textContent = s.title;
-  ui.tutBody.innerHTML = s.body.replace(/\n/g, "<br>");
-  ui.tutTip.textContent = s.tip;
-  ui.tutOverlay.classList.remove("hidden");
-}
-function hideTutorial() {
-  if (!ui.tutOverlay) return;
-  ui.tutOverlay.classList.add("hidden");
-}
-function advanceTutorial() {
-  if (!G.tutStep) return;
-  if (G.tutStep >= TUT_STEPS.length - 1) { G.tutStep = 0; hideTutorial(); return; }
-  G.tutStep += 1;
-  showTutorial(G.tutStep);
-}
-// 每帧 tick：教程自动完成 + 大字报淡出 + 橙装慢镜
-function tickTutorial(dt) {
-  // 大字报
-  if (G._bigBannerT > 0) {
-    G._bigBannerT -= dt;
-    if (G._bigBannerT <= 0 && ui.bigBanner) ui.bigBanner.classList.add("hidden");
-  }
-  // 橙装慢镜
-  if (G._orangeT > 0) {
-    G._orangeT -= dt;
-    if (G._orangeT > 0) {
-      if (!document.body.classList.contains("orange-pause")) document.body.classList.add("orange-pause");
-    } else {
-      document.body.classList.remove("orange-pause");
-    }
-  }
-  // 教程自动完成检测（玩家已达成 step 条件 ⇒ 自动跳下一步）
-  if (G.tutStep > 0 && G.tutStep < TUT_STEPS.length) {
-    const s = TUT_STEPS[G.tutStep];
-    if (s && s.advance && s.advance()) advanceTutorial();
-  }
-  // 教程 step1 启动延后（开局 1.5s 后再弹，给玩家先动一下）
-  if (G.tutStep === 1 && G.time > 1.5 && !ui.tutOverlay.classList.contains("showed")) {
-    showTutorial(1);
-    ui.tutOverlay.classList.add("showed");
-  }
-}
-
-// v5.0 PM 视角：HUD 顶部目标进度条
-function updateGoalBar() {
-  if (!ui.goalBar) return;
-  ui.goalBar.classList.remove("hidden");
-  const w = G.wave || 0;
-  // 优先级目标：当前阶段缺什么
-  // 1) 紫装 < 3 件 ⇒ 凑齐紫装
-  // 2) Boss 未击 ⇒ 等本波 Boss（wave%5==0 ⇒ 下波前）
-  // 3) 派系核心 < 2 个 ⇒ 凑核心
-  // 4) 装备搭配派系纯度 < 95% ⇒ 凑同派系
-  const purpleCount = G.inventory.filter((e) => e.tier === "purple").length + Object.values(G.equipped).filter(Boolean).filter((e) => e.tier === "purple").length;
-  const nextBossWave = Math.floor(w / 5) * 5 + (w % 5 === 0 ? 5 : 5);
-  const hasBossSoon = (w % 5 >= 3);
-  let label, detail, fill;
-  if (purpleCount < 1) {
-    label = "目标 · 获得首件紫装";
-    detail = `${purpleCount}/1 紫装`;
-    fill = (purpleCount / 1) * 100;
-  } else if (purpleCount < 3 && hasBossSoon) {
-    label = `目标 · 第 ${nextBossWave} 波妖王赐紫`;
-    detail = `${purpleCount}/3 紫装`;
-    fill = (purpleCount / 3) * 100;
-  } else if (purpleCount < 3) {
-    label = "目标 · 凑齐 3 件紫装转职";
-    detail = `${purpleCount}/3 紫装`;
-    fill = (purpleCount / 3) * 100;
-  } else if ((G.cores || []).length < 2 && Object.keys(G.schoolUnlocked || {}).length < 2) {
-    label = "目标 · 觉醒派系核心";
-    const nCores = Object.keys(G.schoolUnlocked || {}).length;
-    detail = `${nCores}/2 核心`;
-    fill = (nCores / 2) * 100;
-  } else {
-    label = "目标 · 派系纯度 100%";
-    detail = `纯度 ${Math.round(G._purity * 100)}%`;
-    fill = (G._purity * 100);
-  }
-  ui.goalIco.textContent = "目";
-  ui.goalText.textContent = label;
-  ui.goalDetail.textContent = detail;
-  ui.goalFill.style.width = Math.min(100, Math.max(0, fill)) + "%";
-  ui.goalFill.classList.toggle("complete", fill >= 100);
 }
 
 function toast(msg, kind) {
@@ -4048,9 +1277,8 @@ function toast(msg, kind) {
 
 // ---------- Update ----------
 function update(dt) {
-  if (G.state === "menu" || G.state === "over" || G.state === "shop" || G.state === "pause" || G.state === "codex") return;
-  if (G.state === "level" || G.state === "job" || G.state === "forge") return;
-  if (G.state === "altar") { updateHUD(); return; }   // v6.0 C 祭坛：暂停世界等玩家抉择
+  if (G.state === "menu" || G.state === "over" || G.state === "shop" || G.state === "pause") return;
+  if (G.state === "level") return;
 
   // hit-stop
   if (G.hitStop > 0) {
@@ -4070,50 +1298,7 @@ function update(dt) {
   G.dashTimer = Math.max(0, G.dashTimer - dt);
   G.aoeCDLeft = Math.max(0, G.aoeCDLeft - dt);
   G.dashCDLeft = Math.max(0, G.dashCDLeft - dt);
-  // v5.0 PM 视角：教程 + 大字报 + 橙装慢镜 + 目标进度条
-  tickTutorial(dt);
-  updateGoalBar();
-  // v4.0 装备主动技能 CD tick
-  for (let i = 0; i < (G.skillCD || []).length; i++) {
-    if (G.skillCD[i] > 0) G.skillCD[i] = Math.max(0, G.skillCD[i] - dt);
-  }
-  // v4.0 装备主动技能持续时长 tick（如剑气护体 +6s）
-  // v6.0 B 联动 · 狂血：CD tick
-  G._frenzyT = Math.max(0, (G._frenzyT || 0) - dt);
-  G._swordArrayT = Math.max(0, (G._swordArrayT || 0) - dt);
-  G._shadowT = Math.max(0, (G._shadowT || 0) - dt);
-  // v4.0 装备被动技能 tick（按 G.passiveSkills 列表）
-  for (const id of (G.passiveSkills || [])) {
-    if (id === "sk_hp_regen") {
-      G._hpRegenT = (G._hpRegenT || 0) + dt;
-      if (G._hpRegenT >= 5) {
-        G._hpRegenT -= 5;
-        if (G.hp < G.hpMax) { G.hp = Math.min(G.hpMax, G.hp + 12); spawnFloater(G.px, G.py - G.pr - 14, "+12", "#86efac", 10); }
-      }
-    }
-  }
   G.mp = Math.min(G.mpMax, G.mp + G.mpRegen * dt);
-  // 流派宝石：气血滋长 / 护盾再生 / 御风提速 / 龙血定期回复
-  G.hasteT = Math.max(0, G.hasteT - dt);
-  if (G.gemFx.regen) G.hp = Math.min(G.hpMax, G.hp + G.gemFx.regen * dt);
-  if (G.gemFx.shieldRegen && G.shieldMax > 0) {
-    G.shield = Math.min(G.shieldMax, G.shield + G.gemFx.shieldRegen * dt);
-  }
-  if (G.gemFx.regenPct) {
-    G.regenT += dt;
-    if (G.regenT >= 8) {
-      G.regenT -= 8;
-      const heal = G.hpMax * G.gemFx.regenPct;
-      G.hp = Math.min(G.hpMax, G.hp + heal);
-      spawnFloater(G.px, G.py - G.pr - 10, `+${Math.round(heal)}`, "#86efac", 12);
-      burst(G.px, G.py, "#86efac", 10, 120, 3);
-    }
-  }
-
-  // 派系核心 tick（每帧调用所有装备的核心）
-  for (const c of coresEquipped()) {
-    if (c.tick) c.tick(dt);
-  }
 
   // combo decay
   if (G.comboTimer > 0) {
@@ -4130,11 +1315,7 @@ function update(dt) {
   }
 
   const mv = readMove();
-  let speed = G.moveSpeed * (G.nodeMoveMul || 1) * (G.dashTimer > 0 ? G.dashSpeedMul : 1) * (G.altarBuffs.moveMul || 1);
-  // v6.0 A 词缀 · 冰霜：站在减速力场里移速大减，逼你绕开
-  for (const z of G.zones) {
-    if (z.kind === "slow" && dist(z.x, z.y, G.px, G.py) < z.r) { speed *= z.mul; break; }
-  }
+  const speed = G.moveSpeed * (G.dashTimer > 0 ? G.dashSpeedMul : 1);
   G.px += mv.x * speed * dt;
   G.py += mv.y * speed * dt;
   const dFromOrigin = Math.hypot(G.px, G.py);
@@ -4143,10 +1324,7 @@ function update(dt) {
     G.px *= s; G.py *= s;
   }
 
-  updateNodes(dt);
-  updateBeasts(dt);
-
-  G.swordPhase += dt * (1.8 + atkSpeedNow() * 0.5);
+  G.swordPhase += dt * (1.8 + G.atkSpeed * 0.5);
   const orbitCount = G.swordCount;
   const orbitDmg = G.atk * 0.55 * playerDamageMult() * (G.weapons.orbit.evo ? 1.5 : 1) * (1 + G.weapons.orbit.lv * 0.05);
   for (let i = 0; i < orbitCount; i++) {
@@ -4162,7 +1340,7 @@ function update(dt) {
     }
   }
 
-  G.swordTimer -= dt * atkSpeedNow();
+  G.swordTimer -= dt * G.atkSpeed;
   if (G.swordTimer <= 0) {
     G.swordTimer = 1;
     fireSwordBolt();
@@ -4194,7 +1372,7 @@ function update(dt) {
     // burn
     if (e.burn > 0) {
       e.burn -= dt;
-      e.burnDmgAcc = (e.burnDmgAcc || 0) + e.burnDmg * dt * (G.burnMul || 1);
+      e.burnDmgAcc = (e.burnDmgAcc || 0) + e.burnDmg * dt;
       if (e.burnDmgAcc >= 1) {
         const tick = Math.floor(e.burnDmgAcc);
         e.burnDmgAcc -= tick;
@@ -4216,18 +1394,7 @@ function update(dt) {
       mx += px * swirl; my += py * swirl;
       const n = Math.hypot(mx, my) || 1; mx /= n; my /= n;
     }
-    // v6.0 A 词缀 · 噬魂：贴近玩家就持续回血，得优先点掉
-    if (e.mods && e.mods.indexOf("drain") >= 0) {
-      e.drainT = (e.drainT || 0) + dt;
-      if (e.drainT >= 0.6) {
-        e.drainT = 0;
-        if (dist(e.x, e.y, G.px, G.py) < 210 && e.hp < e.hpMax) {
-          e.hp = Math.min(e.hpMax, e.hp + e.hpMax * 0.035);
-          spawnFloater(e.x, e.y - e.r - 10, "噬", "#c084fc", 10);
-        }
-      }
-    }
-    const spd = e.speed * (e.slowMul || 1) * (G.altarBuffs.curseSpeed || 1);
+    const spd = e.speed * (e.slowMul || 1);
     e.x += mx * spd * dt;
     e.y += my * spd * dt;
 
@@ -4239,6 +1406,7 @@ function update(dt) {
       }
       if (e.slam) {
         if (dist(e.x, e.y, G.px, G.py) < 120) {
+          G.lastHit = "boss_slam";
           damagePlayer(e.atk * 1.4);
           G.shake = 12;
           burst(G.px, G.py, "#f59e0b", 20, 180, 5);
@@ -4251,6 +1419,7 @@ function update(dt) {
     }
 
     if (dist(e.x, e.y, G.px, G.py) < e.r + G.pr) {
+      G.lastHit = e.boss ? "boss" : e.elite ? "elite" : "swarm";
       damagePlayer(e.atk * dt * 3.2);
       const push = angleTo(G.px, G.py, e.x, e.y);
       e.x += Math.cos(push) * 40 * dt;
@@ -4259,20 +1428,13 @@ function update(dt) {
   }
   G.enemies = G.enemies.filter((e) => !e.dead);
 
-  // v6.0 A 冰霜力场衰减
-  for (const z of G.zones) z.life -= dt;
-  G.zones = G.zones.filter((z) => z.life > 0);
-  // v6.0 C 祭坛：走近自动触发
-  updateAltars(dt);
-
   for (const p of G.pickups) {
     p.life -= dt;
     p.bob += dt * 3;
     const d = dist(p.x, p.y, G.px, G.py);
-    const pullR = 100 + (G._altarPickup || 0);   // v6.0 C 祭坛「缚足」：拾取范围
-    if (d < pullR) {
+    if (d < 100) {
       const a = angleTo(p.x, p.y, G.px, G.py);
-      const pull = lerp(120, 320, 1 - d / pullR);
+      const pull = lerp(120, 320, 1 - d / 100);
       p.x += Math.cos(a) * pull * dt;
       p.y += Math.sin(a) * pull * dt;
       // vacuum sparks
@@ -4306,6 +1468,13 @@ function update(dt) {
   G.floaters = G.floaters.filter((f) => f.life > 0);
 
   updateWaves(dt);
+
+  // 速局：第 5 波清场 → 胜利
+  if (G.state === "play" && isQuickClear(G.mode, G.wave, G.enemies.filter((e) => !e.dead).length, G.spawnQueue.length)) {
+    endRun({ win: true });
+    return;
+  }
+
   updateHUD();
 }
 
@@ -4315,14 +1484,6 @@ function updateHUD() {
   ui.mpFill.style.width = `${(G.mp / G.mpMax) * 100}%`;
   ui.mpText.textContent = `${Math.floor(G.mp)}/${Math.ceil(G.mpMax)}`;
   ui.waveText.textContent = G.wave;
-  if (ui.waveElem) {
-    const we = ELEM_BY_KEY[waveElemKey()];
-    const rel = bestElemRelation(we.key);
-    ui.waveElem.textContent = we.name + (rel.mul > 1 ? "↑" : rel.mul < 1 ? "↓" : "");
-    ui.waveElem.style.setProperty("--wc", we.color);
-    ui.waveElem.classList.toggle("hot", rel.mul > 1);
-    ui.waveElem.classList.toggle("cold", rel.mul < 1);
-  }
   ui.killText.textContent = G.kills;
   ui.timeText.textContent = formatTime(G.time) + (G.waveTimer > 0 ? ` · ${Math.ceil(G.waveTimer)}s` : "");
   ui.timeText.classList.toggle("soon", G.waveTimer > 0 && G.waveTimer < 4);
@@ -4361,21 +1522,6 @@ function updateHUD() {
   const low = G.hp / G.hpMax < 0.35;
   ui.hud.classList.toggle("low-hp", low);
 
-  // 剑阵状态提示
-  if (ui.nodeHud) {
-    const nd = G.nodeInside ? G.nodes.find((x) => x.id === G.nodeInside) : null;
-    if (nd && nd.active) {
-      ui.nodeHud.classList.remove("hidden");
-      ui.nodeHudIco.textContent = nd.def.ico;
-      ui.nodeHudName.textContent = nd.def.name;
-      ui.nodeHudBuff.textContent = nd.def.buff;
-      ui.nodeHud.style.setProperty("--nc", nd.def.color);
-      ui.nodeHudFill.style.width = `${Math.max(0, Math.min(1, nd.holdT / NODE_HOLD)) * 100}%`;
-    } else {
-      ui.nodeHud.classList.add("hidden");
-    }
-  }
-
   // boss top bar
   const boss = G.enemies.find((e) => e.boss && !e.dead);
   if (boss && ui.bossBar) {
@@ -4401,12 +1547,9 @@ function draw() {
   ctx.translate(ox, oy);
   const camX = G.px, camY = G.py;
   drawBackground(camX, camY);
-  if (G.state === "menu" || G.state === "shop" || G.state === "codex") {
+  if (G.state === "menu" || G.state === "shop") {
     drawMenuAmbient();
   } else {
-    drawNodes(camX, camY);
-    drawZones();      // v6.0 A 冰霜力场（地面）
-    drawAltars();     // v6.0 C 祭坛
     for (const p of G.pickups) drawPickup(p);
     // magnet tether when close
     for (const p of G.pickups) {
@@ -4414,9 +1557,7 @@ function draw() {
       if (d < 90 && d > 8) {
         const a = w2s(p.x, p.y);
         const b = w2s(G.px, G.py);
-        let col = (p.kind === "boss" || p.kind === "relic" || p.kind === "essence") ? "251,191,36"
-          : p.kind === "elite" ? "192,132,252" : "92,225,230";
-        if (p.kind === "stone") col = hexRgb((STONE_BY_KEY[p.stone] || stonesOf()[0]).color);
+        const col = p.kind === "boss" ? "251,191,36" : p.kind === "elite" ? "192,132,252" : "92,225,230";
         const alpha = (1 - d / 90) * 0.35;
         ctx.strokeStyle = `rgba(${col},${alpha})`;
         ctx.lineWidth = 1.5;
@@ -4432,7 +1573,6 @@ function draw() {
     for (const e of G.enemies) drawEnemy(e);
     drawOffscreenIndicators();
     for (const p of G.projectiles) drawProjectile(p);
-    drawBeasts(camX, camY);
     drawPlayer();
     // near arena edge: gold warning ring pulse
     const distEdge = Math.hypot(G.px, G.py);
@@ -4465,7 +1605,7 @@ function draw() {
     ctx.fillRect(0, 0, w, h);
   }
   // combat vignette
-  if (G.state === "play" || G.state === "level" || G.state === "job" || G.state === "forge") {
+  if (G.state === "play" || G.state === "level") {
     const hasBoss = G.enemies.some((e) => e.boss && !e.dead);
     const vg = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.35, w / 2, h / 2, Math.max(w, h) * 0.72);
     vg.addColorStop(0, "rgba(0,0,0,0)");
@@ -4582,7 +1722,7 @@ function drawBackground(camX, camY) {
 
 const WORLD_PROPS = (() => {
   const list = [];
-  const kinds = ["rune", "stone", "stele", "lantern"];
+  const kinds = ["rune", "crystal", "stele", "lantern"];
   for (let i = 0; i < 14; i++) {
     const ang = (i / 14) * TAU + 0.35;
     const rad = 200 + (i % 5) * 70;
@@ -4621,7 +1761,7 @@ function drawWorldProps(camX, camY) {
       ctx.moveTo(-6 * s, -3 * s); ctx.lineTo(0, -7 * s); ctx.lineTo(6 * s, -3 * s);
       ctx.moveTo(0, -7 * s); ctx.lineTo(0, 6 * s);
       ctx.stroke();
-    } else if (p.kind === "stone") {
+    } else if (p.kind === "crystal") {
       const g = ctx.createLinearGradient(0, -18 * s, 0, 8 * s);
       g.addColorStop(0, "rgba(167,139,250,0.55)");
       g.addColorStop(1, "rgba(40,20,60,0.25)");
@@ -5091,17 +2231,6 @@ function drawEnemy(e) {
   ctx.beginPath();
   ctx.ellipse(0, r * 0.7, r * 0.9, r * 0.35, 0, 0, TAU);
   ctx.fill();
-  // 五行标识：脚下短弧，颜色即本波属性
-  const ed = ELEM_BY_KEY[e.elem];
-  if (ed) {
-    ctx.globalAlpha = e.boss || e.elite ? 0.9 : 0.5;
-    ctx.strokeStyle = ed.color;
-    ctx.lineWidth = e.boss || e.elite ? 2.5 : 1.5;
-    ctx.beginPath();
-    ctx.arc(0, r * 0.72, r * 0.98, Math.PI * 0.16, Math.PI * 0.84);
-    ctx.stroke();
-    ctx.globalAlpha = 1;
-  }
   const col = e.flash > 0 ? "#ffffff" : e.color;
   if (e.boss) {
     // rotating tick ring
@@ -5131,38 +2260,6 @@ function drawEnemy(e) {
     ctx.arc(0, 0, r + 5, 0, TAU);
     ctx.stroke();
     ctx.setLineDash([]);
-    ctx.restore();
-  }
-  // v6.0 A 词缀徽标：头顶挂牌，一眼看出这只怪该怎么打
-  if (e.mods && e.mods.length) {
-    ctx.save();
-    const n = e.mods.length;
-    const bw = 24, bh = 17;
-    for (let i = 0; i < n; i++) {
-      const m = ENEMY_MODS[e.mods[i]];
-      const ox = (i - (n - 1) / 2) * (bw + 4);
-      const oy = -r - 22 - Math.sin(G.time * 2.2 + i * 1.3) * 2;
-      ctx.fillStyle = "rgba(6,10,18,0.82)";
-      ctx.strokeStyle = m.color;
-      ctx.lineWidth = 1.4;
-      ctx.beginPath();
-      ctx.rect(ox - bw / 2, oy - bh / 2, bw, bh);
-      ctx.fill(); ctx.stroke();
-      ctx.fillStyle = m.color;
-      ctx.font = "600 11px system-ui, sans-serif";
-      ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.fillText(m.name, ox, oy + 0.5);
-    }
-    ctx.restore();
-  }
-  // v6.0 A 词缀 · 护盾：头顶护盾条
-  if (e.wardMax > 0 && e.ward > 0) {
-    const ww = r * 2;
-    ctx.save();
-    ctx.fillStyle = "rgba(148,163,184,0.35)";
-    ctx.fillRect(-ww / 2, -r - 12, ww, 4);
-    ctx.fillStyle = "#cbd5e1";
-    ctx.fillRect(-ww / 2, -r - 12, ww * (e.ward / e.wardMax), 4);
     ctx.restore();
   }
   if (e.burn > 0) {
@@ -5337,92 +2434,22 @@ function drawNameplate(cx, cy, label, kind) {
   ctx.shadowBlur = 0;
 }
 
-// v6.0 A 冰霜力场：地面减速区，站进去移速大减
-function drawZones() {
-  for (const z of G.zones) {
-    const s = w2s(z.x, z.y);
-    if (s.x < -220 || s.y < -220 || s.x > view.w + 220 || s.y > view.h + 220) continue;
-    const a = Math.min(1, z.life / 2);
-    ctx.save();
-    ctx.globalAlpha = a;
-    const g = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, z.r);
-    g.addColorStop(0, "rgba(103,232,249,0.40)");
-    g.addColorStop(1, "rgba(103,232,249,0)");
-    ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(s.x, s.y, z.r, 0, TAU); ctx.fill();
-    ctx.strokeStyle = "rgba(103,232,249,0.5)";
-    ctx.lineWidth = 1.6;
-    ctx.setLineDash([6, 6]);
-    ctx.beginPath(); ctx.arc(s.x, s.y, z.r, 0, TAU); ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.restore();
-  }
-}
-
-// v6.0 C 祭坛：走近触发血契选择
-function drawAltars() {
-  for (const a of G.altars) {
-    const s = w2s(a.x, a.y);
-    if (s.x < -180 || s.y < -180 || s.x > view.w + 180 || s.y > view.h + 180) continue;
-    const pulse = 1 + Math.sin(a.bob) * 0.08;
-    ctx.save();
-    const g = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, a.r * 2.2 * pulse);
-    g.addColorStop(0, "rgba(192,132,252,0.34)");
-    g.addColorStop(1, "rgba(192,132,252,0)");
-    ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(s.x, s.y, a.r * 2.2 * pulse, 0, TAU); ctx.fill();
-    ctx.translate(s.x, s.y);
-    ctx.rotate(G.time * 0.6);
-    ctx.strokeStyle = "rgba(216,180,254,0.75)";
-    ctx.lineWidth = 2;
-    ctx.setLineDash([9, 7]);
-    ctx.beginPath(); ctx.arc(0, 0, a.r * pulse, 0, TAU); ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.rotate(-G.time * 1.1);
-    ctx.strokeStyle = "rgba(251,191,36,0.5)";
-    ctx.lineWidth = 1.2;
-    ctx.beginPath(); ctx.arc(0, 0, a.r * 0.62, 0, TAU); ctx.stroke();
-    ctx.rotate(G.time * 1.1);
-    ctx.fillStyle = "rgba(15,10,28,0.88)";
-    ctx.strokeStyle = "#c084fc";
-    ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.rect(-13, -20, 26, 34); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = "#f5d0fe";
-    ctx.font = "700 16px system-ui, sans-serif";
-    ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    ctx.fillText("祭", 0, -3);
-    ctx.restore();
-    if (dist(a.x, a.y, G.px, G.py) < 280) {
-      ctx.save();
-      ctx.fillStyle = "rgba(233,213,255,0.92)";
-      ctx.font = "600 12px system-ui, sans-serif";
-      ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.fillText("走近立血契 · 可直接走开拒绝", s.x, s.y + a.r + 28);
-      ctx.restore();
-    }
-  }
-}
-
 function drawPickup(p) {
   const s = w2s(p.x, p.y);
   const bobY = Math.sin(p.bob) * 4;
   let col = "#5ce1e6";
   if (p.kind === "elite") col = "#c084fc";
   if (p.kind === "boss") col = "#fbbf24";
-  if (p.kind === "relic") col = "#f0c14b";
-  if (p.kind === "stone") col = (STONE_BY_KEY[p.stone] || stonesOf()[0]).color;
-  if (p.kind === "essence") col = "#fde68a";
-  const gold = p.kind === "boss" || p.kind === "relic" || p.kind === "essence";
 
   ctx.save();
-  // quality light pillar for elite/boss/relic
-  if (p.kind !== "orb" && p.kind !== "stone") {
-    const h = gold ? 72 : 48;
-    const w = gold ? 18 : 12;
+  // quality light pillar for elite/boss
+  if (p.kind !== "orb") {
+    const h = p.kind === "boss" ? 72 : 48;
+    const w = p.kind === "boss" ? 18 : 12;
     const g = ctx.createLinearGradient(s.x, s.y + bobY - h, s.x, s.y + bobY);
     g.addColorStop(0, "rgba(0,0,0,0)");
-    g.addColorStop(0.35, gold ? "rgba(251,191,36,0.22)" : "rgba(192,132,252,0.2)");
-    g.addColorStop(1, gold ? "rgba(251,191,36,0.05)" : "rgba(192,132,252,0.05)");
+    g.addColorStop(0.35, p.kind === "boss" ? "rgba(251,191,36,0.22)" : "rgba(192,132,252,0.2)");
+    g.addColorStop(1, p.kind === "boss" ? "rgba(251,191,36,0.05)" : "rgba(192,132,252,0.05)");
     ctx.fillStyle = g;
     ctx.beginPath();
     ctx.moveTo(s.x - w / 2, s.y + bobY);
@@ -5432,7 +2459,7 @@ function drawPickup(p) {
     ctx.closePath();
     ctx.fill();
     // ground ring
-    ctx.strokeStyle = gold ? "rgba(251,191,36,0.45)" : "rgba(192,132,252,0.4)";
+    ctx.strokeStyle = p.kind === "boss" ? "rgba(251,191,36,0.45)" : "rgba(192,132,252,0.4)";
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.ellipse(s.x, s.y + bobY + p.r * 0.6, p.r * 1.4, p.r * 0.45, 0, 0, TAU);
@@ -5450,39 +2477,6 @@ function drawPickup(p) {
   ctx.arc(0, 0, p.r * 2.4, 0, TAU);
   ctx.fill();
   ctx.globalAlpha = 1;
-
-  if (p.kind === "relic") {
-    // 法宝匣：金框宝箱 + 锁扣宝珠
-    const r = p.r * 1.3;
-    ctx.fillStyle = "rgba(30,21,8,0.96)";
-    ctx.strokeStyle = "#f0c14b";
-    ctx.lineWidth = 2;
-    ctx.shadowColor = "#f0c14b";
-    ctx.shadowBlur = 14;
-    ctx.beginPath();
-    ctx.rect(-r, -r * 0.7, r * 2, r * 1.5);
-    ctx.fill();
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(-r, -r * 0.7);
-    ctx.quadraticCurveTo(0, -r * 1.6, r, -r * 0.7);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = "#fde68a";
-    ctx.beginPath();
-    ctx.arc(0, -r * 0.1, r * 0.24, 0, TAU);
-    ctx.fill();
-    ctx.strokeStyle = "rgba(253,230,138,0.8)";
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(0, -r * 0.1 - r * 0.52); ctx.lineTo(0, -r * 0.1 + r * 0.52);
-    ctx.moveTo(-r * 0.52, -r * 0.1); ctx.lineTo(r * 0.52, -r * 0.1);
-    ctx.stroke();
-    ctx.restore();
-    return;
-  }
 
   if (p.kind === "orb") {
     // faceted spirit gem
@@ -5508,55 +2502,6 @@ function drawPickup(p) {
     ctx.strokeStyle = "rgba(196,241,255,0.7)";
     ctx.lineWidth = 1;
     ctx.stroke();
-    ctx.restore();
-    return;
-  }
-
-  if (p.kind === "stone") {
-    // 五行灵晶：小颗菱形结晶
-    const r = p.r * 1.05;
-    ctx.rotate(Math.sin(p.bob * 0.6) * 0.25);
-    ctx.fillStyle = col;
-    ctx.shadowColor = col;
-    ctx.shadowBlur = 10;
-    ctx.beginPath();
-    ctx.moveTo(0, -r);
-    ctx.lineTo(r * 0.62, -r * 0.1);
-    ctx.lineTo(0, r);
-    ctx.lineTo(-r * 0.62, -r * 0.1);
-    ctx.closePath();
-    ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = "rgba(255,255,255,0.6)";
-    ctx.beginPath();
-    ctx.moveTo(0, -r * 0.8);
-    ctx.lineTo(r * 0.26, -r * 0.16);
-    ctx.lineTo(-r * 0.26, -r * 0.16);
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
-    return;
-  }
-
-  if (p.kind === "essence") {
-    // 五行灵髓：五色流转的灵珠
-    const r = p.r * 1.15;
-    for (let i = 0; i < 5; i++) {
-      const a = p.bob * 0.8 + (i / 5) * TAU;
-      ctx.fillStyle = ELEMENTS[i].color;
-      ctx.globalAlpha = 0.85;
-      ctx.beginPath();
-      ctx.arc(Math.cos(a) * r * 0.5, Math.sin(a) * r * 0.5, r * 0.42, 0, TAU);
-      ctx.fill();
-    }
-    ctx.globalAlpha = 1;
-    ctx.fillStyle = "#fffbe8";
-    ctx.shadowColor = "#fde68a";
-    ctx.shadowBlur = 16;
-    ctx.beginPath();
-    ctx.arc(0, 0, r * 0.42, 0, TAU);
-    ctx.fill();
-    ctx.shadowBlur = 0;
     ctx.restore();
     return;
   }
@@ -5780,7 +2725,6 @@ function renderChars() {
       <div class="char-meta">
         <span class="c-name">${c.name}</span>
         <span class="c-desc">${c.desc}</span>
-        <span class="c-stones">本命 · ${(CHAR_STONES[c.id] || []).map((s) => s.name).join(" / ")}</span>
       </div>`;
     btn.addEventListener("click", () => {
       const m = Meta.load();
@@ -5829,82 +2773,6 @@ function renderShop() {
   }
 }
 
-// ---------- 万宝图鉴 ----------
-function renderCodex() {
-  const m = Meta.load();
-  const st = Meta.codexStats();
-  if (ui.codexProgress) {
-    ui.codexProgress.textContent = `法宝 ${st.art}/${st.artTotal} · 灵兽 ${st.beast}/${st.beastTotal}`;
-  }
-
-  if (ui.codexArtifacts) {
-    ui.codexArtifacts.innerHTML = "";
-    for (const a of ARTIFACTS) {
-      const found = !!m.codex.artifacts[a.id];
-      const cell = document.createElement("div");
-      cell.className = "cx-cell tier-" + TIER_KEY[a.tier] + (found ? " found" : " locked");
-      cell.innerHTML = `
-        <div class="cx-ico">${found ? a.ico : "？"}</div>
-        <div class="cx-body">
-          <div class="cx-top"><b>${found ? a.name : "未收录"}</b><span class="cx-tier">${a.tier}品</span></div>
-          <div class="cx-desc">${found ? a.desc : "局内开启法宝匣即可收录"}</div>
-        </div>`;
-      ui.codexArtifacts.appendChild(cell);
-    }
-  }
-
-  if (ui.codexBeasts) {
-    ui.codexBeasts.innerHTML = "";
-    for (const b of BEASTS) {
-      const unlocked = Meta.beastUnlocked(b.id);
-      const contracted = m.contract === b.id;
-      const cell = document.createElement("div");
-      cell.className = "cx-cell beast tier-" + TIER_KEY[b.tier] +
-        (unlocked ? " found" : " locked") + (contracted ? " contracted" : "");
-      cell.innerHTML = `
-        <div class="cx-ico">${unlocked ? b.ico : "？"}</div>
-        <div class="cx-body">
-          <div class="cx-top"><b>${unlocked ? b.name : "未解锁"}</b><span class="cx-tier">${b.tier}品</span></div>
-          <div class="cx-desc">${unlocked ? b.desc : "解锁条件：" + b.unlock.text}</div>
-        </div>`;
-      if (unlocked) {
-        const btn = document.createElement("button");
-        btn.className = "cx-contract" + (contracted ? " on" : "");
-        btn.textContent = contracted ? "契约中" : "契约";
-        btn.addEventListener("click", (ev) => {
-          if (ev && ev.stopPropagation) ev.stopPropagation();
-          const now = Meta.toggleContract(b.id);
-          AudioSys.buy();
-          toast(now ? `已契约 · ${b.name}` : `解除契约 · ${b.name}`, now ? "gold" : "cyan");
-          renderCodex();
-          refreshMetaUI();
-        });
-        cell.appendChild(btn);
-      }
-      ui.codexBeasts.appendChild(cell);
-    }
-  }
-}
-
-function showCodex() {
-  G.state = "codex";
-  releaseJoystick();
-  releaseWakeLock();
-  ui.startScreen.classList.add("hidden");
-  ui.shopScreen.classList.add("hidden");
-  ui.overScreen.classList.add("hidden");
-  ui.hud.classList.add("hidden");
-  ui.comboBadge.classList.add("hidden");
-  ui.codexScreen.classList.remove("hidden");
-  setMenuBg(false);
-  renderCodex();
-}
-
-function hideCodex() {
-  ui.codexScreen.classList.add("hidden");
-  showMenu();
-}
-
 function refreshMetaUI() {
   const m = Meta.load();
   G._metaCoinsCached = m.coins;
@@ -5917,6 +2785,42 @@ function setMenuBg(on) {
   document.getElementById("app").classList.toggle("show-menu-bg", !!on);
 }
 
+function refreshDailyUI() {
+  if (!ui.dailyList) return;
+  const snap = Daily.snapshot(Meta.load());
+  if (ui.dailyCount) ui.dailyCount.textContent = `${snap.doneCount}/${snap.total}`;
+  ui.dailyList.innerHTML = "";
+  for (const item of snap.items) {
+    const row = document.createElement("div");
+    row.className = "daily-item" + (item.done ? " done" : "");
+    row.innerHTML = `
+      <span class="daily-check">${item.done ? "✓" : "○"}</span>
+      <span class="daily-body"><b>${item.name}</b><i>${item.desc}</i></span>
+      <span class="daily-reward">+${item.reward}</span>`;
+    ui.dailyList.appendChild(row);
+  }
+}
+
+function renderModeChips() {
+  if (!ui.modeRow) return;
+  const selected = G._pendingMode || Meta.load().lastMode || "endless";
+  ui.modeRow.innerHTML = "";
+  for (const mode of listModes()) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "mode-select" + (mode.id === selected ? " selected" : "");
+    btn.dataset.mode = mode.id;
+    btn.innerHTML = `<b>${mode.name}</b><i>${mode.desc}</i>`;
+    btn.addEventListener("click", () => {
+      G._pendingMode = mode.id;
+      Meta.setLastMode(mode.id);
+      renderModeChips();
+      if (window.Analytics) Analytics.track("mode_select", { mode: mode.id, from: "menu" });
+    });
+    ui.modeRow.appendChild(btn);
+  }
+}
+
 function showMenu() {
   G.state = "menu";
   releaseWakeLock();
@@ -5925,15 +2829,14 @@ function showMenu() {
   ui.overScreen.classList.add("hidden");
   ui.shopScreen.classList.add("hidden");
   ui.levelModal.classList.add("hidden");
-  ui.jobModal.classList.add("hidden");
   ui.pauseScreen.classList.add("hidden");
-  ui.codexScreen.classList.add("hidden");
-  if (ui.forgeModal) ui.forgeModal.classList.add("hidden");
   ui.comboBadge.classList.add("hidden");
   ui.startScreen.classList.remove("hidden");
   setMenuBg(true);
   refreshMetaUI();
   renderChars();
+  renderModeChips();
+  refreshDailyUI();
 }
 
 // ---------- 暂停 / 全屏 / 屏幕常亮 / 触感 ----------
@@ -6023,12 +2926,13 @@ function frame(now) {
 
 ui.btnStart.addEventListener("click", () => {
   requestWakeLock();
-  startRun(Meta.load().selectedChar);
+  startRun(Meta.load().selectedChar, G._pendingMode || Meta.load().lastMode);
 });
 ui.btnRetry.addEventListener("click", () => {
   requestWakeLock();
-  startRun(Meta.load().selectedChar);
+  startRun(Meta.load().selectedChar, G.mode || G._pendingMode);
 });
+if (ui.btnRevive) ui.btnRevive.addEventListener("click", tryRevive);
 ui.btnHome.addEventListener("click", showMenu);
 ui.btnShop.addEventListener("click", () => {
   G.state = "shop";
@@ -6040,17 +2944,6 @@ ui.btnShop.addEventListener("click", () => {
 ui.btnShopBack.addEventListener("click", () => {
   ui.shopScreen.classList.add("hidden");
   showMenu();
-});
-ui.btnCodex.addEventListener("click", showCodex);
-ui.btnCodexBack.addEventListener("click", hideCodex);
-if (ui.forgeBtn) ui.forgeBtn.addEventListener("click", () => { AudioSys.init(); openForge(); });
-if (ui.btnForgeClose) ui.btnForgeClose.addEventListener("click", closeForge);
-if (ui.invBtn) ui.invBtn.addEventListener("click", () => { AudioSys.init(); openInventory(); });
-if (ui.btnInvClose) ui.btnInvClose.addEventListener("click", closeInventory);
-// v6.0 C 祭坛：拒绝按钮（不立契，转身走开，不惩罚）
-if (ui.btnAltarSkip) ui.btnAltarSkip.addEventListener("click", () => {
-  toast("未立血契 · 祭坛消散", "cyan");
-  closeAltar();
 });
 ui.btnResume.addEventListener("click", resumeGame);
 ui.btnPauseHome.addEventListener("click", () => {
@@ -6103,6 +2996,7 @@ document.addEventListener("touchend", (e) => {
 Quality.detect();
 bindJoystick();
 syncFullscreenBtn();
+if (window.Analytics) Analytics.track("app_open", { ua: (navigator.userAgent || "").slice(0, 80) });
 try {
   const s = localStorage.getItem("xuantianjie_sound");
   if (s === "0") { _soundOn = false; AudioSys.muted = true; }
@@ -6123,45 +3017,5 @@ requestAnimationFrame(frame);
 window.G = G;
 window.Meta = Meta;
 window.Quality = Quality;
-// 调试/无头测试钩子（无副作用）
-window.__XTJ__ = {
-  openLevelUp, openJobModal, jobSyncHud, shouldOfferJob, buildUpgradePool, rollUpgrades, gainXP,
-  JOB_PATHS, JOB_LEVELS, JOB_STAGES, NODE_HOLD,
-  openRelicModal, updateBeasts, spawnBeast, relicHudSync, beastHudSync, renderCodex, showCodex, hideCodex,
-  ARTIFACTS, ARTIFACT_BY_ID, BEASTS, BEAST_BY_ID, MAX_RELICS,
-  ELEMENTS, ELEM_BY_KEY, ORDINARY_COST, MAX_ORDINARY,
-  // v3.0 装备系统
-  TIERS, TIER_ORDER, SLOT_DEFS, ITEM_TYPES, AFFIX_POOL, AFFIX_KEYS, RARE_AFFIX_KEYS,
-  SKILL_AFFIX_KEYS, ACTIVE_SKILL_KEYS, PASSIVE_SKILL_KEYS, MAX_ACTIVE_SLOTS,
-  INVENTORY_MAX, EQUIP_SLOTS_MAX,
-  makeEquip, canMerge, mergeEquip, autoMergeEquip, pickUpEquip,
-  equipTo, unequipTo, equipBonuses, equipRec,
-  // v4.0 主动技能触发 + 派系核心自动解锁
-  triggerEquipSkill, autoUnlockCoreCheck, autoJobFromSet, CHAR_TO_PATH,
-  CHAR_STONES, STONE_BY_KEY, STONES_ALL, STONE_BY_SCHOOL, SCHOOLS_ALL,
-  GEMS, GEM_BY_ID, GEM_TIERS, MAX_GEMS,
-  SCH_CORES, SCH_CORE_BY_ID, SCH_CORE_BY_SCHOOL, MAX_SCHOOL_CORES, CORE_NEED_STONES,
-  stonesOf, stoneKeys, stoneTotal, stoneAt, schoolOf, countSchool, gemsOf, gemSlotsUsed, randStone,
-  canUnlockCore, unlockCore, equipCore, unequipCore, spendSchool,
-  coresEquipped, coresHasSlot, coresOfChar,
-  stoneHudSync, invHudSync, renderInventory, openInventory, closeInventory, renderEquipQuick, schoolHintCheck, forgeBtnSync, forgeableAny, canCraft, spendStones, gemProgress, nextGemStoneKey,
-  renderForge, renderCores, coreHudSync, openForge, closeForge, craftGem, openEssenceModal,
-  gemsMaxed, canMelt, meltStones, MELT_COST, SCH_PACK_DROP,
-  DROP_EQ_MOB, DROP_EQ_ELITE_W, DROP_EQ_ELITE_G, DROP_EQ_BOSS_W_MIN, DROP_EQ_BOSS_W_MAX, DROP_EQ_BOSS_G, DROP_EQ_BOSS_B, DROP_EQ_BOSS_O,
-  gemOnHit, gemOnCrit, atkSpeedNow, knockEnemies, playerDamageMult,
-  ELEM_OVERCOME, ELEM_GENERATE, PATH_ELEMS, elemRelation, bestElemRelation, elemMulVs, elemMatchText, waveElemKey,
-  REL_BEAT, REL_LOSE, REL_FED, REL_DRAIN,
-  DROP_MOB, DROP_ELITE, DROP_BOSS, ESSENCE_GAIN, buildWave, updateWaves,
-  applyHit, update,
-  collectPickup, dropPickup, killEnemy, spawnEnemy, damagePlayer, updateHUD, ENEMY_TYPES,
-  recomputeResonance, resonanceJust, renderResonance, resHudSync, gemsOfId,
-  ATK_BASE: 12,   // 测试用：玩家初始攻击（用于计算升级成长比值）
-  // v5.0 PM 视角
-  showBigBanner, showTutorial, hideTutorial, advanceTutorial, tickTutorial, updateGoalBar, setStoneSlot,
-  PURITY_BONUS, PURITY_PARTIAL, STONE_SLOT_BONUS, BOSS_PURPLE_DROP,
-  // v6.0 A 怪物词缀 / B 词条联动 / C 祭坛赌注
-  ENEMY_MODS, ENEMY_MOD_KEYS, modCountFor, rollEnemyMods,
-  SYNERGIES, SYNERGY_BY_ID, synOn, synHudSync,
-  ALTAR_DEALS, ALTAR_BY_ID, tierUp, spawnAltar, updateAltars, openAltar, takeAltarDeal, closeAltar,
-};
+if (window.Daily) window.DailyRuntime = Daily;
 })();

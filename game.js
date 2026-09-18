@@ -2867,8 +2867,10 @@ const ENEMY_TYPES = {
   bossFox: { name: "九尾妖王", r: 32, hp: 900, atk: 28, speed: 70, xp: 120, color: "#fbbf24", shape: "fox", boss: true, summon: true },
   bossGolem: { name: "山神傀儡", r: 36, hp: 1400, atk: 32, speed: 45, xp: 150, color: "#f59e0b", shape: "golem", boss: true, slam: true },
 };
+// v6.1 平衡：原指数 1.35 让 40 波血量 ×32 而攻击只 ×4.4，35~40 波必然撞墙
+//      指数降到 1.25（40 波 ×24.7）；经验随波次上涨见 spawnEnemy
 function enemyHP(base, wave) {
-  return base * (1 + 0.18 * wave) * (1 + 0.02 * Math.pow(wave, 1.35));
+  return base * (1 + 0.18 * wave) * (1 + 0.02 * Math.pow(wave, 1.25));
 }
 function enemyATK(base, wave) { return base * (1 + 0.12 * wave); }
 

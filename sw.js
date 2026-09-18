@@ -1,15 +1,11 @@
 /* 玄天劫 · 离线缓存 Service Worker */
-const CACHE = "xuantianjie-v2.0.0-sprint-a";
+const CACHE = "xuantianjie-v6.1.0";
 const ASSETS = [
   "./",
   "./index.html",
   "./style.css",
   "./game.js",
   "./manifest.webmanifest",
-  "./js/analytics.js",
-  "./js/meta.js",
-  "./js/daily.js",
-  "./js/modes.js",
   "./assets/bg-start.png",
   "./assets/char-sword.png",
   "./assets/char-mage.png",

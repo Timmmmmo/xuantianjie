@@ -70,6 +70,10 @@ const ui = {
   // v6.0 B 词条联动 HUD / C 祭坛赌注
   synHud: $("synHud"), synHudList: $("synHudList"), synHudCount: $("synHudCount"),
   altarModal: $("altarModal"), altarChoices: $("altarChoices"), btnAltarSkip: $("btnAltarSkip"),
+  // v7.0 A 合击 / B 尸潮 / C 狂血
+  fusionHud: $("fusionHud"),
+  hordeBar: $("hordeBar"), hordeFill: $("hordeFill"), hordeText: $("hordeText"),
+  frenzyHud: $("frenzyHud"),
 };
 
 // ---------- Audio ----------
@@ -599,11 +603,15 @@ function syncWeaponsFromSet() {
   for (const slot in G.equipped) {
     const eq = G.equipped[slot];
     if (!eq) continue;
+    const seen = new Set();                      // 同一件装备对同一武器最多贡献 1 级
     for (const ax of (eq.affixes || [])) {
       const def = AFFIX_POOL[ax];
       if (!def || !def.school) continue;
       const wk = SCHOOL_WEAPON[def.school];
-      if (wk) { cnt[wk] += 1; break; }   // 每件装备只贡献一次（取首个派系词条）
+      // v7.0 A：一件装备可以同时投资多个派系（混搭流派才能凑出「双兵合击」）
+      if (!wk || seen.has(wk)) continue;
+      seen.add(wk);
+      cnt[wk] += 1;
     }
   }
   for (const k in cnt) {
@@ -624,6 +632,328 @@ function syncWeaponsFromSet() {
     }
   }
   refreshWeaponHint();
+  syncFusions();
+}
+
+// ================= v7.0 · 延时爆点队列 =================
+// 合击、连锁击杀、尸潮奖励共用一套「先出预警圈 → 再炸」的原语，
+// 好处：视觉有预读（玩家能看出要炸哪），且伤害结算统一走 applyHit（元素/暴击/护盾全生效）
+function addBlast(x, y, r, dmg, delay, color, opts) {
+  G.blasts = G.blasts || [];
+  if (G.blasts.length > 60) return;            // 硬上限：手机端防炸帧
+  G.blasts.push({ x, y, r, dmg, t: Math.max(0, delay || 0), max: Math.max(0.001, delay || 0.001), color: color || "#fbbf24", opts: opts || null, kind: (opts && opts.kind) || "" });
+}
+function blastNow(b) {
+  burst(b.x, b.y, b.color, b.kind === "chain" ? 10 : 18, 250, 4);
+  G.particles.push({ x: b.x, y: b.y, vx: 0, vy: 0, life: 0.3, max: 0.3, color: b.color, size: 4, ring: { r0: 8, r1: b.r } });
+  G.shake = Math.max(G.shake, b.kind === "chain" ? 3 : 7);
+  for (const e of G.enemies) {
+    if (e.dead) continue;
+    if (dist(e.x, e.y, b.x, b.y) > b.r + e.r) continue;
+    applyHit(e, b.dmg, b.opts || {});
+  }
+  if (b.kind !== "chain") AudioSys.skill();
+}
+function updateBlasts(dt) {
+  if (!G.blasts || !G.blasts.length) return;
+  for (const b of G.blasts) {
+    b.t -= dt;
+    if (b.t <= 0 && !b.done) { b.done = true; blastNow(b); }
+  }
+  G.blasts = G.blasts.filter((b) => !b.done);
+}
+
+// ================= v7.0 A · 双兵合击 =================
+// 产品定位：给「配装」一个爆点回报 —— 两件武器同时觉醒即解锁合击技，
+// 自动蓄能释放（不占操作位），玩家感知是「我凑出来的东西产生了化学反应」
+const FUSION_DEFS = [
+  {
+    id: "fl", pair: ["fire", "lightning"], name: "雷火劫", ico: "劫", color: "#fb923c", cd: 7,
+    desc: "天雷引燃业火 · 三柱爆燃并附灼烧",
+    cast() {
+      const t = nearestEnemy(G.px, G.py, 520);
+      const cx = t ? t.x : G.px + rand(-180, 180), cy = t ? t.y : G.py + rand(-180, 180);
+      for (let i = 0; i < 3; i++) {
+        addBlast(cx + rand(-100, 100), cy + rand(-100, 100), 112,
+          fusDmg(2.0), 0.14 * i, "#fbbf24",
+          { burn: 3.5, burnDmg: fusDmg(0.3) });
+      }
+    },
+  },
+  {
+    id: "fa", pair: ["fire", "array"], name: "焚天剑轮", ico: "轮", color: "#f59e0b", cd: 6.5,
+    desc: "八向火轮横扫 · 穿透灼烧",
+    cast() {
+      for (let i = 0; i < 8; i++) {
+        const a = (Math.PI * 2 * i) / 8 + G.time * 0.7;
+        for (let k = 1; k <= 3; k++) {
+          const d = 70 * k;
+          addBlast(G.px + Math.cos(a) * d, G.py + Math.sin(a) * d, 62,
+            fusDmg(1.15), 0.06 * k, "#f59e0b",
+            { burn: 2.5, burnDmg: fusDmg(0.22) });
+        }
+      }
+    },
+  },
+  {
+    id: "fc", pair: ["fire", "frost"], name: "冰火两仪", ico: "仪", color: "#f472b6", cd: 6,
+    desc: "以己身为心的蒸汽爆 · 灼烧并冰缓",
+    cast() {
+      addBlast(G.px, G.py, 190, fusDmg(2.4), 0.18, "#f472b6",
+        { burn: 2.5, burnDmg: fusDmg(0.25), slow: 2, slowMul: 0.45 });
+      G.zones.push({ x: G.px, y: G.py, r: 190, life: 5, max: 5, kind: "prison", mul: 0.45, color: "#f472b6", dps: G.atk * 0.12 });
+    },
+  },
+  {
+    id: "lc", pair: ["frost", "lightning"], name: "玄冰雷引", ico: "引", color: "#a78bfa", cd: 5.5,
+    desc: "雷链锁六敌 · 冰缓并引雷",
+    cast() {
+      let n = 0;
+      for (const e of G.enemies) {
+        if (e.dead || n >= 6) continue;
+        if (dist(e.x, e.y, G.px, G.py) > 460) continue;
+        n++;
+        G.particles.push({ x: G.px, y: G.py, vx: 0, vy: 0, life: 0.22, max: 0.22, color: "#a78bfa", size: 3, line: { x2: e.x, y2: e.y } });
+        addBlast(e.x, e.y, 74, fusDmg(1.8), 0.05 * n, "#a78bfa", { slow: 2.2, slowMul: 0.35 });
+      }
+      if (n === 0) addBlast(G.px, G.py, 90, 0, 0.05, "#a78bfa", null);
+    },
+  },
+  {
+    id: "la", pair: ["lightning", "array"], name: "千锋雷剑", ico: "锋", color: "#c084fc", cd: 6.5,
+    desc: "十二雷剑自天而降 · 单体高频",
+    cast() {
+      const list = G.enemies.filter((e) => !e.dead && dist(e.x, e.y, G.px, G.py) < 520);
+      for (let i = 0; i < 12; i++) {
+        const e = list.length ? pick(list) : null;
+        const x = e ? e.x + rand(-24, 24) : G.px + rand(-240, 240);
+        const y = e ? e.y + rand(-24, 24) : G.py + rand(-240, 240);
+        addBlast(x, y, 58, fusDmg(1.05), 0.05 * i, "#c084fc", { slow: 1, slowMul: 0.6 });
+      }
+    },
+  },
+  {
+    id: "ca", pair: ["frost", "array"], name: "冰封剑狱", ico: "狱", color: "#7dd3fc", cd: 8,
+    desc: "周身凝成剑狱 · 定身并绞杀",
+    cast() {
+      addBlast(G.px, G.py, 210, fusDmg(1.7), 0.2, "#7dd3fc", { slow: 3, slowMul: 0.2 });
+      G.zones.push({ x: G.px, y: G.py, r: 210, life: 6, max: 6, kind: "prison", mul: 0.2, color: "#67e8f9", dps: G.atk * 0.18 });
+    },
+  },
+];
+const FUSION_MAX_ACTIVE = 2;      // 同时最多挂 2 个合击（再多玩家记不住，屏幕也乱）
+const FUSION_NEED_LV = 2;         // 两件武器各 Lv≥2 ⇒ 解锁合击
+// 产品取舍：3 个装备槽最多凑 3 件派系计数，
+//   · 全押一派 ⇒ 单武器觉醒 + 法门 Lv3（专精流：数值天花板高）
+//   · 双派混搭 ⇒ 两把武器到 Lv2、解锁合击（双修流：形态天花板高）
+// 两条路都成立，玩家自己选，这才是 build 的意义
+function fusDmg(k) { return G.atk * k * playerDamageMult() * (G._fusionPower || 1); }
+
+function syncFusions() {
+  if (!G.weapons) return;
+  G.fusions = G.fusions || [];
+  const owned = [];
+  for (const def of FUSION_DEFS) {
+    const a = G.weapons[def.pair[0]], b = G.weapons[def.pair[1]];
+    if (!a || !b) continue;
+    const ok = a.lv >= FUSION_NEED_LV && b.lv >= FUSION_NEED_LV;
+    if (ok) owned.push({ id: def.id, perfect: !!(a.evo && b.evo) });
+  }
+  // 移除已失效的
+  G.fusions = G.fusions.filter((f) => owned.some((o) => o.id === f.id));
+  // 双修圆满（两件皆觉醒）实时刷新
+  for (const f of G.fusions) {
+    const o = owned.find((x) => x.id === f.id);
+    if (o) f.perfect = o.perfect;
+  }
+  // 新增（取 FUSION_DEFS 顺序，最多 FUSION_MAX_ACTIVE）
+  for (const o of owned) {
+    if (G.fusions.length >= FUSION_MAX_ACTIVE) break;
+    if (G.fusions.some((f) => f.id === o.id)) continue;
+    const def = FUSION_DEFS.find((d) => d.id === o.id);
+    G.fusions.push({ id: o.id, perfect: o.perfect, cdLeft: def.cd * 0.5, cd: def.cd });
+    showBigBanner("双兵合璧", `${def.name}${o.perfect ? " · 圆满" : ""} · ${def.desc}`, "gold");
+    toast(`合击解锁 · ${def.name}`, "gold");
+    burst(G.px, G.py, def.color, 30, 260, 5);
+    AudioSys.level();
+  }
+  fusionHudSync();
+}
+
+function updateFusions(dt) {
+  if (!G.fusions || !G.fusions.length) return;
+  const hasTarget = G.enemies.some((e) => !e.dead);
+  for (const f of G.fusions) {
+    const def = FUSION_DEFS.find((d) => d.id === f.id);
+    if (!def) continue;
+    f.cdLeft = Math.max(0, (f.cdLeft || 0) - dt);
+    if (f.cdLeft <= 0 && hasTarget) {
+      f.cdLeft = f.cd;
+      G._fusionPower = f.perfect ? 1.5 : 1;      // 双器皆觉醒 ⇒ 合击威力 ×1.5
+      def.cast();
+      G._fusionPower = 1;
+      spawnFloater(G.px, G.py - G.pr - 26, def.name + (f.perfect ? "·圆满" : ""), def.color, 15);
+    }
+  }
+}
+
+function fusionHudSync() {
+  const box = ui.fusionHud;
+  if (!box) return;
+  if (!G.fusions || !G.fusions.length) { box.classList.add("hidden"); return; }
+  box.classList.remove("hidden");
+  box.innerHTML = "";
+  for (const f of G.fusions) {
+    const def = FUSION_DEFS.find((d) => d.id === f.id);
+    if (!def) continue;
+    const el = document.createElement("span");
+    el.className = "fus-chip";
+    el.style.setProperty("--fc", def.color);
+    el.innerHTML = `<b>${def.ico}</b><i>${def.name}</i><u></u>`;
+    box.appendChild(el);
+  }
+}
+
+function updateFusionHud() {
+  const box = ui.fusionHud;
+  if (!box || box.classList.contains("hidden")) return;
+  const chips = box.querySelectorAll(".fus-chip");
+  G.fusions.forEach((f, i) => {
+    const chip = chips[i];
+    if (!chip) return;
+    const u = chip.querySelector("u");
+    if (u) u.style.width = `${(1 - (f.cdLeft || 0) / f.cd) * 100}%`;
+    chip.classList.toggle("ready", (f.cdLeft || 0) <= 0);
+  });
+}
+
+// ================= v7.0 B · 尸潮涌 =================
+// 产品定位：割草的本体是「密度差」。每 7 波从一侧灌入一大群低血小妖，
+// 清完给一次集中奖励 —— 让玩家的强度曲线有明确的「我变强了」时刻
+const HORDE_EVERY = 7;
+const HORDE_BASE = 46;            // 首次 46 只，随波次递增
+function hordeSize(wave) { return HORDE_BASE + Math.floor(wave * 1.4); }
+
+function startHorde(wave) {
+  const total = hordeSize(wave);
+  G._horde = { active: true, total, spawned: 0, killed: 0, spawnT: 0, t: 26, ang: rand(0, TAU), wave };
+  G._hordeWave = wave;
+  showBigBanner("尸潮涌", `${total} 只尸傀自${dirName(G._horde.ang)}袭来`, "red");
+  toast(`尸潮涌 · ${total} 只`, "red");
+  G.shake = Math.max(G.shake, 10);
+  AudioSys.boss();
+}
+function dirName(a) {
+  const deg = ((a * 180) / Math.PI + 360) % 360;
+  if (deg < 45 || deg >= 315) return "东";
+  if (deg < 135) return "南";
+  if (deg < 225) return "西";
+  return "北";
+}
+function updateHorde(dt) {
+  const H = G._horde;
+  if (!H || !H.active) return;
+  H.t -= dt;
+  H.spawnT -= dt;
+  const alive = G.enemies.filter((e) => e.horde && !e.dead).length;
+  if (H.spawnT <= 0 && H.spawned < H.total) {
+    H.spawnT = 0.085;
+    const n = Math.min(5, H.total - H.spawned);
+    for (let i = 0; i < n; i++) {
+      const a = H.ang + rand(-0.55, 0.55);
+      const r = Math.max(view.w, view.h) * 0.6 + rand(0, 150);
+      spawnEnemy("hordeling", G.px + Math.cos(a) * r, G.py + Math.sin(a) * r, H.wave, { horde: true });
+      H.spawned += 1;
+    }
+  }
+  if (H.spawned >= H.total && alive === 0) {
+    H.active = false;
+    rewardHorde();
+  } else if (H.t <= 0) {
+    // 超时：残余尸傀自溃（避免玩家躲着不打，尸潮无限拖）
+    for (const e of G.enemies) if (e.horde && !e.dead) killEnemy(e, false);
+    H.active = false;
+    rewardHorde(true);
+  }
+  if (ui.hordeBar) {
+    ui.hordeBar.classList.remove("hidden");
+    const left = H.total - H.spawned + alive;
+    ui.hordeFill.style.width = `${clamp((1 - left / H.total) * 100, 0, 100)}%`;
+    ui.hordeText.textContent = `尸潮 ${Math.max(0, left)}`;
+  }
+}
+function rewardHorde(timeout) {
+  if (ui.hordeBar) ui.hordeBar.classList.add("hidden");
+  if (timeout) { toast("尸潮自溃 · 无赏", "violet"); return; }
+  const n = 6 + Math.floor((G._hordeWave || 7) / 7);
+  for (let i = 0; i < n; i++) {
+    dropPickup(G.px + rand(-70, 70), G.py + rand(-70, 70), "stone", { stone: randStone() });
+  }
+  dropPickup(G.px + rand(-40, 40), G.py + rand(-40, 40), "equip", { equip: makeEquip(pick(["weapon", "armor", "accessory"]), "blue") });
+  dropPickup(G.px + rand(-40, 40), G.py + rand(-40, 40), "relic");
+  G.coinsRun += 120;
+  showBigBanner("尸潮尽屠", `灵石 ×${n} · 蓝装 · 遗物 · 灵玉 +120`, "gold");
+  toast("尸潮尽屠 · 赐福降临", "gold");
+  burst(G.px, G.py, "#fbbf24", 40, 300, 6);
+  AudioSys.level();
+}
+
+// ================= v7.0 B2 · 连锁击杀 =================
+// 击杀有概率引爆尸体，向最近敌人传导，连击越高链越长 —— 尸潮里的核心爽点
+const CHAIN_MAX_DEPTH = 6;
+function tryChainKill(e) {
+  if (G._noChain) return;                       // 测试钩子：隔离连锁，做纯净的掉落统计
+  if ((G._chainDepth || 0) >= CHAIN_MAX_DEPTH) return;
+  const p = Math.min(0.45, 0.10 + (G.combo || 0) * 0.005 + (G._horde && G._horde.active ? 0.12 : 0));
+  if (Math.random() > p) return;
+  const tgt = nearestEnemy(e.x, e.y, 300);
+  if (!tgt || tgt === e) return;
+  G._chainDepth = (G._chainDepth || 0) + 1;
+  G.particles.push({ x: e.x, y: e.y, vx: 0, vy: 0, life: 0.2, max: 0.2, color: "#fbbf24", size: 3, line: { x2: tgt.x, y2: tgt.y } });
+  addBlast(tgt.x, tgt.y, 82, G.atk * 0.85 * playerDamageMult(), 0.05, "#fbbf24", { kind: "chain" });
+  G._chainKills = (G._chainKills || 0) + 1;
+  G._chainDepth -= 1;
+}
+
+// ================= v7.0 C · 瞬步残影 / 濒死狂血 =================
+// 瞬步：冲刺期间沿途留下带伤害判定的剑影，把「位移」变成「一次攻击」
+function spawnAfterimage() {
+  G.afterimages = G.afterimages || [];
+  if (G.afterimages.length > 14) return;
+  G.afterimages.push({
+    x: G.px, y: G.py, r: 36 + G.pr,
+    dmg: G.atk * 0.75 * playerDamageMult(),
+    life: 0.55, max: 0.55, hit: new Set(),
+  });
+}
+function updateAfterimages(dt) {
+  if (!G.afterimages || !G.afterimages.length) return;
+  for (const a of G.afterimages) {
+    a.life -= dt;
+    for (const e of G.enemies) {
+      if (e.dead || a.hit.has(e.id)) continue;
+      if (dist(e.x, e.y, a.x, a.y) > a.r + e.r) continue;
+      a.hit.add(e.id);
+      applyHit(e, a.dmg, {});
+    }
+  }
+  G.afterimages = G.afterimages.filter((a) => a.life > 0);
+}
+
+// 濒死狂血：血量跌破 25% 触发 5s 狂血（攻速 ×2 + 伤害 +50%），带 22s 内置 CD
+const FRENZY_HP = 0.25, FRENZY_TIME = 5, FRENZY_CD = 22;
+function updateFrenzy(dt) {
+  G._frenzyCD = Math.max(0, (G._frenzyCD || 0) - dt);
+  const ratio = G.hpMax > 0 ? G.hp / G.hpMax : 1;
+  if (ratio <= FRENZY_HP && ratio > 0 && (G._frenzyT || 0) <= 0 && (G._frenzyCD || 0) <= 0) {
+    G._frenzyT = FRENZY_TIME;
+    G._frenzyCD = FRENZY_CD;
+    showBigBanner("濒死狂血", "攻速 ×2 · 伤害 +50% · 五息之内", "red");
+    toast("濒死狂血 · 反杀时刻", "red");
+    burst(G.px, G.py, "#f43f5e", 34, 280, 5);
+    AudioSys.level();
+  }
+  if (ui.frenzyHud) ui.frenzyHud.classList.toggle("hidden", (G._frenzyT || 0) <= 0);
 }
 
 // ================= v6.0 A · 怪物词缀 =================
@@ -1592,6 +1922,10 @@ function bindJoystick() {
     if (e.isPrimary === false) return;
     e.preventDefault();
     AudioSys.init();                             // iOS 需要用户手势解锁音频
+    // v7.0 C 瞬步：双击摇杆区即冲刺（手机单手可达，不用去够技能键）
+    const nowT = (typeof performance !== "undefined" ? performance.now() : Date.now());
+    if (nowT - (input._lastTap || 0) < 280) { input._lastTap = 0; vibe(12); castSkill(1); }
+    else input._lastTap = nowT;
     input.joyActive = true;
     input.joyId = e.pointerId;
     ui.joystick.classList.remove("idle");
@@ -1932,6 +2266,15 @@ const G = {
   _frenzyT: 0,                      // B：狂血剩余秒数
   altarBuffs: { atkMul: 1, hpMul: 1, moveMul: 1, xpMul: 1, dropUp: 0, curseSpeed: 1, critAdd: 0 },
   _altarWave: 0,                    // C：上次刷祭坛的波次
+  // v7.0 A 合击 / B 尸潮 / C 瞬步·狂血
+  blasts: [],                       // A：延时爆点队列
+  afterimages: [],                  // C：瞬步剑影（带伤害判定）
+  fusions: [],                      // A：已解锁合击 [{ id, cdLeft, cd }]
+  _horde: null,                     // B：尸潮状态
+  _hordeWave: 0,
+  _frenzyCD: 0,                     // C：狂血内置 CD
+  _blinkT: 0,                       // C：瞬步残影生成计时
+  _chainDepth: 0, _chainKills: 0,   // B2：连锁击杀
 };
 
 function resetRun(charId) {
@@ -2011,6 +2354,19 @@ function resetRun(charId) {
   G._altarWave = 0;
   G._altarPickup = 0;
   G._synPrev = [];
+  // v7.0 A/B/C
+  G.blasts = [];
+  G.afterimages = [];
+  G.fusions = [];
+  G._horde = null;
+  G._hordeWave = 0;
+  G._frenzyCD = 0;
+  G._blinkT = 0;
+  G._chainDepth = 0;
+  G._chainKills = 0;
+  if (ui.hordeBar) ui.hordeBar.classList.add("hidden");
+  if (ui.frenzyHud) ui.frenzyHud.classList.add("hidden");
+  fusionHudSync();
   synHudSync();
   G._orangeT = 0; G._orangeName = "";
   G.weapons = {
@@ -2866,6 +3222,8 @@ const ENEMY_TYPES = {
   eliteGolem: { name: "玄铁傀儡", r: 24, hp: 280, atk: 22, speed: 50, xp: 40, color: "#c084fc", shape: "golem", elite: true },
   bossFox: { name: "九尾妖王", r: 32, hp: 900, atk: 28, speed: 70, xp: 120, color: "#fbbf24", shape: "fox", boss: true, summon: true },
   bossGolem: { name: "山神傀儡", r: 36, hp: 1400, atk: 32, speed: 45, xp: 150, color: "#f59e0b", shape: "golem", boss: true, slam: true },
+  // v7.0 B 尸潮涌：低血高速的炮灰，靠数量制造割草密度，不靠单只强度
+  hordeling: { name: "尸傀", r: 9, hp: 14, atk: 6, speed: 150, xp: 2, color: "#78716c", shape: "ghost" },
 };
 // v6.1 平衡：原指数 1.35 让 40 波血量 ×32 而攻击只 ×4.4，35~40 波必然撞墙
 //      指数降到 1.25（40 波 ×24.7）；经验随波次上涨见 spawnEnemy
@@ -2874,9 +3232,10 @@ function enemyHP(base, wave) {
 }
 function enemyATK(base, wave) { return base * (1 + 0.12 * wave); }
 
-function spawnEnemy(typeId, x, y, wave) {
+function spawnEnemy(typeId, x, y, wave, opts) {
   const t = ENEMY_TYPES[typeId];
-  const hp = enemyHP(t.hp, wave);
+  const o = opts || {};
+  const hp = enemyHP(t.hp, wave) * (o.hpMul || 1);
   const e = {
     id: Math.random().toString(36).slice(2),
     type: typeId, name: t.name, x, y, r: t.r,
@@ -2887,8 +3246,9 @@ function spawnEnemy(typeId, x, y, wave) {
     flash: 0, hitCD: 0, specialCD: rand(2, 4), phase: rand(0, TAU),
     burn: 0, burnDmg: 0, slow: 0, slowMul: 1, dead: false,
     elem: t.elem || waveElemKey(),   // 五行属性：随波轮转
+    horde: !!o.horde,                // v7.0 B 尸潮怪标记（用于统计与清场）
   };
-  // v6.0 A · 怪物词缀：精英/大妖随机带 1-2 个，实例化时立即生效
+  // v7.0 B：尸潮怪不参与词缀与精英 toast，避免刷屏
   e.mods = (e.elite || e.boss) ? rollEnemyMods(e, wave) : [];
   for (const m of e.mods) {
     if (m === "swift")  e.speed *= 1.6;
@@ -2916,7 +3276,9 @@ function spawnAtEdge(typeId, wave, minR = 0) {
 
 function buildWave(wave) {
   const q = [];
-  const count = 3 + Math.floor(wave * 0.85);
+  // v7.0：割草的底座是密度。原 3 + wave*0.85（20 波才 20 只）撑不起"割"的体感，
+  //       提到 4 + wave*1.35，并让精英/成群更早入场
+  const count = 4 + Math.floor(wave * 1.35);
   const pool = ["fox", "fox", "wolf"];
   if (wave >= 2) pool.push("bat", "bat");
   if (wave >= 3) pool.push("golem", "ghost");
@@ -2931,11 +3293,11 @@ function buildWave(wave) {
 }
 
 function updateWaves(dt) {
-  const trickleInterval = Math.max(0.8, 2.2 - G.wave * 0.04);
+  const trickleInterval = Math.max(0.45, 1.7 - G.wave * 0.035);
   G._trickle = (G._trickle || 0) + dt;
   if (G._trickle >= trickleInterval) {
     G._trickle = 0;
-    if (G.enemies.length < 80) {
+    if (G.enemies.length < 110) {
       const pool = ["fox", "bat"];
       if (G.wave >= 3) pool.push("wolf", "ghost");
       spawnAtEdge(pick(pool), G.wave);
@@ -2953,13 +3315,17 @@ function updateWaves(dt) {
     G.waveBanner = 1.4;
     G.waveBannerText = (G.wave % 5 === 0 ? `第 ${G.wave} 波 · ${we.name}行大妖` : `第 ${G.wave} 波 · ${we.name}行妖潮`) + relTxt;
     if (G.wave % 5 === 0) AudioSys.boss();
+    // v7.0 B 尸潮涌：每 7 波灌入一大群低血尸傀（不与妖王波重叠，避免难度尖刺）
+    if (G.wave >= HORDE_EVERY && G.wave % HORDE_EVERY === 0 && G.wave % 5 !== 0) {
+      startHorde(G.wave);
+    }
   }
   if (G.spawnQueue.length) {
     for (const item of G.spawnQueue) item.delay -= dt;
     const ready = G.spawnQueue.filter((i) => i.delay <= 0);
     G.spawnQueue = G.spawnQueue.filter((i) => i.delay > 0);
     for (const item of ready) {
-      if (G.enemies.length < 90) spawnAtEdge(item.type, G.wave);
+      if (G.enemies.length < 140) spawnAtEdge(item.type, G.wave);
     }
   }
 }
@@ -3194,6 +3560,8 @@ function playerDamageMult() {
   if (G.resonance && G.resonance.benPlayerMul) m += G.resonance.benPlayerMul;
   // v3.0 装备·火元素加伤（其他元素词条预留接口）
   m *= eq.huoMul;
+  // v7.0 C 濒死狂血：五息之内伤害 +50%（攻速 ×2 见 atkSpeedNow）
+  if ((G._frenzyT || 0) > 0) m *= 1.5;
   // 派系核心：每个核心可叠加一个 damageMult 钩子（血月当空等）
   for (const c of coresEquipped()) {
     if (c.damageMult) m = c.damageMult(m);
@@ -3224,6 +3592,8 @@ function killEnemy(e, byPlayer = true) {
   e.dead = true;
   G.kills += 1;
   onKillCombo();
+  // v7.0 B2 连锁击杀：尸体引爆，向最近敌人传导（尸潮/高连杀时概率更高）
+  tryChainKill(e);
   // v6.0 B 联动 · 悟道：击杀经验 +50%
   const synXpMul = synOn("syn_enlight") ? 1.5 : 1;
   const xp = Math.round(e.xp * G.xpMul * comboMul() * (G.nodeXpMul || 1) * synXpMul);
@@ -3750,7 +4120,11 @@ function castSkill(idx) {
     G.mp -= 15;
     G.dashCDLeft = G.dashCD;
     G.dashTimer = G.dashTime;
-    G.dashIFrame = G.dashTime + 0.05;
+    // v7.0 C 瞬步：无敌帧从 0.4s 拉到 0.6s，让「冲进去」成为可用战术而不是送死
+    G.dashIFrame = G.dashTime + 0.25;
+    G._blinkT = 0;
+    spawnAfterimage();
+    spawnFloater(G.px, G.py - G.pr - 14, "瞬步", "#5ce1e6", 12);
     if (G.gemFx.dashHaste) { G.hasteT = 3; spawnFloater(G.px, G.py - G.pr - 12, "御风 · 攻速涨", "#86efac", 12); }
     AudioSys.skill();
     burst(G.px, G.py, "#5ce1e6", 12, 100, 3);
@@ -4195,6 +4569,16 @@ function update(dt) {
   G._frenzyT = Math.max(0, (G._frenzyT || 0) - dt);
   G._swordArrayT = Math.max(0, (G._swordArrayT || 0) - dt);
   G._shadowT = Math.max(0, (G._shadowT || 0) - dt);
+  // v7.0 三大系统 tick：合击 / 爆点 / 尸潮 / 瞬步残影 / 濒死狂血
+  updateFusions(dt);
+  updateBlasts(dt);
+  updateHorde(dt);
+  updateAfterimages(dt);
+  updateFrenzy(dt);
+  if (G.dashTimer > 0) {                       // 瞬步沿途留剑影
+    G._blinkT = (G._blinkT || 0) - dt;
+    if (G._blinkT <= 0) { G._blinkT = 0.07; spawnAfterimage(); }
+  }
   // v4.0 装备被动技能 tick（按 G.passiveSkills 列表）
   for (const id of (G.passiveSkills || [])) {
     if (id === "sk_hp_regen") {
@@ -4372,8 +4756,21 @@ function update(dt) {
   }
   G.enemies = G.enemies.filter((e) => !e.dead);
 
-  // v6.0 A 冰霜力场衰减
-  for (const z of G.zones) z.life -= dt;
+  // v6.0 A 冰霜力场衰减 / v7.0 A 合击力场（冰封剑狱 · 冰火两仪）
+  for (const z of G.zones) {
+    z.life -= dt;
+    if (z.kind !== "prison") continue;
+    for (const e of G.enemies) {
+      if (e.dead) continue;
+      if (dist(e.x, e.y, z.x, z.y) > z.r + e.r) continue;
+      if ((e.slow || 0) < 0.7) { e.slow = 0.7; e.slowMul = z.mul || 0.35; }
+      if (z.dps) {
+        e.hp -= z.dps * dt;
+        e.flash = Math.max(e.flash || 0, 0.06);
+        if (e.hp <= 0) killEnemy(e);
+      }
+    }
+  }
   G.zones = G.zones.filter((z) => z.life > 0);
   // v6.0 C 祭坛：走近自动触发
   updateAltars(dt);
@@ -4490,6 +4887,7 @@ function updateHUD() {
   }
 
   // boss top bar
+  updateFusionHud();   // v7.0 A 合击蓄能条
   const boss = G.enemies.find((e) => e.boss && !e.dead);
   if (boss && ui.bossBar) {
     ui.bossBar.classList.remove("hidden");
@@ -4519,6 +4917,8 @@ function draw() {
   } else {
     drawNodes(camX, camY);
     drawZones();      // v6.0 A 冰霜力场（地面）
+    drawAfterimages(); // v7.0 C 瞬步剑影
+    drawBlasts();     // v7.0 A/B 爆点预警圈
     drawAltars();     // v6.0 C 祭坛
     for (const p of G.pickups) drawPickup(p);
     // magnet tether when close
@@ -5456,18 +5856,57 @@ function drawZones() {
     const s = w2s(z.x, z.y);
     if (s.x < -220 || s.y < -220 || s.x > view.w + 220 || s.y > view.h + 220) continue;
     const a = Math.min(1, z.life / 2);
+    const col = z.color || "#67e8f9";     // v7.0 A：合击力场用自己的颜色
     ctx.save();
     ctx.globalAlpha = a;
     const g = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, z.r);
-    g.addColorStop(0, "rgba(103,232,249,0.40)");
-    g.addColorStop(1, "rgba(103,232,249,0)");
+    g.addColorStop(0, col + "66");
+    g.addColorStop(1, col + "00");
     ctx.fillStyle = g;
     ctx.beginPath(); ctx.arc(s.x, s.y, z.r, 0, TAU); ctx.fill();
-    ctx.strokeStyle = "rgba(103,232,249,0.5)";
+    ctx.strokeStyle = col + "88";
     ctx.lineWidth = 1.6;
     ctx.setLineDash([6, 6]);
     ctx.beginPath(); ctx.arc(s.x, s.y, z.r, 0, TAU); ctx.stroke();
     ctx.setLineDash([]);
+    ctx.restore();
+  }
+}
+
+// v7.0 A/B：爆点预警圈（合击 / 连锁共用）—— 给玩家 0.05~0.4s 的预读时间
+function drawBlasts() {
+  if (!G.blasts || !G.blasts.length) return;
+  for (const b of G.blasts) {
+    if (b.t <= 0) continue;
+    const s = w2s(b.x, b.y);
+    if (s.x < -260 || s.y < -260 || s.x > view.w + 260 || s.y > view.h + 260) continue;
+    const k = 1 - Math.max(0, b.t) / b.max;      // 0→1 收缩
+    ctx.save();
+    ctx.globalAlpha = 0.35 + k * 0.5;
+    ctx.strokeStyle = b.color;
+    ctx.lineWidth = 2 + k * 2;
+    ctx.beginPath(); ctx.arc(s.x, s.y, b.r * (1 - k * 0.35), 0, TAU); ctx.stroke();
+    ctx.globalAlpha = 0.14 + k * 0.22;
+    ctx.fillStyle = b.color;
+    ctx.beginPath(); ctx.arc(s.x, s.y, b.r * (1 - k * 0.35), 0, TAU); ctx.fill();
+    ctx.restore();
+  }
+}
+
+// v7.0 C：瞬步剑影
+function drawAfterimages() {
+  if (!G.afterimages || !G.afterimages.length) return;
+  for (const a of G.afterimages) {
+    const s = w2s(a.x, a.y);
+    const k = a.life / a.max;
+    ctx.save();
+    ctx.globalAlpha = k * 0.5;
+    ctx.strokeStyle = "#5ce1e6";
+    ctx.lineWidth = 2.4;
+    ctx.beginPath(); ctx.arc(s.x, s.y, a.r * (0.55 + (1 - k) * 0.45), 0, TAU); ctx.stroke();
+    ctx.globalAlpha = k * 0.18;
+    ctx.fillStyle = "#5ce1e6";
+    ctx.beginPath(); ctx.arc(s.x, s.y, a.r * (0.55 + (1 - k) * 0.45), 0, TAU); ctx.fill();
     ctx.restore();
   }
 }
@@ -6279,5 +6718,12 @@ window.__XTJ__ = {
   // v6.1 武器觉醒 + 法门自动择定
   SCHOOL_WEAPON, WEAPON_NAME, WEAPON_EVO_NAME, WEAPON_MAX_LV, WEAPON_EVO_NEED,
   syncWeaponsFromSet, SCHOOL_BRANCH_IDX, JOB_BRANCH_MAX_LV, syncJobBranchesFromSet, jobWpLvAdd,
+  // v7.0 A 双兵合击 / B 尸潮·连锁 / C 瞬步·狂血
+  FUSION_DEFS, FUSION_MAX_ACTIVE, syncFusions, updateFusions, fusionHudSync, updateFusionHud,
+  addBlast, blastNow, updateBlasts,
+  HORDE_EVERY, hordeSize, startHorde, updateHorde, rewardHorde, dirName,
+  CHAIN_MAX_DEPTH, tryChainKill,
+  spawnAfterimage, updateAfterimages, updateFrenzy,
+  FRENZY_HP, FRENZY_TIME, FRENZY_CD, castSkill,
 };
 })();

@@ -77,6 +77,10 @@ const ui = {
   // v7.4 玄铁试炼桩（伤害测试者）
   trialHud: $("trialHud"), trialName: $("trialName"), trialTimer: $("trialTimer"),
   trialFill: $("trialFill"), trialDealt: $("trialDealt"), trialDps: $("trialDps"), trialPct: $("trialPct"),
+  // v7.5 攻击能力评定卡
+  trialCard: $("trialCard"), tcSub: $("tcSub"), tcRank: $("tcRank"), tcRankName: $("tcRankName"),
+  tcDps: $("tcDps"), tcDealt: $("tcDealt"), tcTime: $("tcTime"), tcPct: $("tcPct"),
+  tcComment: $("tcComment"), tcTip: $("tcTip"),
 };
 
 // ---------- Audio ----------
@@ -919,14 +923,22 @@ function rewardHorde(timeout) {
 //   桩是不动的血包，会把群伤/溅射/灼烧全吃掉 —— 实测对桩持续输出 1k~35k DPS，
 //   build 好坏能差 15 倍。取中位数（15 波 ≈6k、30 波 ≈20k）× 40 秒，
 //   即「打得好的 25~35 秒打碎，打得一般的差一口气」—— 过与不过都给得出信息。
-const TRIAL_WAVES = [15, 30];
+const TRIAL_WAVES = [3, 15, 30];
 const TRIAL_TIME = 60;                 // 试炼时长（秒）
-const TRIAL_HP = { 15: 250000, 30: 1500000 };
+const TRIAL_HP = { 3: 5000, 15: 250000, 30: 1500000 };
+// v7.5 第 3 波的「伤害测试者」是活的：一直追着玩家跑（不还手），
+//   15/30 波的玄铁桩仍是钉死不动的血包 —— 前期要的是「被追着也要打」的紧张感，
+//   后期要的是「纯输出对账」，两种手感不能混。
+const TRIAL_CHASE = { 3: true };
+const TRIAL_CHASE_SPEED = 118;         // 略慢于玩家：跑得掉，但甩不干净
 function trialHPFor(wave) { return TRIAL_HP[wave] || Math.round(28000 * Math.pow(1.5, (wave - 15) / 5)); }
 function trialIsWave(wave) { return TRIAL_WAVES.indexOf(wave) >= 0; }
+function trialTitle(wave) { return TRIAL_CHASE[wave] ? "伤害测试者" : "玄铁试炼桩"; }
 
 function spawnTrial(wave) {
   if (G._trialWave === wave) return;
+  // 保险：上一场试炼还没收场就撞上新的试炼波，先结掉旧的，别让两个计时器打架
+  if (G.trial && G.trial.active) endTrial(false, "试炼更替");
   G._trialWave = wave;
   const ang = rand(0, TAU);
   const e = spawnEnemy("dummy", G.px + Math.cos(ang) * 200, G.py + Math.sin(ang) * 200, wave);
@@ -935,9 +947,13 @@ function spawnTrial(wave) {
   e.isDummy = true;
   e.atk = 0; e.speed = 0; e.xp = 0; e.mods = [];
   e.boss = false; e.elite = false;
-  G.trial = { active: true, wave, t: TRIAL_TIME, dealt: 0, hpMax: hp, id: e.id, killed: false };
-  showBigBanner("玄铁试炼", `${TRIAL_TIME} 秒内击碎 · 桩血 ${hp}`, "orange");
-  toast(`玄铁试炼 · ${TRIAL_TIME} 秒 · 桩血 ${hp}`, "gold");
+  const chase = !!TRIAL_CHASE[wave];
+  if (chase) { e.isChaser = true; e.speed = TRIAL_CHASE_SPEED; e.color = "#f0c14b"; }
+  G.trial = { active: true, wave, t: TRIAL_TIME, dealt: 0, hpMax: hp, id: e.id, killed: false, chase };
+  const title = trialTitle(wave);
+  showBigBanner(chase ? "伤害测试者" : "玄铁试炼",
+    chase ? `${TRIAL_TIME} 秒内击碎 · 它只追不打` : `${TRIAL_TIME} 秒内击碎 · 桩血 ${hp}`, "orange");
+  toast(`${title} · ${TRIAL_TIME} 秒 · 血 ${hp}${chase ? " · 只追不打" : ""}`, "gold");
   G.shake = Math.max(G.shake, 8);
   AudioSys.boss();
   burst(e.x, e.y, "#f0c14b", 26, 260, 5);
@@ -949,10 +965,15 @@ function updateTrial(dt) {
   const e = G.enemies.find((x) => x.id === T.id && !x.dead);
   if (!e) { if (!T.killed) endTrial(false, "试炼桩已遁走"); return; }
   T.hpLeft = e.hp;
-  // 试炼桩「遁地重现」：玩家跑远了就贴过去。
-  //   桩是死物，玩家一拉扯战场就再也打不到它 —— 那测的就不是输出，是站位。
-  //   超过 560 就在玩家身边重铸（掉血进度保留），保证这 60 秒真的在测伤害。
-  if (dist(e.x, e.y, G.px, G.py) > 560) {
+  if (T.chase) {
+    // 追猎型不需要「遁地重现」——它自己会贴上来，玩家甩不掉。
+    //   这里只做一件事：万一被地形/力场推飞到天边，拉回玩家附近，别让计时空转。
+    if (dist(e.x, e.y, G.px, G.py) > 1600) {
+      const a1 = rand(0, TAU);
+      e.x = G.px + Math.cos(a1) * 160;
+      e.y = G.py + Math.sin(a1) * 160;
+    }
+  } else if (dist(e.x, e.y, G.px, G.py) > 560) {
     const a2 = rand(0, TAU);
     burst(e.x, e.y, "#94a3b8", 14, 160, 3);
     e.x = G.px + Math.cos(a2) * 190;
@@ -970,6 +991,72 @@ function updateTrial(dt) {
   trialHudSync(e);
 }
 
+// ---------- v7.5 攻击能力评分 ----------
+// 光有数字不够 —— 玩家看完「DPS 412」并不知道这算好还是算烂。
+//   评分把「我这套 build 有多能打」翻译成一句人话 + 一个等级，
+//   并且每个等级都带一条可执行的下一步（补攻速 / 换武器 / 提纯度），而不是只报个冷冰冰的数字。
+// 门槛按实测标定（tools/playability-sim.js 逐波真实对局采样），不是拍脑袋。
+const TRIAL_GRADE_TIME = {      // 击碎用时门槛（秒）：[天品, 上品, 中品, 下品]，超出即凡品
+  // 第 3 波门槛单独放宽：5000 血在前期是「硬骨头」，实测能打碎的也多在 45~57 秒才碎，
+  //   用 15/30 波那套门槛会把「拼到最后一秒才碎」判成凡品 —— 那是最该被奖励的一局。
+  3: [28, 38, 48, 58],
+  15: [18, 30, 44, 56],
+  30: [18, 30, 44, 56],
+};
+const TRIAL_GRADE_RATIO = [0.85, 0.62, 0.38, 0.18];   // 没打碎时按「打掉几成」评：中品 / 下品 / 凡品 / 劣品
+const TRIAL_GRADES = [
+  { rank: "S", name: "天品", color: "#fbbf24", word: "此锋可斩天人", tip: "输出已达此波上限 —— 尽情割草，别改 build" },
+  { rank: "A", name: "上品", color: "#a3e635", word: "锋芒已成，可当一面", tip: "再补一件攻装或一次攻速，即可登天品" },
+  { rank: "B", name: "中品", color: "#7dd3fc", word: "火候尚可，仍欠三分", tip: "建议：攻类悟道卡优先，别急着堆防御" },
+  { rank: "C", name: "下品", color: "#c084fc", word: "根基未稳，宜补攻伐", tip: "建议：先换高阶武器，再补攻速与暴击" },
+  { rank: "D", name: "凡品", color: "#94a3b8", word: "锋未开刃", tip: "建议：升武器等级 + 提派系纯度，差距主要在这两项" },
+];
+function trialGrade(wave, res) {
+  if (res.success) {
+    const th = TRIAL_GRADE_TIME[wave] || TRIAL_GRADE_TIME[15];
+    const t = res.t || 0;
+    if (t <= th[0]) return TRIAL_GRADES[0];
+    if (t <= th[1]) return TRIAL_GRADES[1];
+    if (t <= th[2]) return TRIAL_GRADES[2];
+    if (t <= th[3]) return TRIAL_GRADES[3];
+    return TRIAL_GRADES[4];
+  }
+  const r = res.ratio || 0;
+  // 没打碎：差一口气和差一半不是一回事，所以按完成度分档，最高只到中品
+  if (r >= TRIAL_GRADE_RATIO[0]) return TRIAL_GRADES[2];
+  if (r >= TRIAL_GRADE_RATIO[1]) return TRIAL_GRADES[3];
+  if (r >= TRIAL_GRADE_RATIO[2]) return TRIAL_GRADES[4];
+  return { rank: "E", name: "劣品", color: "#6b7280", word: "力有未逮", tip: "建议：先活下来 —— 把武器觉醒和法门境界推上去再谈输出" };
+}
+
+// v7.5 评定卡：不拦截操作（pointer-events:none）、7 秒自动收起
+function showTrialResult(res) {
+  const g = trialGrade(res.wave, res);
+  res.grade = g.rank; res.gradeName = g.name;
+  if (!ui.trialCard) return;
+  ui.trialCard.classList.remove("hidden");
+  ui.tcSub.textContent = `第 ${res.wave} 波 · ${trialTitle(res.wave)}`;
+  ui.tcRank.textContent = g.rank;
+  ui.tcRank.style.color = g.color;
+  ui.tcRank.style.textShadow = `0 0 14px ${g.color}`;
+  ui.tcRankName.textContent = g.name;
+  ui.tcRankName.style.color = g.color;
+  ui.tcDps.textContent = res.dps.toLocaleString("en-US");
+  ui.tcDealt.textContent = res.dealt.toLocaleString("en-US");
+  ui.tcTime.textContent = `${(res.t || 0).toFixed(1)}s`;
+  ui.tcPct.textContent = `${Math.round((res.ratio || 0) * 100)}%`;
+  ui.tcComment.textContent = res.success ? `${g.word} · ${Math.round(res.t)}s 击碎` : `${g.word} · 打掉 ${Math.round((res.ratio || 0) * 100)}%`;
+  ui.tcTip.textContent = g.tip;
+  ui.trialCard.classList.remove("tc-pop");
+  void ui.trialCard.offsetWidth;
+  ui.trialCard.classList.add("tc-pop");
+  G._trialCardT = 7;
+}
+function hideTrialCard() {
+  if (ui.trialCard) ui.trialCard.classList.add("hidden");
+  G._trialCardT = 0;
+}
+
 function trialHudSync(e) {
   const T = G.trial;
   T.hpLeft = e.hp;
@@ -977,7 +1064,7 @@ function trialHudSync(e) {
   ui.trialHud.classList.remove("hidden");
   const elapsed = Math.max(0.1, TRIAL_TIME - T.t);
   const dps = T.dealt / elapsed;
-  ui.trialName.textContent = `玄铁试炼桩 · 第 ${T.wave} 波`;
+  ui.trialName.textContent = `${trialTitle(T.wave)} · 第 ${T.wave} 波`;
   ui.trialTimer.textContent = `${Math.max(0, T.t).toFixed(1)}s`;
   ui.trialTimer.classList.toggle("urgent", T.t <= 10);
   ui.trialDealt.textContent = Math.round(T.dealt).toLocaleString("en-US");
@@ -999,23 +1086,27 @@ function endTrial(success, why) {
   //   所以「打掉几成」以桩的实际剩血为准，成功即 100%（不能用 dealt/hpMax，会显示成 89%）
   const ratio = success ? 1
     : clamp(T.hpLeft != null ? 1 - T.hpLeft / T.hpMax : T.dealt / T.hpMax, 0, 1);
-  G.trialResult = { wave: T.wave, success, dealt, dps, ratio, t: elapsed };
+  G.trialResult = { wave: T.wave, success, dealt, dps, ratio, t: elapsed, chase: !!T.chase };
+  const title = trialTitle(T.wave);
+  const grade = trialGrade(T.wave, G.trialResult);
+  // v7.5：评定卡是这场试炼的「结论」——先给等级，再给数字，最后给下一步
+  showTrialResult(G.trialResult);
   if (success) {
-    showBigBanner("试炼达成", `${Math.round(elapsed)}s 击碎 · DPS ${dps}`, "gold");
-    toast(`玄铁试炼通过 · ${Math.round(elapsed)}s · DPS ${dps}`, "gold");
-    // 通过奖励：橙装 + 灵石包 + 灵玉
+    showBigBanner("试炼达成", `${grade.rank}·${grade.name} · ${Math.round(elapsed)}s · DPS ${dps}`, "gold");
+    toast(`${title}通过 · ${grade.rank}·${grade.name} · ${Math.round(elapsed)}s · DPS ${dps}`, "gold");
+    // 通过奖励：15/30 波给橙装，第 3 波（早期）给紫装 —— 第 3 波直接发橙装会把后面的成长线压平
     const slot = pick(["weapon", "armor", "accessory"]);
-    const orangeEq = makeEquip(slot, "orange");
-    dropPickup(G.px + rand(-40, 40), G.py + rand(-40, 40), "equip", { equip: orangeEq });
-    toast(`试炼赐 · 橙·${ITEM_TYPES[orangeEq.typeKey].name}`, "orange");
+    const rq = makeEquip(slot, T.wave <= 3 ? "purple" : "orange");
+    dropPickup(G.px + rand(-40, 40), G.py + rand(-40, 40), "equip", { equip: rq });
+    toast(`试炼赐 · ${T.wave <= 3 ? "紫" : "橙"}·${ITEM_TYPES[rq.typeKey].name}`, T.wave <= 3 ? "violet" : "orange");
     for (let i = 0; i < 6; i++) dropPickup(G.px + rand(-70, 70), G.py + rand(-70, 70), "stone", { stone: randStone() });
-    G.coinsRun += 260;
+    G.coinsRun += T.wave <= 3 ? 90 : 260;
     G.goldFlash = Math.max(G.goldFlash || 0, 0.3);
     burst(G.px, G.py, "#fbbf24", 44, 320, 6);
   } else {
     const pctTxt = `${Math.round(ratio * 100)}%`;
-    showBigBanner("试炼未成", `${why} · 打掉 ${pctTxt} · DPS ${dps}`, "violet");
-    toast(`玄铁试炼 · ${why} · 累计 ${dealt.toLocaleString("en-US")} 伤害 · DPS ${dps} · 打掉 ${pctTxt}`, "violet");
+    showBigBanner("试炼未成", `${grade.rank}·${grade.name} · 打掉 ${pctTxt} · DPS ${dps}`, "violet");
+    toast(`${title} · ${why} · ${grade.rank}·${grade.name} · 累计 ${dealt.toLocaleString("en-US")} · DPS ${dps} · 打掉 ${pctTxt}`, "violet");
     // 未通过也按完成度给台阶：70% 给紫装，40% 给蓝装，否则只给灵石
     if (ratio >= 0.7) {
       dropPickup(G.px + rand(-40, 40), G.py + rand(-40, 40), "equip",
@@ -2438,7 +2529,7 @@ const G = {
   time: 0, wave: 0, kills: 0, waveTimer: 0, waveInterval: 25,
   spawnQueue: [], _trickle: 0,
   // v7.4 玄铁试炼桩（伤害测试者）状态
-  trial: null, trialResult: null, _trialWave: 0,
+  trial: null, trialResult: null, _trialWave: 0, _trialCardT: 0,
   px: 0, py: 0, pr: 16,
   hp: 100, hpMax: 100, mp: 50, mpMax: 50, mpRegen: 2.5,
   level: 1, xp: 0, xpNeed: 20,
@@ -2519,8 +2610,9 @@ function resetRun(charId) {
   G.time = 0; G.wave = 0; G.kills = 0; G.waveTimer = 0.8;   // v7.1：开局 3s 空场 → 0.8s 就开打
   G.spawnQueue = []; G._trickle = 0;
   // v7.4 玄铁试炼桩状态复位（否则上一局的试炼进度会带进新一局）
-  G.trial = null; G.trialResult = null; G._trialWave = 0;
+  G.trial = null; G.trialResult = null; G._trialWave = 0; G._trialCardT = 0;
   if (ui.trialHud) ui.trialHud.classList.add("hidden");
+  hideTrialCard();
   G.px = 0; G.py = 0;
   G.hpMax = 100 + shop.hpBonus;
   G.hp = G.hpMax;
@@ -2796,13 +2888,15 @@ function closeLevelUp() {
   try { last = performance.now(); } catch (_) {}
 }
 
-// ================= v7.4 · 前 15 级自动悟道（不再打断） =================
+// ================= v7.5 · 前 10 波自动悟道（不再打断） =================
 // 玩家反馈：前 15 级每升一级就弹一次三选一，开局节奏被切成碎片 ——
-//   「刚割爽就被按停」是这一段最大的体感损失，而且前 15 级玩家还没 build 概念，
+//   「刚割爽就被按停」是这一段最大的体感损失，而且前期玩家还没 build 概念，
 //   三选一给的也不是抉择，是打扰。
-// 改法：1~15 级自动随机领悟（不弹窗、不停帧、不打断），15 级之后恢复手动三选一 ——
-//   前期负责「割得顺」，后期把 build 的决策权完整交回玩家。
-const AUTO_UPGRADE_MAX_LEVEL = 15;
+// v7.5 把门槛从「15 级」改成「前 10 波」：按波次算才是玩家真实的体感刻度 ——
+//   前 10 波（约 4 分钟）自动随机领悟，不弹窗、不停帧；
+//   第 11 波起恢复手动三选一，此时玩家已经摸清流派，把 build 的决策权完整交回。
+const AUTO_UPGRADE_MAX_WAVE = 10;
+function autoUpgradePhase() { return (G.wave || 0) <= AUTO_UPGRADE_MAX_WAVE; }
 function autoUpgradePick() {
   const choices = buildUpgradePool(3);
   if (!choices.length) return null;
@@ -2828,7 +2922,7 @@ function grantUpgrade(def) {
 }
 function flushAutoUpgrades() {
   let guard = 0;
-  while ((G.pendingLevel || 0) > 0 && G.level <= AUTO_UPGRADE_MAX_LEVEL && guard++ < 40) {
+  while ((G.pendingLevel || 0) > 0 && guard++ < 40) {
     const c = autoUpgradePick();
     if (!c) { G.pendingLevel = 0; break; }
     grantUpgrade(c);
@@ -5246,6 +5340,11 @@ function tickTutorial(dt) {
     G._bigBannerT -= dt;
     if (G._bigBannerT <= 0 && ui.bigBanner) ui.bigBanner.classList.add("hidden");
   }
+  // v7.5 攻击能力评定卡：7 秒自动收起（不拦截操作，玩家不用点）
+  if (G._trialCardT > 0) {
+    G._trialCardT -= dt;
+    if (G._trialCardT <= 0) hideTrialCard();
+  }
   // 橙装慢镜
   if (G._orangeT > 0) {
     G._orangeT -= dt;
@@ -5353,9 +5452,9 @@ function update(dt) {
   if (G.state === "menu" || G.state === "over" || G.state === "shop" || G.state === "pause" || G.state === "codex") return;
   if (G.state === "level" || G.state === "job" || G.state === "forge") return;
   if (G.state === "altar") { updateHUD(); return; }   // v6.0 C 祭坛：暂停世界等玩家抉择
-  // v7.4：前 15 级自动悟道（不弹卡、不停帧），15 级之后才弹三选一交给玩家决策
+  // v7.5：前 10 波自动悟道（不弹卡、不停帧），第 11 波起才弹三选一交给玩家决策
   if ((G.pendingLevel || 0) > 0 && G.state === "play") {
-    if (G.level <= AUTO_UPGRADE_MAX_LEVEL) flushAutoUpgrades();
+    if (autoUpgradePhase()) flushAutoUpgrades();
     else { openLevelUp(); return; }
   }
 
@@ -5532,7 +5631,19 @@ function update(dt) {
     }
 
     // v7.4 玄铁试炼桩：钉死在场上 —— 不移动、不被拉扯，否则玩家要追着桩跑，测的就不是输出了
-    if (e.isDummy) { e.flash = Math.max(0, e.flash - dt); continue; }
+    if (e.isDummy) {
+      e.flash = Math.max(0, e.flash - dt);
+      // v7.5 第 3 波的「伤害测试者」是活的：一路追着玩家跑，但 atk=0 永不还手。
+      //   追的意义是「贴脸逼你打」——站着不动的桩在前期会被玩家遗忘在角落，
+      //   60 秒到了才发现自己一直在打小怪，测出来的是站位不是输出。
+      if (e.isChaser) {
+        const ca = angleTo(e.x, e.y, G.px, G.py);
+        const cs = (e.speed || TRIAL_CHASE_SPEED) * (e.slowMul || 1);
+        e.x += Math.cos(ca) * cs * dt;
+        e.y += Math.sin(ca) * cs * dt;
+      }
+      continue;
+    }
 
     const ang = angleTo(e.x, e.y, G.px, G.py);
     let mx = Math.cos(ang), my = Math.sin(ang);
@@ -7636,10 +7747,12 @@ window.__XTJ__ = {
   LV_ATK_MUL, LV_HP_MUL, damagePlayer, updateWaves, tickTutorial, hideTutorial,
   // v7.2 打击感 + 悬赏令
   FEEL, feelHit, feelKill, feelPart, comboBurst,
-  // v7.4 前 15 级自动悟道 / 渲染预算 / 玄铁试炼桩
-  AUTO_UPGRADE_MAX_LEVEL, autoUpgradePick, grantUpgrade, flushAutoUpgrades,
+  // v7.5 前 10 波自动悟道 / 渲染预算 / 伤害测试者
+  AUTO_UPGRADE_MAX_WAVE, autoUpgradePhase, autoUpgradePick, grantUpgrade, flushAutoUpgrades,
   RENDER_CAP, trimRenderBudget,
-  TRIAL_WAVES, TRIAL_TIME, TRIAL_HP, trialHPFor, trialIsWave, spawnTrial, updateTrial, endTrial, trialHudSync,
+  TRIAL_WAVES, TRIAL_TIME, TRIAL_HP, TRIAL_CHASE, trialHPFor, trialIsWave, trialTitle,
+  spawnTrial, updateTrial, endTrial, trialHudSync,
+  TRIAL_GRADES, TRIAL_GRADE_TIME, TRIAL_GRADE_RATIO, trialGrade, showTrialResult, hideTrialCard,
   BOUNTY_DEFS, BOUNTY_BY_ID, startBounty, bountyAdd, completeBounty, failBounty, tickBounty,
 };
 })();

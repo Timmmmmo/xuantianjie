@@ -128,6 +128,25 @@
       </div>
     </div>
 
+    <!-- v7.5 攻击能力评定卡（试炼结束后弹出 · 不挡操作 · 7 秒自动收起） -->
+    <div id="trialCard" class="trial-card hidden">
+      <div class="tc-head">
+        <span class="tc-title">攻击能力评定</span>
+        <span class="tc-sub" id="tcSub">第 3 波 · 伤害测试者</span>
+      </div>
+      <div class="tc-body">
+        <div class="tc-rankbox"><i id="tcRank">A</i><u id="tcRankName">上品</u></div>
+        <div class="tc-metrics">
+          <span><i>每秒伤害</i><b id="tcDps">0</b></span>
+          <span><i>累计伤害</i><b id="tcDealt">0</b></span>
+          <span><i>用时</i><b id="tcTime">0s</b></span>
+          <span><i>打掉</i><b id="tcPct">0%</b></span>
+        </div>
+      </div>
+      <div class="tc-comment" id="tcComment"></div>
+      <div class="tc-tip" id="tcTip"></div>
+    </div>
+
     <!-- v7.0 C 濒死狂血 -->
     <div id="frenzyHud" class="frenzy-hud hidden"><span>狂</span><b>濒死狂血</b></div>
 

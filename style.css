@@ -2420,6 +2420,22 @@ canvas#game {
   box-shadow: 0 0 12px rgba(240,193,75,0.35);
 }
 .stone-chip.hot i { color: var(--gold-hi, #fde68a); }
+/* v7.3 · 本命灵石（已入槽）：金环 + 呼吸光，玩家一眼看出「哪个系被点亮了」 */
+.stone-chip.slotted {
+  border-width: 2px;
+  border-color: var(--gold-hi, #fde68a);
+  box-shadow: 0 0 14px rgba(240,193,75,0.55), inset 0 0 8px rgba(240,193,75,0.22);
+  animation: stoneSlotted 1.6s ease-in-out infinite;
+}
+.stone-chip.slotted i { color: var(--gold-hi, #fde68a); }
+@keyframes stoneSlotted {
+  0%, 100% { box-shadow: 0 0 10px rgba(240,193,75,0.40), inset 0 0 6px rgba(240,193,75,0.16); }
+  50%      { box-shadow: 0 0 18px rgba(240,193,75,0.70), inset 0 0 10px rgba(240,193,75,0.30); }
+}
+.stone-chip.has { cursor: pointer; }
+.stone-chip.has:active { transform: scale(0.94); }
+/* v7.3 · 灵石槽位（背包内） */
+.inv-slot-stone .empty-hint { color: #c4b5fd; }
 
 .forge-crystal b { font-size: 11px; letter-spacing: 0.5px; }
 

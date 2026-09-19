@@ -614,6 +614,14 @@ function syncWeaponsFromSet() {
       cnt[wk] += 1;
     }
   }
+  // v7.3：本命灵石也计入该派系投资。
+  // 探针实测「3 件同派系觉醒」在真实一局里只是概率性可达（掉落槽位随机 + 自动合成会吃掉紫装），
+  // 整条 build 线时有时无。让灵石槽顶 1 件装备，2 件同派系 + 本命灵石即可觉醒——
+  // 既保住「纯度」的设计意图，又让目标稳定可达，同时给刚修好的灵石槽一个真实价值。
+  if (G._stoneSlot && G._stoneSlot.school) {
+    const wk = SCHOOL_WEAPON[G._stoneSlot.school];
+    if (wk) cnt[wk] += 1;
+  }
   for (const k in cnt) {
     const ww = w[k];
     if (!ww) continue;
@@ -921,11 +929,12 @@ function tryChainKill(e) {
 // 瞬步：冲刺期间沿途留下带伤害判定的剑影，把「位移」变成「一次攻击」
 function spawnAfterimage() {
   G.afterimages = G.afterimages || [];
-  if (G.afterimages.length > 14) return;
+  if (G.afterimages.length > (14 + (G._afterExtra || 0))) return;
+  const life = 0.55 + (G._afterLifeAdd || 0);
   G.afterimages.push({
     x: G.px, y: G.py, r: 36 + G.pr,
-    dmg: G.atk * 0.75 * playerDamageMult(),
-    life: 0.55, max: 0.55, hit: new Set(),
+    dmg: G.atk * 0.75 * playerDamageMult() * (G._afterDmgMul || 1),
+    life, max: life, hit: new Set(),
   });
 }
 function updateAfterimages(dt) {
@@ -1094,20 +1103,56 @@ function autoMergeEquip() {
   return count;
 }
 // 拾取装备入背包（满则卖金币）
+// ---------------------------------------------------------------------------
+// v7.3 P0+ · 成长被装备重算抹掉
+// 病根：_baseAtk 等只在 resetRun 快照一次（开局值），而升级（G.atk *= LV_ATK_MUL）
+//      与悟道卡只改 G.atk，从不回写 _baseAtk。于是任何一次 equipRec（穿脱装备、
+//      灵石槽、法门变更）都会把 G.atk 打回「开局值 + 当前装备」——玩家此前所有
+//      升级与选卡的攻击成长全部作废。
+//      探针实测：等级 30 攻击仅 35（正确应为 ≈98），穿装备那一刻就被回滚了。
+//      后果是后期打不动妖王 ⇒ 拿不到妖王必掉的本派紫装 ⇒ 觉醒/法门/合击/联动
+//      整条 build 线在真实一局里从未发生。
+// 修法：不再使用固定快照，改为每次重算前先从当前实际值「剥离」上一次的装备增量，
+//      反推出不含装备的基础值——这样无论成长来自升级、卡片、法门、祭坛还是商店，
+//      都会被完整保留。
+// ---------------------------------------------------------------------------
+function stripEquipFromCurrent() {
+  const old = G._eqCache || { atk: 0, hp: 0, spd: 0, crit: 0, lifesteal: 0, xp: 0, shield: 0, burnMul: 1, dmgTaken: 0 };
+  // 注意：剥离必须用「上一次真正应用过的乘区」，不能用当前的 altarBuffs / _jobDmgTakenMul。
+  // 否则会出现：祭坛刚改了 hpMul=0.7 但 G.hpMax 还没被重算 ⇒ 剥离时把它当成已生效除掉
+  // ⇒ 再乘一次 ⇒ 净效果为 0（祭坛和法门整条失效）。
+  const ap = G._appliedMul || { atk: 1, hp: 1, xp: 1, critAdd: 0, jobDmg: 1, jobShield: 0 };
+  G._baseAtk = (G.atk / ap.atk) - (old.atk || 0);
+  G._baseHpMax = (G.hpMax / ap.hp) - (old.hp || 0);
+  G._baseCrit = G.crit - (old.crit || 0) - ap.critAdd;
+  G._baseLS = G.lifesteal - (old.lifesteal || 0);
+  G._baseXpMul = (G.xpMul / ap.xp) - (old.xp || 0);
+  G._baseShieldMax = G.shieldMax - (old.shield || 0) - ap.jobShield;
+  G._baseBurnMul = G.burnMul / (old.burnMul || 1);
+  G._baseDmgTaken = (G.dmgTakenMul / ap.jobDmg) - (old.dmgTaken || 0);
+  G._baseMoveSpeed = G.moveSpeed / (1 + (old.spd || 0) / 100);
+}
 // 装备变更后重建缓存
 function equipRec() {
+  stripEquipFromCurrent();          // v7.3 P0+：先剥离旧装备增量，保住升级/卡片成长
   G._eqCache = equipBonuses();
   // v3.0：装备带来的增量叠加到玩家基础值（v6.0 C 祭坛赌注：atk/crit/xp 再乘修正）
-  G.atk = ((G._baseAtk || G.atk) + (G._eqCache.atk || 0)) * (G.altarBuffs.atkMul || 1);
-  G.hpMax = ((G._baseHpMax || G.hpMax) + (G._eqCache.hp || 0)) * (G.altarBuffs.hpMul || 1);
+  G.atk = (G._baseAtk + (G._eqCache.atk || 0)) * (G.altarBuffs.atkMul || 1);
+  G.hpMax = (G._baseHpMax + (G._eqCache.hp || 0)) * (G.altarBuffs.hpMul || 1);
   G.hp = Math.min(G.hp, G.hpMax);
-  G.moveSpeed = (G._baseMoveSpeed || G.moveSpeed) * (1 + (G._eqCache.spd || 0) / 100);
-  G.crit = (G._baseCrit || 0.08) + (G._eqCache.crit || 0) + (G.altarBuffs.critAdd || 0);
-  G.lifesteal = (G._baseLS || 0) + (G._eqCache.lifesteal || 0);
-  G.xpMul = ((G._baseXpMul || 1) + (G._eqCache.xp || 0)) * (G.altarBuffs.xpMul || 1);
-  G.shieldMax = (G._baseShieldMax || 0) + (G._eqCache.shield || 0) + (G._jobShieldBonus || 0);
-  G.burnMul = (G._baseBurnMul || 1) * (G._eqCache.burnMul || 1);
-  G.dmgTakenMul = Math.max(0.1, ((G._baseDmgTaken || 1) + (G._eqCache.dmgTaken || 0)) * (G._jobDmgTakenMul || 1));
+  G.moveSpeed = G._baseMoveSpeed * (1 + (G._eqCache.spd || 0) / 100);
+  G.crit = G._baseCrit + (G._eqCache.crit || 0) + (G.altarBuffs.critAdd || 0);
+  G.lifesteal = G._baseLS + (G._eqCache.lifesteal || 0);
+  G.xpMul = (G._baseXpMul + (G._eqCache.xp || 0)) * (G.altarBuffs.xpMul || 1);
+  G.shieldMax = G._baseShieldMax + (G._eqCache.shield || 0) + (G._jobShieldBonus || 0);
+  G.burnMul = G._baseBurnMul * (G._eqCache.burnMul || 1);
+  G.dmgTakenMul = Math.max(0.1, (G._baseDmgTaken + (G._eqCache.dmgTaken || 0)) * (G._jobDmgTakenMul || 1));
+  // 记下本次真正应用过的乘区，供下一次剥离使用（见 stripEquipFromCurrent 注释）
+  G._appliedMul = {
+    atk: G.altarBuffs.atkMul || 1, hp: G.altarBuffs.hpMul || 1, xp: G.altarBuffs.xpMul || 1,
+    critAdd: G.altarBuffs.critAdd || 0,
+    jobDmg: G._jobDmgTakenMul || 1, jobShield: G._jobShieldBonus || 0,
+  };
   // v4.0: 主动技能槽位同步
   G.activeSkills = G._eqCache.activeSkillIds.slice();
   G.passiveSkills = G._eqCache.passiveSkillIds.slice();
@@ -1215,7 +1260,16 @@ function syncJobBranchesFromSet() {
   const wk = SCHOOL_WEAPON[school];
   const evo = !!(wk && G.weapons && G.weapons[wk] && G.weapons[wk].evo);
   const stoneSame = !!(G._stoneSlot && G._stoneSlot.school === school);
-  let target = 1 + (evo ? 1 : 0) + (stoneSame ? 1 : 0);
+  // v7.3：Lv3 保留为「集齐一整套同派系」的终局目标（觉醒门槛已因灵石槽下调，
+  //       若 Lv3 只要求灵石槽 + 觉醒，则满级来得太快，「凑齐一套」这件事就没有意义了）
+  let invest = 0;
+  for (const slot in G.equipped) {
+    const eq = G.equipped[slot];
+    if (!eq) continue;
+    if ((eq.affixes || []).some((a) => AFFIX_POOL[a] && AFFIX_POOL[a].school === school)) invest += 1;
+  }
+  const fullSet = invest >= 3;
+  let target = 1 + (evo ? 1 : 0) + ((stoneSame && fullSet) ? 1 : 0);
   target = Math.min(JOB_BRANCH_MAX_LV, target);
   const cur = G.jobBranches[b.id] || 0;
   if (target <= cur) return;
@@ -1311,8 +1365,24 @@ function pickUpEquip(eq) {
       spawnFloater(G.px, G.py - G.pr - 18, `+${gold} 金 · ${eq.name}`, "#fbbf24", 10);
       return false;
     }
-    toast(`背包满！${eq.name} 已丢弃`, "warn");
-    return false;
+    // v7.3 P0：背包满时紫/橙不该被丢掉。
+    // 探针实测：一局下来紫装 0 件 —— 背包被白绿装塞满后，妖王必掉的本派紫装直接蒸发，
+    // 于是「3 件同派系觉醒」在真实一局里永远凑不出来，整条 build 线是空的。
+    // 修法：自动卖掉背包里阶数最低的一件腾位（玩家不用手动清包）。
+    let worstIdx = -1, worstRank = 99;
+    for (let i = 0; i < G.inventory.length; i++) {
+      const r = TIER_ORDER.indexOf(G.inventory[i].tier);
+      if (r >= 0 && r < worstRank) { worstRank = r; worstIdx = i; }
+    }
+    if (worstIdx >= 0 && worstRank < TIER_ORDER.indexOf(eq.tier)) {
+      const drop = G.inventory.splice(worstIdx, 1)[0];
+      const gold = Math.round(8 * (TIERS[drop.tier] ? TIERS[drop.tier].mult : 1));
+      G.gold = (G.gold || 0) + gold;
+      toast(`背包腾位 · ${drop.name} 化作 ${gold} 金`, "warn");
+    } else {
+      toast(`背包满！${eq.name} 已丢弃`, "warn");
+      return false;
+    }
   }
   G.inventory.push(eq);
   const merged = autoMergeEquip();
@@ -1387,6 +1457,39 @@ function setStoneSlot(stoneKey) {
   invHudSync();
   return true;
 }
+// ---------------------------------------------------------------------------
+// v7.3 P0 · 灵石槽入口
+// 审计发现：setStoneSlot() 全项目零调用 ⇒ 灵石槽 ×1.30 加成与法门境界 Lv3
+// 玩家永远够不着（这是本项目第四次「系统写了但够不到」事故）。
+// 修法：灵石槽不消耗灵石（只做派系抉择），入口开在两处——
+//   ① HUD 常驻灵石条：点一颗已拥有的灵石即入槽（再点卸下）
+//   ② 背包灵石槽位：显示当前本命灵石，点击卸下
+// 校验：灵石被炼宝台消耗到 0 时自动卸下，避免出现「持有 0 颗却生效」的不一致
+// ---------------------------------------------------------------------------
+function toggleStoneSlot(stoneKey) {
+  const def = STONE_BY_KEY[stoneKey];
+  if (!def) return false;
+  if (G._stoneSlot && G._stoneSlot.stoneKey === stoneKey) {
+    setStoneSlot(null);
+    toast(`取出灵石 · ${def.name}`, "warn");
+    return true;
+  }
+  if (stoneAt(stoneKey) <= 0) { toast(`尚未获得「${def.name}」`, "warn"); return false; }
+  setStoneSlot(stoneKey);
+  toast(`本命灵石 · ${def.name}｜${def.school}系词条 ×1.30`, "gold");
+  AudioSys.level();
+  return true;
+}
+// 灵石被炼宝台耗尽后，槽位必须跟着失效
+function validateStoneSlot() {
+  if (!G._stoneSlot) return;
+  if (stoneAt(G._stoneSlot.stoneKey) > 0) return;
+  const nm = G._stoneSlot.name;
+  G._stoneSlot = null;
+  equipRec();
+  toast(`「${nm}」已耗尽 · 灵石槽空置`, "warn");
+}
+
 // 装备属性汇总（v4.0：同时收集 主动/被动 技能）
 function equipBonuses() {
   const b = { atk: 0, hp: 0, spd: 0, crit: 0, lifesteal: 0, xp: 0, shield: 0, dmgTaken: 0,
@@ -1443,7 +1546,8 @@ function equipBonuses() {
       }
       // v5.0 派系词条按纯度 + 灵石槽加成
       const isSchool = def && def.school;
-      const stoneBoost = (isSchool && stoneSchool && def.school === stoneSchool) ? STONE_SLOT_BONUS : 0;
+      const stoneBoost = (isSchool && stoneSchool && def.school === stoneSchool)
+        ? STONE_SLOT_BONUS + (G._stoneBoostAdd || 0) : 0;   // v7.3 变类卡「灵石亲和」
       const mult = purityMul * (1 + stoneBoost);
       switch (ax) {
         case "huo_dmg":     b.huoMul += 0.12 * mult; break;
@@ -2321,6 +2425,9 @@ function resetRun(charId) {
   G.jobStage = 0; G.jobPath = null; G.jobBranches = {};
   G.relics = []; G.pendingRelic = 0; G.beast = null;
   G.burnMul = 1; G.thunderProc = 0;
+  // v7.3 P2 变类卡字段统一归位（否则重开一局会带着上局的强化）
+  G._burstCut = 0; G._afterLifeAdd = 0; G._afterDmgMul = 1; G._afterExtra = 0;
+  G._execLv = 0; G._zoneLv = 0; G._elemBeatAdd = 0; G._stoneBoostAdd = 0;
   G.stones = {};
   for (const st of STONES_ALL) G.stones[st.key] = 0;   // 全部 27 颗都可拾取
   G.gems = {}; G.gemFx = {}; G.pendingEssence = 0;
@@ -2347,6 +2454,7 @@ function resetRun(charId) {
   initNodes();
   // v5.0 灵石槽 + 派系纯度 + 里程碑 + 教程
   G._stoneSlot = null;
+  G._stoneHinted = false;   // v7.3：首次拾到灵石时的入槽引导，只提示一次
   G._purity = 0;
   G._milestone = { purple: false, job: false, school: false, orange: false };
   G.tutStep = 1;
@@ -2464,6 +2572,21 @@ const UPGRADE_POOL = [
     apply() { G._frenzyHpAdd = (G._frenzyHpAdd || 0) + 0.08; G._frenzyTimeAdd = (G._frenzyTimeAdd || 0) + 1; } },
   { id: "u_thunder", cls: "form", ico: "雷", t: "t-burst", name: "引雷诀", desc: "击杀 6% 概率引雷", max: 4,
     apply() { G.thunderProc += 0.06; } },
+  // —— v7.3 P2 · 变类扩容 ——
+  // 审计发现：变类总供给只有 32 次，而一局能升到 35~40 级 ⇒ 约 30 级后牌面退化成纯数值三选一，
+  // 正好退回到 v7.1 拼命想解决的「抉择很轻」状态。以下 6 张各 3 次，供给 32 → 50。
+  { id: "u_burst", cls: "form", ico: "意", t: "t-burst", name: "剑意频出", desc: "剑意爆发所需连杀 −4（下限 8）", max: 3, rare: true,
+    apply() { G._burstCut = (G._burstCut || 0) + 4; } },
+  { id: "u_after", cls: "form", ico: "影", t: "t-burst", name: "剑影重重", desc: "瞬步残影存续 +0.25s · 伤害 ×1.4", max: 3,
+    apply() { G._afterLifeAdd = (G._afterLifeAdd || 0) + 0.25; G._afterDmgMul = (G._afterDmgMul || 1) * 1.4; } },
+  { id: "u_exec", cls: "form", ico: "军", t: "t-burst", name: "破军令", desc: "斩精英/妖王时原地爆一圈剑罡", max: 3, rare: true,
+    apply() { G._execLv = (G._execLv || 0) + 1; } },
+  { id: "u_zone", cls: "form", ico: "霜", t: "t-burst", name: "霜痕遍地", desc: "击杀 10% 概率在尸体处留减速霜痕", max: 3,
+    apply() { G._zoneLv = (G._zoneLv || 0) + 1; } },
+  { id: "u_elem", cls: "form", ico: "玄", t: "t-burst", name: "五行通玄", desc: "克制关系伤害再 +15%", max: 3,
+    apply() { G._elemBeatAdd = (G._elemBeatAdd || 0) + 0.15; } },
+  { id: "u_stone", cls: "form", ico: "契", t: "t-burst", name: "灵石亲和", desc: "本命灵石加成 +15%（0.30 → 0.45…）", max: 3,
+    apply() { G._stoneBoostAdd = (G._stoneBoostAdd || 0) + 0.15; } },
 ];
 const UPGRADE_BY_ID = {};
 for (const u of UPGRADE_POOL) UPGRADE_BY_ID[u.id] = u;
@@ -2794,17 +2917,24 @@ function openRelicModal() { /* 法宝匣不再弹窗，由 collectPickup 处理 
 function resolvePendingModal() { /* v4.0 不再弹窗 */ }
 
 // ---------- 炼宝台：专属灵石 → 流派宝石 / 通用装备 ----------
+// v7.3 P0：chip 可点击入槽（这是灵石槽唯一的常驻入口）
 function stoneHudSync() {
   if (!ui.stoneRow) return;
   ui.stoneRow.classList.remove("hidden");
   ui.stoneRow.innerHTML = "";
   const hot = nextGemStoneKey();
+  const slotted = G._stoneSlot && G._stoneSlot.stoneKey;
   for (const st of stonesOf()) {
     const n = stoneAt(st.key);
     const chip = document.createElement("span");
-    chip.className = "stone-chip" + (n > 0 ? " has" : " empty") + (st.key === hot ? " hot" : "");
+    chip.className = "stone-chip" + (n > 0 ? " has" : " empty") + (st.key === hot ? " hot" : "")
+                   + (st.key === slotted ? " slotted" : "");
     chip.style.setProperty("--cc", st.color);
     chip.innerHTML = `<b>${st.ico}</b><i>${n}</i>`;
+    chip.title = `${st.name}（${st.school}）×${n} · 点击${st.key === slotted ? "取出" : "设为本命灵石"}`;
+    if (n > 0 || st.key === slotted) {
+      chip.onclick = () => { toggleStoneSlot(st.key); stoneHudSync(); renderInventory(); };
+    }
     ui.stoneRow.appendChild(chip);
   }
 }
@@ -2865,6 +2995,7 @@ function forgeBtnSync() {
 // ---------- 背包 v3.0 渲染 ----------
 function invHudSync() {
   if (!ui.invBtnCount) return;
+  validateStoneSlot();   // v7.3：灵石被炼宝台耗尽后，槽位同步失效
   ui.invBtnCount.textContent = `${G.inventory.length}/${INVENTORY_MAX}`;
   const hasPurple = G.inventory.some((e) => e.tier === "purple" || e.tier === "orange");
   ui.invBtn.classList.toggle("has-purple", hasPurple);
@@ -2888,6 +3019,22 @@ function renderInventory() {
       eqEl.innerHTML = `<span class="empty-hint">空 · 点击紫/橙装备</span>`;
     }
     node.onclick = () => { if (G.equipped[slot]) { unequipTo(slot); renderInventory(); } };
+  }
+  // v7.3 P0：灵石槽（此前 UI 是摆设，setStoneSlot 零调用）
+  if (ui.invSlotStone) {
+    const node = ui.invSlotStone;
+    const st = G._stoneSlot;
+    const labelEl = node.querySelector(".inv-slot-label");
+    const eqEl = node.querySelector(".inv-slot-eq");
+    if (st) {
+      node.classList.add("filled");
+      eqEl.innerHTML = `<b style="color:${st.color}">${st.name}</b><br><span style="font-size:9px;color:#a78bfa">${st.school}系 ×1.30 · 点击取出</span>`;
+      node.onclick = () => { setStoneSlot(null); stoneHudSync(); renderInventory(); invHudSync(); };
+    } else {
+      node.classList.remove("filled");
+      eqEl.innerHTML = `<span class="empty-hint">空 · 在 HUD 灵石条点选</span>`;
+      node.onclick = null;
+    }
   }
   // 网格
   ui.invGrid.innerHTML = "";
@@ -3363,10 +3510,27 @@ const ENEMY_TYPES = {
 };
 // v6.1 平衡：原指数 1.35 让 40 波血量 ×32 而攻击只 ×4.4，35~40 波必然撞墙
 //      指数降到 1.25（40 波 ×24.7）；经验随波次上涨见 spawnEnemy
-function enemyHP(base, wave) {
-  return base * (1 + 0.18 * wave) * (1 + 0.02 * Math.pow(wave, 1.25));
+// v7.3 P1 · 终局压力
+// 审计发现（balance-report）：正常配装 20 波能挨 11.5 下，40 波反而能挨 16.7 下，
+// 砍妖王 49 刀 → 35 刀 —— 后期越打越安全。这是 v6.1 把指数 1.35→1.25 修撞墙时矫枉过正。
+// 无尽模式没有终局压力 ⇒ 长局变机械重复，玩家不是被打死而是自己腻了退出。
+// 修法：26 波起另加一段超线性压力（HP 与 ATK 同时抬头），把「越活越轻松」掰回来，
+//      且不恢复 v6.1 之前那种 35~40 波硬撞墙（那段由指数 1.25 负责克制）。
+// 配比说明：压力主要来自 ATK（制造"会被打死"的威胁），HP 只温和上涨。
+// 试过 HP 系数 0.028 —— 40 波妖王要砍 119 刀，等于把 v6.1 修掉的撞墙又请回来了。
+const ENDGAME_FROM = 26;          // 从第几波开始施加终局压力
+function endgameHpMul(wave) {
+  if (wave <= ENDGAME_FROM) return 1;
+  return 1 + 0.012 * Math.pow(wave - ENDGAME_FROM, 1.35);
 }
-function enemyATK(base, wave) { return base * (1 + 0.12 * wave); }
+function endgameAtkMul(wave) {
+  if (wave <= ENDGAME_FROM) return 1;
+  return 1 + 0.022 * (wave - ENDGAME_FROM);
+}
+function enemyHP(base, wave) {
+  return base * (1 + 0.18 * wave) * (1 + 0.02 * Math.pow(wave, 1.25)) * endgameHpMul(wave);
+}
+function enemyATK(base, wave) { return base * (1 + 0.12 * wave) * endgameAtkMul(wave); }
 
 function spawnEnemy(typeId, x, y, wave, opts) {
   const t = ENEMY_TYPES[typeId];
@@ -3605,7 +3769,7 @@ function onKillCombo() {
     spawnFloater(G.px, G.py - 28, `连杀×${G.combo}`, G.combo >= 50 ? "#d9f99d" : G.combo >= 25 ? "#fde68a" : "#fda4af", 12);
   }
   // v7.2 连杀爆点：每 20 连斩自动放一次「剑意爆发」（低频、有 CD，不会刷屏）
-  if (G.combo > 0 && G.combo % FEEL.comboBurstStep === 0 && (G._comboBurstT || 0) <= 0) comboBurst();
+  if (G.combo > 0 && G.combo % burstStep() === 0 && (G._comboBurstT || 0) <= 0) comboBurst();
   ui.comboBadge.classList.remove("hidden", "hot", "legend");
   if (G.combo >= 50) ui.comboBadge.classList.add("legend");
   else if (G.combo >= 25) ui.comboBadge.classList.add("hot");
@@ -3782,10 +3946,12 @@ function tickBounty(dt) {
   if (b.left <= 0) failBounty("timeout");
 }
 
+// v7.3 变类卡「剑意频出」：所需连杀可被削减（下限 8，避免刷屏）
+function burstStep() { return Math.max(8, FEEL.comboBurstStep - (G._burstCut || 0)); }
 // 连杀爆点：把「连杀数字变大」变成一件可期待的事
 function comboBurst() {
   if (G._noBurst) return;                 // 测试钩子：隔离击杀副作用（掉率统计要纯净）
-  const tier = Math.min(6, Math.floor(G.combo / FEEL.comboBurstStep));
+  const tier = Math.min(6, Math.floor(G.combo / burstStep()));
   const radius = 150 + tier * 24;
   const dmg = G.atk * (3 + tier * 0.9) * playerDamageMult();
   let hits = 0;
@@ -3971,6 +4137,16 @@ function killEnemy(e, byPlayer = true) {
   onKillCombo();
   // v7.0 B2 连锁击杀：尸体引爆，向最近敌人传导（尸潮/高连杀时概率更高）
   tryChainKill(e);
+  // v7.3 变类卡「破军令」：斩精英/妖王原地爆一圈剑罡（层级越高圈越大越痛）
+  if ((G._execLv || 0) > 0 && (e.elite || e.boss) && byPlayer) {
+    const lv = G._execLv;
+    addBlast(e.x, e.y, 90 + lv * 22, G.atk * (1.6 + lv * 0.7) * playerDamageMult(), 0.18, "#fca5a5", { kind: "chain" });
+  }
+  // v7.3 变类卡「霜痕遍地」：击杀有概率在尸体处留一片减速霜痕
+  if ((G._zoneLv || 0) > 0 && byPlayer && Math.random() < 0.1 * G._zoneLv) {
+    G.zones.push({ x: e.x, y: e.y, r: 78 + G._zoneLv * 8, life: 4, max: 4, kind: "slow", mul: 0.55 });
+    burst(e.x, e.y, "#67e8f9", 8, 90, 2);
+  }
   // v6.0 B 联动 · 悟道：击杀经验 +50%
   const synXpMul = synOn("syn_enlight") ? 1.5 : 1;
   const xp = Math.round(e.xp * G.xpMul * comboMul() * (G.nodeXpMul || 1) * synXpMul);
@@ -4068,9 +4244,31 @@ function killEnemy(e, byPlayer = true) {
     if (targetSchool) {
       const affixKey = (AFFIX_KEYS.find((k) => AFFIX_POOL[k].school === targetSchool && AFFIX_POOL[k].type === "派系")) || null;
       const lockedAff = affixKey ? [affixKey] : [];
-      const purpleEq = makeEquip(pick(["weapon", "armor", "accessory"]), "purple", { fixedAffixes: lockedAff });
+      // v7.3：优先补该派系还空着的槽位。
+      // 「3 件同派系觉醒」此前在真实一局里几乎凑不出来——紫装槽位纯随机，4 个妖王也未必凑齐三席，
+      // 于是觉醒 / 法门 / 合击整条 build 线是空的。让妖王掉装去补缺口，集齐一套才成为可达目标。
+      const hasSchool = (eq) => (eq && (eq.affixes || []).some((a) => AFFIX_POOL[a] && AFFIX_POOL[a].school === targetSchool));
+      const ownedSlots = new Set(Object.values(G.equipped).filter((eq) => hasSchool(eq)).map((eq) => eq.slot));
+      const missing = ["weapon", "armor", "accessory"].filter((s) => !ownedSlots.has(s));
+      const slot = missing.length ? pick(missing) : pick(["weapon", "armor", "accessory"]);
+      const purpleEq = makeEquip(slot, "purple", { fixedAffixes: lockedAff });
       dropPickup(e.x + rand(-66, 66), e.y + rand(-66, 66), "equip", { equip: purpleEq });
-      toast(`妖王赐·本派紫装 · ${targetSchool}派`, "violet");
+      toast(ownedSlots.size >= 2 && missing.length
+        ? `妖王赐·本派紫装 · ${targetSchool}派（补齐${SLOT_DEFS[slot].name}席）`
+        : `妖王赐·本派紫装 · ${targetSchool}派`, "violet");
+      // 第二件给「次强派系」：一局只有 4 个妖王，单靠 1 件/次根本凑不出双修流的两把 Lv2 武器，
+      // 双兵合击因此从未在真实一局里出现过。补一件次派紫装，让「专精 vs 双修」成为真选择。
+      const secondary = sortedSchools[1];
+      if (secondary && secondary !== targetSchool) {
+        const aff2 = (AFFIX_KEYS.find((k) => AFFIX_POOL[k].school === secondary && AFFIX_POOL[k].type === "派系")) || null;
+        const hasS2 = (eq) => (eq && (eq.affixes || []).some((a) => AFFIX_POOL[a] && AFFIX_POOL[a].school === secondary));
+        const owned2 = new Set(Object.values(G.equipped).filter((eq) => hasS2(eq)).map((eq) => eq.slot));
+        const missing2 = ["weapon", "armor", "accessory"].filter((s) => !owned2.has(s));
+        const slot2 = missing2.length ? pick(missing2) : pick(["weapon", "armor", "accessory"]);
+        const eq2 = makeEquip(slot2, "purple", { fixedAffixes: aff2 ? [aff2] : [] });
+        dropPickup(e.x + rand(-70, 70), e.y + rand(-70, 70), "equip", { equip: eq2 });
+        toast(`妖王赐·副修紫装 · ${secondary}派（${SLOT_DEFS[slot2].name}）`, "violet");
+      }
     }
   }
   // 雷音铃：击杀概率落雷（限深度，避免连锁递归）
@@ -4213,6 +4411,11 @@ function collectPickup(p) {
     burst(p.x, p.y, st.color, 5, 90, 2);
     stoneHudSync();
     forgeHintCheck();
+    // v7.3 P0：首次拿到灵石时教一次「点灵石条可设本命」——否则槽位等于不存在
+    if (!G._stoneHinted) {
+      G._stoneHinted = true;
+      toast("点顶部灵石条 · 设为本命灵石（该系词条 ×1.30）", "gold");
+    }
     // v4.0 派系核心自动解锁：5 颗同派系 ⇒ 自动 unlock
     autoUnlockCoreCheck(st.school);
     AudioSys.hit();
@@ -4338,6 +4541,8 @@ function applyHit(e, dmg, opts = {}) {
   // 五行相生相克：由已凝宝石的五行决定，通用装备不参与
   const rel = bestElemRelation(e.elem);
   if (rel.mul !== 1) d *= rel.mul;
+  // v7.3 变类卡「五行通玄」：把克制关系这条线做得更值得投入
+  if (rel.key === "beat" && (G._elemBeatAdd || 0) > 0) d *= (1 + G._elemBeatAdd);
   // 共鸣 · 道途共鸣：若宝石元素当前属于转职五行集，对该系所克的目标再叠 +25%
   if (G.resonance && G.resonance.daoTuElems && G.resonance.daoTuElems.length) {
     for (const ee of G.resonance.daoTuElems) {
@@ -7149,6 +7354,7 @@ window.__XTJ__ = {
   ATK_BASE: 12,   // 测试用：玩家初始攻击（用于计算升级成长比值）
   // v5.0 PM 视角
   showBigBanner, showTutorial, hideTutorial, advanceTutorial, tickTutorial, updateGoalBar, setStoneSlot,
+  toggleStoneSlot, validateStoneSlot,   // v7.3 P0 灵石槽入口
   PURITY_BONUS, PURITY_PARTIAL, STONE_SLOT_BONUS, BOSS_PURPLE_DROP,
   // v6.0 A 怪物词缀 / B 词条联动 / C 祭坛赌注
   ENEMY_MODS, ENEMY_MOD_KEYS, modCountFor, rollEnemyMods,

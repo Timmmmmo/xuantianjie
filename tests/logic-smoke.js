@@ -658,6 +658,9 @@ try {
   let stoneDrops = 0, foreign = 0;
   const myKeys = new Set(X.stoneKeys());
   G._noChain = true;      // v7.0：连锁击杀会带来额外掉落，统计掉率时需隔离
+  G._noBurst = true;      // v7.2：剑意爆发会额外击杀，同样要隔离
+  G._noBounty = true;     // v7.2：悬赏令达成会掉落灵石/装备，同样要隔离
+  G.bounty = null;        // v7.2：清掉前面测试段可能残留的悬赏
   for (let i = 0; i < dropN; i++) {
     G.enemies = []; G.pickups = [];
     const e = X.spawnEnemy("fox", 900, 900, 3);
@@ -669,6 +672,8 @@ try {
   say(`小妖 ${dropN} 只，掉灵石 ${stoneDrops} 次（实测 ${(rate * 100).toFixed(2)}%，配置 ${(X.DROP_MOB * 100).toFixed(2)}%）· 跨派系 ${foreign}/${stoneDrops}=${stoneDrops ? (foreign / stoneDrops * 100).toFixed(1) : 0}%（应 ≈40%）`);
   const foreignRate = stoneDrops ? foreign / stoneDrops : 0;
   G._noChain = false;
+  G._noBurst = false;
+  G._noBounty = false;
   say(Math.abs(rate - X.DROP_MOB) < 0.012 && Math.abs(foreignRate - 0.4) < 0.15
     ? "PASS 掉率符合配置，且跨派系也能掉（≈40%）" : "FAIL 掉率或灵石归属异常");
 
@@ -2299,6 +2304,112 @@ try {
   const tutGone = els["tutOverlay"]._cls.has("hidden");
   say(`19 秒弹出=${tutShown}（应 true）· 10 秒后自动收起=${tutGone}（应 true）`);
   say(!tutEarly && tutShown && tutGone ? "PASS 教程延后到 18 秒且超时自动收起，不再霸屏" : "FAIL 教程时序异常");
+
+  say("");
+  say("== 58) v7.2 · 打击感（刀刀到肉）==");
+  forcePlay();
+  G.enemies = []; G.particles = []; G.floaters = []; G.pickups = [];
+  G.time = 0; G._dmgNumT = -9; G._comboBurstT = 0; G._noChain = true; G._noBurst = false;
+  const tgt58 = X.spawnEnemy("fox", G.px + 60, G.py, 5);
+  tgt58.hp = tgt58.hpMax = 1e6;
+  // 同一帧连打 20 段：全局节流 0.07s ⇒ 最多 1 个数字（割草时不糊屏）
+  for (let i = 0; i < 20; i++) X.applyHit(tgt58, 10);
+  const num58 = G.floaters.filter((f) => /^\d+!?$/.test(String(f.text))).length;
+  say(`同帧 20 段命中 ⇒ 伤害数字 ${num58} 个（节流后应 ≤1，否则割草时糊屏）`);
+  // 合并：0.2s 后再打，数字应体现这期间的累计伤害（读得出「这一刀总共多少」）
+  G.time += 0.2;
+  X.applyHit(tgt58, 100);
+  const lastNum = G.floaters.filter((f) => /^\d+!?$/.test(String(f.text))).pop();
+  const merged = lastNum ? parseInt(String(lastNum.text).replace("!", ""), 10) : 0;
+  say(`合并后数字 = ${merged}（累计 20×10+100=300，应 ≥250）`);
+  // 击杀爆破：小怪击杀必须有粒子（v7.2 前只有 +xp 一个飘字）
+  G.particles = [];
+  X.killEnemy(X.spawnEnemy("fox", 900, 900, 5));
+  const par58 = G.particles.length;
+  const shake58 = G.shake;
+  say(`小怪击杀 ⇒ 粒子 ${par58} 个 · 屏震 ${shake58.toFixed(1)}（v7.2 前：0 粒子 / 0 屏震）`);
+  // 剑意爆发：第 20 连杀触发，范围伤害 + CD
+  G.enemies = []; G.particles = [];
+  G.combo = 19; G._comboBurstT = 0;
+  const near58 = [];
+  for (let i = 0; i < 3; i++) {
+    const e = X.spawnEnemy("fox", G.px + 30 + i * 12, G.py, 5);
+    e.hp = e.hpMax = 1e5;
+    near58.push(e);
+  }
+  const hpBefore58 = near58.map((e) => e.hp);
+  X.killEnemy(X.spawnEnemy("fox", 880, 880, 5));      // 第 20 杀
+  const fired58 = (G._comboBurstT || 0) > 0;
+  const hurt58 = near58.every((e, i) => e.hp < hpBefore58[i]);
+  say(`第 20 连杀 ⇒ 剑意爆发=${fired58} · 范围内 3 只全部受伤=${hurt58} · CD=${(G._comboBurstT || 0).toFixed(2)}s`);
+  G.combo = 39; G._comboBurstT = 1.0;
+  X.killEnemy(X.spawnEnemy("fox", 880, 880, 5));
+  const cdOK = Math.abs((G._comboBurstT || 0) - 1.0) < 0.01;
+  say(`CD 内再达 20 倍数不重复触发：_comboBurstT=${(G._comboBurstT || 0).toFixed(2)}（应仍为 1.00）`);
+  const feelOK = num58 <= 1 && merged >= 250 && par58 >= 6 && shake58 > 0 && fired58 && hurt58 && cdOK;
+  say(feelOK ? "PASS 命中/击杀都有反馈且全部走节流，连杀有爆点且不刷屏" : "FAIL 打击感链路异常");
+
+  say("");
+  say("== 59) v7.2 · 悬赏令（局内限时挑战）==");
+  forcePlay();
+  G.bounty = null; G._noBounty = false; G.pickups = [];
+  X.startBounty(5);
+  const b5 = !!(G.bounty && G.bounty.state === "active");
+  X.startBounty(7);
+  const b7 = !!(G.bounty && G.bounty.state === "active");
+  G.bounty = null;
+  X.startBounty(6);
+  const b6 = !!(G.bounty && G.bounty.state === "active");
+  say(`妖王波(5)=${b5} / 尸潮波(7)=${b7}（都应 false，不叠难度尖刺）· 第 6 波=${b6}（应 true）`);
+  // 斩妖令：杀够即达成并发奖
+  G.bounty = { id: "kill", need: 3, got: 0, left: 20, total: 20, state: "active" };
+  const coin59 = G.coinsRun, pk59 = G.pickups.length;
+  for (let i = 0; i < 3; i++) X.killEnemy(X.spawnEnemy("fox", 900, 900, 5));
+  const done59 = !!(G.bounty && G.bounty.state === "done");
+  const pay59 = G.coinsRun - coin59, drop59 = G.pickups.length - pk59;
+  say(`斩妖令 3 杀 ⇒ state=${done59 ? "done" : "?"} · 灵玉 +${pay59} · 掉落 ${drop59} 件`);
+  // 避煞令：受伤即失败（逼玩家为悬赏改变打法）
+  G.bounty = { id: "nohurt", need: 16, got: 0, left: 16, total: 16, state: "active" };
+  G._hurtCD = 0; G.dashIFrame = 0; G.invuln = 0; G.shield = 0; G.hp = G.hpMax = 500;
+  X.damagePlayer(5);
+  const fail59 = !!(G.bounty && G.bounty.state === "fail");
+  // 超时失败 + 结果展示后自动清场（帧计时，非 setTimeout）
+  G.bounty = { id: "kill", need: 99, got: 0, left: 0.05, total: 20, state: "active" };
+  X.tickBounty(0.1);
+  const timeout59 = !!(G.bounty && G.bounty.state === "fail");
+  X.tickBounty(2.0);
+  const cleared59 = G.bounty === null;
+  say(`避煞令受伤失败=${fail59} · 超时失败=${timeout59} · 2 秒后自动清场=${cleared59}`);
+  // 目标条让位给悬赏
+  G.bounty = { id: "kill", need: 10, got: 4, left: 12.3, total: 20, state: "active" };
+  let barTxt = "", barDet = "";
+  try { X.updateGoalBar(); barTxt = String((els["goalText"] || {}).textContent || ""); barDet = String((els["goalDetail"] || {}).textContent || ""); } catch (_) {}
+  const barSrc = raw.includes("悬赏 · ") && raw.includes("剩 ${");
+  say(`目标条：${barTxt || "-"} / ${barDet || "-"} · 源码含悬赏文案=${barSrc}`);
+  const barOK = barSrc && (barTxt === "" || (/悬赏/.test(barTxt) && /剩/.test(barDet)));
+  G.bounty = null; G._noChain = false;
+  say(!b5 && !b7 && b6 && done59 && pay59 > 0 && drop59 > 0 && fail59 && timeout59 && cleared59 && barOK
+    ? "PASS 悬赏令发牌/达成/失败/清场/目标条全链路正常" : "FAIL 悬赏令链路异常");
+
+  say("");
+  say("== 60) v7.2 · 静态接线 ==");
+  const wire72 = {
+    "命中反馈": /feelHit\(e, d, isCrit\);/,
+    "击杀爆破": /feelKill\(e\);/,
+    "连杀爆点": /combo % FEEL\.comboBurstStep === 0/,
+    "悬赏倒计时": /tickBounty\(dt\);/,
+    "悬赏发牌": /startBounty\(G\.wave\);/,
+    "斩妖计数": /G\.bounty\.id === "kill"/,
+    "连爆计数": /G\.bounty\.id === "chain"/,
+    "避煞失败": /G\.bounty\.id === "nohurt"/,
+    "处决标记": /FEEL\.executeMark/,
+    "粒子上限": /FEEL\.partCap/,
+    "目标条让位": /悬赏 · /,
+    "帧计清场": /b\.hold -= dt/,
+  };
+  const wire72Bad = Object.keys(wire72).filter((k) => !wire72[k].test(raw));
+  say(`v7.2 静态接线 ${Object.keys(wire72).length - wire72Bad.length}/${Object.keys(wire72).length}` + (wire72Bad.length ? ` · 缺失：${wire72Bad.join("/")}` : ""));
+  say(wire72Bad.length === 0 ? "PASS v7.2 全部接线就位" : "FAIL v7.2 接线缺失");
 
   say("== 运行状态 ==");
   say(`state=${G.state} wave=${G.wave} kills=${G.kills} enemies=${G.enemies.length} hp=${Math.round(G.hp)} lv=${G.level}`);

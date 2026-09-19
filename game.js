@@ -945,8 +945,10 @@ const FRENZY_HP = 0.25, FRENZY_TIME = 5, FRENZY_CD = 22;
 function updateFrenzy(dt) {
   G._frenzyCD = Math.max(0, (G._frenzyCD || 0) - dt);
   const ratio = G.hpMax > 0 ? G.hp / G.hpMax : 1;
-  if (ratio <= FRENZY_HP && ratio > 0 && (G._frenzyT || 0) <= 0 && (G._frenzyCD || 0) <= 0) {
-    G._frenzyT = FRENZY_TIME;
+  const need = FRENZY_HP + (G._frenzyHpAdd || 0);          // v7.1 狂血诀可抬高阈值
+  const dur = FRENZY_TIME + (G._frenzyTimeAdd || 0);
+  if (ratio <= need && ratio > 0 && (G._frenzyT || 0) <= 0 && (G._frenzyCD || 0) <= 0) {
+    G._frenzyT = dur;
     G._frenzyCD = FRENZY_CD;
     showBigBanner("濒死狂血", "攻速 ×2 · 伤害 +50% · 五息之内", "red");
     toast("濒死狂血 · 反杀时刻", "red");
@@ -2281,7 +2283,7 @@ function resetRun(charId) {
   const shop = Meta.statsFromShop();
   G.charId = charId || Meta.load().selectedChar || "sword";
   G.hitStop = 0;
-  G.time = 0; G.wave = 0; G.kills = 0; G.waveTimer = 3;
+  G.time = 0; G.wave = 0; G.kills = 0; G.waveTimer = 0.8;   // v7.1：开局 3s 空场 → 0.8s 就开打
   G.spawnQueue = []; G._trickle = 0;
   G.px = 0; G.py = 0;
   G.hpMax = 100 + shop.hpBonus;
@@ -2292,7 +2294,8 @@ function resetRun(charId) {
   G.atkSpeed = 1.1;
   G.moveSpeed = 170 * (1 + shop.spdMul);
   G.crit = 0.08; G.critMul = 1.8; G.lifesteal = 0;
-  G.swordCount = 1 + Math.floor(shop.swordBonus / 2);
+  // v7.1：开局给 2 把环绕飞剑（原来 1 把，割不动也看不出「割草」）
+  G.swordCount = 2 + Math.floor(shop.swordBonus / 2);
   G.swordOrbit = 52; G.swordSize = 10; G.swordPierce = 0;
   G.aoeAngle = 1.1; G.aoeDamageMul = 1.4; G.aoeRange = 110;
   G.dashSpeedMul = 2.1; G.dashTime = 0.35; G.dashCD = 5;
@@ -2364,6 +2367,11 @@ function resetRun(charId) {
   G._blinkT = 0;
   G._chainDepth = 0;
   G._chainKills = 0;
+  G._hurtCD = 0;
+  G._openingRush = true;      // v7.1：开局试炼潮
+  G._upgradeTaken = {};       // v7.1：悟道突破已选卡计数
+  G.pendingLevel = 0;
+  if (ui.levelModal) ui.levelModal.classList.add("hidden");
   if (ui.hordeBar) ui.hordeBar.classList.add("hidden");
   if (ui.frenzyHud) ui.frenzyHud.classList.add("hidden");
   fusionHudSync();
@@ -2402,10 +2410,132 @@ function resetRun(charId) {
 // ---------- Upgrades ----------
 // v4.0 砍掉「升级 3 选 1」面板：所有被动成长都在 gainXP 完成
 // 升级弹窗 / buildUpgradePool / rollUpgrades / pendingChoices 已全部删除
-function openLevelUp() { /* 升级不弹窗 */ }
-// 占位函数供测试残留引用（_XTJ__ 等）和老 ui 引用
-function buildUpgradePool() { return []; }
-function rollUpgrades() { return []; }
+// ================= v7.1 · 悟道突破（升级三选一） =================
+// 病根（v4.0 留下的）：砍掉升级弹窗后，玩家从开局到死亡没有任何需要动脑的时刻，
+//   只剩「走位 + 穿装备」。这是「玩 15 秒就不想玩」的真正原因 —— 不是内容少，是没有决策。
+// 修法：每次境界突破给三张卡，分 攻 / 守 / 变 三类，
+//   其中「变」是能改变战斗形态的选项（飞剑 +1、剑气范围、瞬步 CD、连锁概率…），
+//   抉择与配装/合击/尸潮系统互相咬合，而不是单纯加数字。
+const UPGRADE_CLS = { atk: { name: "攻伐", tag: "t-out" }, def: { name: "守御", tag: "t-hp" }, form: { name: "变化", tag: "t-burst" } };
+const UPGRADE_POOL = [
+  // —— 攻伐 ——
+  { id: "u_atk", cls: "atk", ico: "攻", t: "t-out", name: "罡气充盈", desc: "攻击 +18%", max: 99,
+    apply() { G.atk *= 1.18; } },
+  { id: "u_aspd", cls: "atk", ico: "疾", t: "t-out", name: "疾风剑意", desc: "攻速 +12%", max: 6,
+    apply() { G.atkSpeed *= 1.12; } },
+  { id: "u_crit", cls: "atk", ico: "煞", t: "t-out", name: "破煞之眼", desc: "暴击 +6% · 暴伤 +12%", max: 5,
+    apply() { G.crit += 0.06; G.critMul += 0.12; } },
+  { id: "u_pierce", cls: "atk", ico: "穿", t: "t-out", name: "剑芒透骨", desc: "飞剑穿透 +1", max: 3,
+    apply() { G.swordPierce += 1; } },
+  // —— 守御 ——
+  { id: "u_hp", cls: "def", ico: "息", t: "t-hp", name: "玄龟之息", desc: "生命上限 +20% 并回满该部分", max: 99,
+    apply() { const d = G.hpMax * 0.2; G.hpMax += d; G.hp = Math.min(G.hpMax, G.hp + d); } },
+  { id: "u_shield", cls: "def", ico: "钟", t: "t-hp", name: "金钟护体", desc: "护盾上限 +30 并充满", max: 5,
+    apply() { G.shieldMax += 30; G.shield = G.shieldMax; } },
+  { id: "u_ls", cls: "def", ico: "噬", t: "t-hp", name: "噬血诀", desc: "击杀回血 +2", max: 4,
+    apply() { G.lifesteal += 2; } },
+  { id: "u_move", cls: "def", ico: "风", t: "t-hp", name: "御风诀", desc: "移速 +9%", max: 5,
+    apply() { G.moveSpeed *= 1.09; } },
+  // —— 变化（改变战斗形态，v7.1 的重点） ——
+  { id: "u_sword", cls: "form", ico: "剑", t: "t-burst", name: "分化剑影", desc: "环绕飞剑 +1", max: 4, rare: true,
+    apply() { G.swordCount += 1; } },
+  { id: "u_orbit", cls: "form", ico: "域", t: "t-burst", name: "剑域扩张", desc: "剑域半径 +16 · 飞剑变大", max: 4,
+    apply() { G.swordOrbit += 16; G.swordSize += 1.5; } },
+  { id: "u_aoe", cls: "form", ico: "斩", t: "t-burst", name: "剑气纵横", desc: "剑气范围 +20% · 伤害 +15%", max: 4,
+    apply() { G.aoeRange *= 1.2; G.aoeDamageMul *= 1.15; } },
+  { id: "u_blink", cls: "form", ico: "瞬", t: "t-burst", name: "瞬步诀", desc: "瞬步 CD −1.2s · 无敌 +0.1s", max: 3,
+    apply() { G.dashCD = Math.max(1.6, G.dashCD - 1.2); G._blinkIFrameAdd = (G._blinkIFrameAdd || 0) + 0.1; } },
+  { id: "u_chain", cls: "form", ico: "连", t: "t-burst", name: "连环引", desc: "连锁击杀概率 +8%", max: 4,
+    apply() { G._chainBonus = (G._chainBonus || 0) + 0.08; } },
+  { id: "u_fusion", cls: "form", ico: "合", t: "t-burst", name: "双剑合璧", desc: "合击蓄能 −18%（无合击则攻击 +10%）", max: 3,
+    apply() {
+      if (G.fusions && G.fusions.length) { for (const f of G.fusions) f.cd *= 0.82; }
+      else G.atk *= 1.10;
+    } },
+  { id: "u_pick", cls: "form", ico: "摄", t: "t-burst", name: "摄物诀", desc: "拾取范围 +40 · 经验 +10%", max: 3,
+    apply() { G._altarPickup = (G._altarPickup || 0) + 40; G.xpMul *= 1.1; } },
+  { id: "u_frenzy", cls: "form", ico: "狂", t: "t-burst", name: "狂血诀", desc: "狂血阈值 +8% · 持续 +1s", max: 3, rare: true,
+    apply() { G._frenzyHpAdd = (G._frenzyHpAdd || 0) + 0.08; G._frenzyTimeAdd = (G._frenzyTimeAdd || 0) + 1; } },
+  { id: "u_thunder", cls: "form", ico: "雷", t: "t-burst", name: "引雷诀", desc: "击杀 6% 概率引雷", max: 4,
+    apply() { G.thunderProc += 0.06; } },
+];
+const UPGRADE_BY_ID = {};
+for (const u of UPGRADE_POOL) UPGRADE_BY_ID[u.id] = u;
+
+function upgradeTakenCount(id) { return (G._upgradeTaken && G._upgradeTaken[id]) || 0; }
+function buildUpgradePool(n = 3) {
+  const out = [];
+  const bag = { atk: [], def: [], form: [] };
+  for (const u of UPGRADE_POOL) {
+    if (upgradeTakenCount(u.id) >= (u.max || 99)) continue;
+    bag[u.cls].push(u);
+  }
+  const order = ["form", "atk", "def"];          // 优先保证「变」类出现在牌面
+  for (const cls of order) {
+    if (out.length >= n) break;
+    const list = bag[cls];
+    if (!list.length) continue;
+    // 稀有卡小概率顶替（给惊喜，不是必给）
+    let pickd = pick(list);
+    if (Math.random() < 0.18) {
+      const rare = list.filter((u) => u.rare);
+      if (rare.length) pickd = pick(rare);
+    }
+    out.push(pickd);
+    list.splice(list.indexOf(pickd), 1);
+  }
+  // 不足 3 张时用剩余类补齐
+  for (const cls of order) {
+    while (out.length < n && bag[cls].length) out.push(bag[cls].shift());
+  }
+  return out.slice(0, n);
+}
+function rollUpgrades() { return buildUpgradePool(3); }
+
+function openLevelUp() {
+  if (G.state !== "play" || !ui.levelModal) return;
+  const choices = buildUpgradePool(3);
+  if (!choices.length) { G.pendingLevel = 0; return; }
+  G.state = "level";
+  if (typeof releaseJoystick === "function") releaseJoystick();
+  ui.levelChoices.innerHTML = "";
+  for (const c of choices) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "choice-btn" + (c.rare ? " rare" : "");
+    const cls = UPGRADE_CLS[c.cls] || { name: "", tag: "" };
+    btn.innerHTML =
+      `<span class="choice-ico ${c.t || ""}">${c.ico}</span>` +
+      `<span class="choice-body">` +
+      `<span class="c-name">${c.name}</span>` +
+      `<span class="c-desc">${c.desc}</span>` +
+      `<span class="c-tag ${cls.tag}">${cls.name}</span>` +
+      `</span>`;
+    btn.addEventListener("click", () => takeUpgrade(c.id));
+    ui.levelChoices.appendChild(btn);
+  }
+  ui.levelModal.classList.remove("hidden");
+  AudioSys.level();
+}
+function takeUpgrade(id) {
+  const def = UPGRADE_BY_ID[id];
+  if (def) {
+    G._upgradeTaken = G._upgradeTaken || {};
+    G._upgradeTaken[id] = upgradeTakenCount(id) + 1;
+    def.apply();
+    spawnFloater(G.px, G.py - G.pr - 18, `悟道 · ${def.name}`, "#fde68a", 14);
+    toast(`悟道 · ${def.name} · ${def.desc}`, "gold");
+    burst(G.px, G.py, "#fde68a", 20, 200, 4);
+    AudioSys.level();
+  }
+  closeLevelUp();
+}
+function closeLevelUp() {
+  if (ui.levelModal) ui.levelModal.classList.add("hidden");
+  G.pendingLevel = Math.max(0, (G.pendingLevel || 0) - 1);
+  if (G.state === "level") G.state = "play";
+  try { last = performance.now(); } catch (_) {}
+}
 function shouldOfferJob() { return false; }
 function openJobModal() { /* 转职不弹窗，由套装触发 */ }
 
@@ -3277,8 +3407,8 @@ function spawnAtEdge(typeId, wave, minR = 0) {
 function buildWave(wave) {
   const q = [];
   // v7.0：割草的底座是密度。原 3 + wave*0.85（20 波才 20 只）撑不起"割"的体感，
-  //       提到 4 + wave*1.35，并让精英/成群更早入场
-  const count = 4 + Math.floor(wave * 1.35);
+  //       提到 4 + wave*1.35；v7.1：前 3 波仍要温和，别一上来就淹没新手
+  const count = wave <= 3 ? 2 + wave : 4 + Math.floor(wave * 0.95);
   const pool = ["fox", "fox", "wolf"];
   if (wave >= 2) pool.push("bat", "bat");
   if (wave >= 3) pool.push("golem", "ghost");
@@ -3293,20 +3423,56 @@ function buildWave(wave) {
 }
 
 function updateWaves(dt) {
-  const trickleInterval = Math.max(0.45, 1.7 - G.wave * 0.035);
+  // v7.1 开局试炼潮：0.6s 立刻丢 8 只残血小妖。
+  // 黄金 15 秒的唯一任务就是「3 秒内割出第一次升级」——先给爽点，再讲系统。
+  if (G._openingRush && G.time > 0.6) {
+    G._openingRush = false;
+    for (let i = 0; i < 8; i++) {
+      const a = rand(0, TAU);
+      const r = Math.max(view.w, view.h) * 0.42 + rand(0, 70);
+      spawnEnemy(pick(["fox", "bat", "fox", "ghost"]), G.px + Math.cos(a) * r, G.py + Math.sin(a) * r, 1, { hpMul: 0.5 });
+    }
+    toast("开局八妖 · 先割一波", "gold");
+    G.shake = Math.max(G.shake, 6);
+    // 开局直接送 2 颗本命灵石：让「拾灵石 → 攒 5 颗解锁核心」这条主线在第一波就被看见
+    for (let i = 0; i < 2; i++) {
+      dropPickup(G.px + rand(-46, 46), G.py + rand(-46, 46), "stone", { stone: randStone() });
+    }
+  }
+  // v7.1 节奏控制器：目标同屏数 —— 场上太空就加速灌（原第 1 波 8 秒清完、空场 18 秒），
+  //   太挤就放缓给玩家喘息。割草要的是「一直有东西割」，不是「要么淹死要么发呆」
+  const aliveN = G.enemies.reduce((s, e) => s + (e.dead ? 0 : 1), 0);
+  const targetAlive = G.wave <= 3 ? 7 : Math.min(48, 6 + G.wave * 0.9);
+  let trickleInterval = G.wave <= 3 ? 1.6 : Math.max(0.55, 1.7 - G.wave * 0.035);
+  if (aliveN < targetAlive * 0.55) trickleInterval *= 0.35;
+  else if (aliveN > targetAlive * 1.35) trickleInterval *= 2.0;
+  // v7.1：前期涓流不能把玩家淹没 —— 前 3 波同屏封顶 10 只，之后才放开到 110
+  const trickleCap = G.wave <= 3 ? 10 : 110;
   G._trickle = (G._trickle || 0) + dt;
   if (G._trickle >= trickleInterval) {
     G._trickle = 0;
-    if (G.enemies.length < 110) {
+    if (G.enemies.length < trickleCap) {
       const pool = ["fox", "bat"];
       if (G.wave >= 3) pool.push("wolf", "ghost");
-      spawnAtEdge(pick(pool), G.wave);
+      // v7.1：按缺口批量补怪（原来一次 1 只，玩家一强就清出空场，割草感消失）
+      const deficit = Math.max(0, targetAlive - aliveN);
+      const n = Math.min(4, Math.max(1, Math.round(deficit * 0.5)));
+      for (let i = 0; i < n; i++) spawnAtEdge(pick(pool), G.wave);
     }
   }
   G.waveTimer -= dt;
   if (G.waveTimer <= 0) {
     G.wave += 1;
-    G.waveTimer = G.waveInterval;
+    // v7.1：前 3 波 16 秒一波（25 秒太长，第 1 波 8 秒就清完了，剩下 17 秒在发呆）
+    G.waveTimer = G.wave <= 3 ? 16 : G.waveInterval;
+    // v7.1：波间喘息 —— 每波结束回 12% 最大气血。
+    //   没有回血手段 + 持续磨血 = 必定在 30 秒左右被耗死（探针实测 31s 阵亡），
+    //   这不是难度，是数学上的必死局。
+    if (G.wave > 1) {
+      const heal = G.hpMax * 0.12;
+      G.hp = Math.min(G.hpMax, G.hp + heal);
+      spawnFloater(G.px, G.py - G.pr - 16, `妖潮暂歇 +${Math.round(heal)}`, "#86efac", 13);
+    }
     G.spawnQueue = buildWave(G.wave);
     const we = ELEM_BY_KEY[waveElemKey()];
     const rel = bestElemRelation(we.key);
@@ -3456,6 +3622,11 @@ function knockEnemies(cx, cy, radius, force) {
 
 function damagePlayer(amount) {
   if (G.dashIFrame > 0 || G.invuln > 0) return;
+  // v7.1 黄金 15 秒 · P0-1：没有受击间隔 ⇒ 被 3~5 只围住时 N 份伤害同帧叠加，
+  //   实测开局 9 秒暴毙（探针 ftue-sim），玩家还没搞懂就死了。
+  //   加 0.5s 受击间隔：围攻变成「一下一下挨打」，玩家有时间走位脱身。
+  if ((G._hurtCD || 0) > 0) return;
+  G._hurtCD = 0.5;
   // 派系核心：装备中核心的 damageTaken 钩子（如玄铁 30% 完全免伤）
   for (const c of coresEquipped()) {
     if (c.damageTaken) amount = c.damageTaken(amount);
@@ -3647,7 +3818,8 @@ function killEnemy(e, byPlayer = true) {
       dropPickup(e.x + rand(-30, 30), e.y + rand(-30, 30), "equip", { equip: eq });
     }
   } else {
-    if (Math.random() < 0.04) dropPickup(e.x, e.y, "orb");
+    // v7.1：回血珠掉率 4% → 10%（新手需要「打一只有回报」，也缓解只掉不回的必死局）
+    if (Math.random() < 0.10) dropPickup(e.x, e.y, "orb");
     if (Math.random() < DROP_MOB) dropPickup(e.x, e.y, "stone", { stone: randStone() });
     // v3.0 小妖掉装备
     if (Math.random() < DROP_EQ_MOB) {
@@ -3777,8 +3949,10 @@ function killEnemy(e, byPlayer = true) {
 }
 
 // v4.0 纯打装流：升级不再弹窗，纯被动数值成长 —— 技能全部由装备决定
-const LV_HP_MUL = 1.08;       // 每升 1 级 HP ×1.08
-const LV_ATK_MUL = 1.05;      // 每升 1 级 ATK ×1.05
+// v7.1 再平衡：v7.0 把怪量抬到 1.35w 却没同步抬玩家成长，实测站桩 50s 必死。
+//   玩家每级 ×1.075（原 1.05），怪量系数 1.35 → 0.95（峰值交给尸潮，不靠常规波堆量）
+const LV_HP_MUL = 1.09;       // 每升 1 级 HP ×1.09
+const LV_ATK_MUL = 1.075;     // 每升 1 级 ATK ×1.075
 const LV_SHIELD_MUL = 1.10;   // 每升 1 级 护盾上限 ×1.10
 function gainXP(amount) {
   G.xp += amount;
@@ -3786,6 +3960,8 @@ function gainXP(amount) {
     G.xp -= G.xpNeed;
     G.level += 1;
     G.xpNeed = Math.floor(20 * Math.pow(1.18, G.level - 1));
+    // v7.1：升级不再只是数字变大 —— 每次升级弹一次「悟道突破」三选一（见 openLevelUp）
+    G.pendingLevel = (G.pendingLevel || 0) + 1;
     // 被动成长：直接在已叠加的 atk/hpMax/shieldMax 上乘倍率
     G.hpMax *= LV_HP_MUL;
     G.atk *= LV_ATK_MUL;
@@ -4121,7 +4297,7 @@ function castSkill(idx) {
     G.dashCDLeft = G.dashCD;
     G.dashTimer = G.dashTime;
     // v7.0 C 瞬步：无敌帧从 0.4s 拉到 0.6s，让「冲进去」成为可用战术而不是送死
-    G.dashIFrame = G.dashTime + 0.25;
+    G.dashIFrame = G.dashTime + 0.25 + (G._blinkIFrameAdd || 0);   // v7.1 瞬步诀可再延长
     G._blinkT = 0;
     spawnAfterimage();
     spawnFloater(G.px, G.py - G.pr - 14, "瞬步", "#5ce1e6", 12);
@@ -4355,6 +4531,13 @@ function startRun(charId) {
 if (ui.tutNext) {
   ui.tutNext.addEventListener("click", () => advanceTutorial());
 }
+// v7.1：点教程卡任意处即可关掉（新手第一反应是点屏幕，不是找按钮）
+if (ui.tutOverlay) {
+  ui.tutOverlay.addEventListener("click", (e) => {
+    if (e && e.target && e.target === ui.tutNext) return;
+    G.tutStep = 0; hideTutorial();
+  });
+}
 
 function endRun() {
   if (G.state === "over") return;
@@ -4473,10 +4656,17 @@ function tickTutorial(dt) {
     const s = TUT_STEPS[G.tutStep];
     if (s && s.advance && s.advance()) advanceTutorial();
   }
-  // 教程 step1 启动延后（开局 1.5s 后再弹，给玩家先动一下）
-  if (G.tutStep === 1 && G.time > 1.5 && !ui.tutOverlay.classList.contains("showed")) {
+  // 教程 step1 启动（v7.1：18s 后再弹 —— 开局先让玩家割爽，别一上来先读说明书。
+  //   实测 v7.0 开局教程遮挡 8.9s，而玩家 9s 就阵亡：整局都在看字，没在玩）
+  if (G.tutStep === 1 && G.time > 18 && !ui.tutOverlay.classList.contains("showed")) {
     showTutorial(1);
     ui.tutOverlay.classList.add("showed");
+    G._tutT = 0;
+  }
+  // 教程最长 9 秒自动收起：读不完也不打断战斗（advance 条件没达成时不许一直挡着）
+  if (G.tutStep > 0 && ui.tutOverlay && !ui.tutOverlay.classList.contains("hidden")) {
+    G._tutT = (G._tutT || 0) + dt;
+    if (G._tutT > 9) { G.tutStep = 0; hideTutorial(); }
   }
 }
 
@@ -4538,6 +4728,8 @@ function update(dt) {
   if (G.state === "menu" || G.state === "over" || G.state === "shop" || G.state === "pause" || G.state === "codex") return;
   if (G.state === "level" || G.state === "job" || G.state === "forge") return;
   if (G.state === "altar") { updateHUD(); return; }   // v6.0 C 祭坛：暂停世界等玩家抉择
+  // v7.1：升级抉择优先 —— 有未处理的境界突破就弹卡（世界暂停，玩家点完继续）
+  if ((G.pendingLevel || 0) > 0 && G.state === "play") { openLevelUp(); return; }
 
   // hit-stop
   if (G.hitStop > 0) {
@@ -4567,6 +4759,7 @@ function update(dt) {
   // v4.0 装备主动技能持续时长 tick（如剑气护体 +6s）
   // v6.0 B 联动 · 狂血：CD tick
   G._frenzyT = Math.max(0, (G._frenzyT || 0) - dt);
+  G._hurtCD = Math.max(0, (G._hurtCD || 0) - dt);   // v7.1 受击间隔
   G._swordArrayT = Math.max(0, (G._swordArrayT || 0) - dt);
   G._shadowT = Math.max(0, (G._shadowT || 0) - dt);
   // v7.0 三大系统 tick：合击 / 爆点 / 尸潮 / 瞬步残影 / 濒死狂血
@@ -4645,7 +4838,7 @@ function update(dt) {
 
   G.swordPhase += dt * (1.8 + atkSpeedNow() * 0.5);
   const orbitCount = G.swordCount;
-  const orbitDmg = G.atk * 0.55 * playerDamageMult() * (G.weapons.orbit.evo ? 1.5 : 1) * (1 + G.weapons.orbit.lv * 0.05);
+  const orbitDmg = G.atk * 0.62 * playerDamageMult() * (G.weapons.orbit.evo ? 1.5 : 1) * (1 + G.weapons.orbit.lv * 0.05);
   for (let i = 0; i < orbitCount; i++) {
     const a = G.swordPhase + (i / orbitCount) * TAU;
     const sx = G.px + Math.cos(a) * G.swordOrbit;
@@ -4748,7 +4941,9 @@ function update(dt) {
     }
 
     if (dist(e.x, e.y, G.px, G.py) < e.r + G.pr) {
-      damagePlayer(e.atk * dt * 3.2);
+      // v7.1：原来是 e.atk*dt*3.2 的持续 DPS（单只贴身 ≈ 29 DPS，三只即秒杀），
+      //       改成「一次接触一次伤害」，配合 damagePlayer 的 0.5s 受击间隔 ≈ 单只 5~6 DPS
+      damagePlayer(e.atk * 0.28);
       const push = angleTo(G.px, G.py, e.x, e.y);
       e.x += Math.cos(push) * 40 * dt;
       e.y += Math.sin(push) * 40 * dt;
@@ -6725,5 +6920,8 @@ window.__XTJ__ = {
   CHAIN_MAX_DEPTH, tryChainKill,
   spawnAfterimage, updateAfterimages, updateFrenzy,
   FRENZY_HP, FRENZY_TIME, FRENZY_CD, castSkill,
+  // v7.1 黄金 15 秒：悟道突破 + 生存改造
+  UPGRADE_POOL, UPGRADE_BY_ID, UPGRADE_CLS, buildUpgradePool, takeUpgrade, closeLevelUp,
+  LV_ATK_MUL, LV_HP_MUL, damagePlayer, updateWaves, tickTutorial, hideTutorial,
 };
 })();

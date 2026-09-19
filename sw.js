@@ -1,5 +1,5 @@
 /* 玄天劫 · 离线缓存 Service Worker */
-const CACHE = "xuantianjie-v7.5.1";
+const CACHE = "xuantianjie-v7.6";
 const ASSETS = [
   "./",
   "./index.html",

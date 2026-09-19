@@ -125,6 +125,8 @@
         <span>已伤 <b id="trialDealt">0</b></span>
         <span>DPS <b id="trialDps">0</b></span>
         <span>剩余 <b id="trialPct">100%</b></span>
+        <!-- v7.6 里程碑刻度：啃掉 25% / 50% / 75% 依次点亮 -->
+        <span id="trialTicks" class="trial-ticks hidden"><u></u><u></u><u></u></span>
       </div>
     </div>
 
@@ -146,6 +148,9 @@
       <div class="tc-comment" id="tcComment"></div>
       <div class="tc-tip" id="tcTip"></div>
     </div>
+
+    <!-- v7.6 悟道便签：前 10 波自动领悟的卡从这里滑出来，不挡摇杆、不拦操作 -->
+    <div id="autoNote" class="auto-note-box"></div>
 
     <!-- v7.0 C 濒死狂血 -->
     <div id="frenzyHud" class="frenzy-hud hidden"><span>狂</span><b>濒死狂血</b></div>
@@ -324,7 +329,7 @@
       </div>
       <div class="controls-hint">拖动屏幕任意位置移动 · 飞剑自动索敌 · 剑气 / 御风清场</div>
       <!-- v7.5.1：版本号外显 —— 更新不生效时，一眼就能看出是不是本地还在跑旧缓存 -->
-      <div class="ver-hint">v7.5.1 · 前 10 波自动悟道 · 第 3 波伤害测试者</div>
+      <div class="ver-hint">v7.6 · 试炼必碎 · 法门入门 · 悟道便签</div>
     </div>
   </div>
 

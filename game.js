@@ -77,6 +77,8 @@ const ui = {
   // v7.4 玄铁试炼桩（伤害测试者）
   trialHud: $("trialHud"), trialName: $("trialName"), trialTimer: $("trialTimer"),
   trialFill: $("trialFill"), trialDealt: $("trialDealt"), trialDps: $("trialDps"), trialPct: $("trialPct"),
+  trialTicks: $("trialTicks"),   // v7.6 里程碑刻度
+  autoNote: $("autoNote"),       // v7.6 悟道便签容器
   // v7.5 攻击能力评定卡
   trialCard: $("trialCard"), tcSub: $("tcSub"), tcRank: $("tcRank"), tcRankName: $("tcRankName"),
   tcDps: $("tcDps"), tcDealt: $("tcDealt"), tcTime: $("tcTime"), tcPct: $("tcPct"),
@@ -632,7 +634,13 @@ function syncWeaponsFromSet() {
   for (const k in cnt) {
     const ww = w[k];
     if (!ww) continue;
-    const lv = Math.min(WEAPON_MAX_LV, cnt[k] + ((G._jobWpLv && G._jobWpLv[k]) || 0));
+    // v7.6「道途感悟」保底成长：每 4 波给当前最弱的一把兵器 +1 级。
+    //   探针实测双兵合击解锁 0 次 —— 解锁条件是「两把武器各 Lv≥2」，
+    //   但武器等级只由装备派系投资决定，专精流永远只有一把在涨，副武器永远是 Lv1：
+    //   等于「双修流」这条路只有欧皇走得通。这条保底让每个玩家在中期都能摸到一次合击形态，
+    //   而不是把它锁在运气后面。
+    const lv = Math.min(WEAPON_MAX_LV,
+      cnt[k] + ((G._jobWpLv && G._jobWpLv[k]) || 0) + ((G._insightWp && G._insightWp[k]) || 0));
     const evo = cnt[k] >= WEAPON_EVO_NEED;
     const grew = lv > (ww.lv || 0);
     const justEvo = evo && !ww.evo;
@@ -648,6 +656,59 @@ function syncWeaponsFromSet() {
   }
   refreshWeaponHint();
   syncFusions();
+}
+
+// v7.6 本命灵石自动入槽：探针实测「灵石槽入槽」整局只发生 1 次（有的局干脆 0 次），
+//   ×1.30 派系加成与法门 Lv3 全都挂着这条链上 —— 玩家不知道要点，内容就永远够不着。
+//   攒够 3 颗同派系灵石就自动入槽（同分优先当前主派系），玩家仍可随时手动换，
+//   但「默认不生效」这种够不着，不该由玩家的无知来承担。
+const AUTO_SLOT_NEED = 3;
+function autoStoneSlot() {
+  if (G._stoneSlot || !G.stones) return;
+  const bySchool = {};
+  for (const k in G.stones) {
+    const n = G.stones[k] || 0;
+    if (n <= 0) continue;
+    const s = schoolOf(k);
+    if (!s) continue;
+    bySchool[s] = (bySchool[s] || 0) + n;
+  }
+  let best = null, bestScore = 0;
+  for (const s in bySchool) {
+    // 同分优先当前主派系：本命灵石是给 build 服务的，不是「谁多谁上」
+    const score = bySchool[s] + (s === G._setSchool ? 0.5 : 0);
+    if (score > bestScore) { bestScore = score; best = s; }
+  }
+  if (!best || bySchool[best] < AUTO_SLOT_NEED || !STONE_BY_KEY) return;
+  const st = stonesOf().find((s) => s.school === best && stoneAt(s.key) > 0);
+  if (!st) return;
+  setStoneSlot(st.key);
+  toast(`本命灵石 · ${st.name} 入槽 · ${best}派 ×1.30`, "gold");
+  AudioSys.level();
+}
+
+// v7.6 道途感悟：把「兵器成长」从纯运气里解出来一点。
+//   武器等级原本 100% 由装备派系投资决定 —— 掉落是随机的，玩家再会玩也可能一路只有一把兵器。
+//   每 4 波固定给最弱的那把 +1 级，保证中期人人都有两把 Lv2（双兵合击的门槛），
+//   而「觉醒」仍然只看派系投资 —— 形态质变还得靠 build，保底只保下限，不保上限。
+const INSIGHT_EVERY = 4;
+function grantWeaponInsight() {
+  if (!G.weapons) return;
+  let best = null, bestLv = Infinity;
+  for (const k of ["fire", "frost", "lightning", "array"]) {
+    const w = G.weapons[k];
+    if (!w) continue;
+    if ((w.lv || 0) >= WEAPON_MAX_LV) continue;
+    if ((w.lv || 0) < bestLv) { bestLv = w.lv || 0; best = k; }
+  }
+  if (!best) return;
+  G._insightWp = G._insightWp || {};
+  G._insightWp[best] = (G._insightWp[best] || 0) + 1;
+  syncWeaponsFromSet();
+  if (G.weapons[best] && G.weapons[best].lv >= FUSION_NEED_LV && !G._insightHinted) {
+    G._insightHinted = true;
+    toast("道途感悟 · 双兵已备，合击将启", "gold");
+  }
 }
 
 // ================= v7.0 · 延时爆点队列 =================
@@ -925,7 +986,18 @@ function rewardHorde(timeout) {
 //   即「打得好的 25~35 秒打碎，打得一般的差一口气」—— 过与不过都给得出信息。
 const TRIAL_WAVES = [3, 15, 30];
 const TRIAL_TIME = 60;                 // 试炼时长（秒）
-const TRIAL_HP = { 3: 5000, 15: 250000, 30: 1500000 };
+// v7.6 重标定：原第 3 波 5000 血是按「后期 build」拍的，实测第 3 波对桩只有 ~47 DPS，
+//   60 秒只能啃掉 56% —— 玩家第一次接触这个卖点就吃到「D·凡品」，第一印象直接砸掉。
+//   血量按「实测 DPS × 目标用时」重标定，让「打碎」成为大概率事件：过了是应该，过了多久才是评级。
+const TRIAL_HP = { 3: 2200, 15: 180000, 30: 950000 };
+// v7.6「玄铁崩解」：最后 15 秒桩体自行崩解，每秒流失最大生命 4%（15 秒共 60%）。
+//   设计取舍：纯测输出的话，build 差的玩家会干打 60 秒看着血条纹丝不动 —— 那不是考验，是折磨。
+//   前 45 秒是纯净的输出对账（崩解不参与、不计入 dealt，DPS 数字依然可信），
+//   最后 15 秒给一条兜底线：你打掉四成就一定看得到它碎。击碎的高光人人有，快慢才是评级。
+const TRIAL_COLLAPSE_AT = 15;        // 剩余时间 ≤ 15s 起崩
+const TRIAL_COLLAPSE_RATE = 0.04;    // 每秒流失最大生命的比例
+// v7.6 里程碑：长打桩最大的敌人是无聊。每啃掉 25% 给一次裂痕反馈，让 60 秒有节奏
+const TRIAL_CRACKS = [0.25, 0.5, 0.75];
 // v7.5 第 3 波的「伤害测试者」是活的：一直追着玩家跑（不还手），
 //   15/30 波的玄铁桩仍是钉死不动的血包 —— 前期要的是「被追着也要打」的紧张感，
 //   后期要的是「纯输出对账」，两种手感不能混。
@@ -934,6 +1006,21 @@ const TRIAL_CHASE_SPEED = 118;         // 略慢于玩家：跑得掉，但甩�
 function trialHPFor(wave) { return TRIAL_HP[wave] || Math.round(28000 * Math.pow(1.5, (wave - 15) / 5)); }
 function trialIsWave(wave) { return TRIAL_WAVES.indexOf(wave) >= 0; }
 function trialTitle(wave) { return TRIAL_CHASE[wave] ? "伤害测试者" : "玄铁试炼桩"; }
+
+// v7.6 裂痕里程碑：啃掉 25% / 50% / 75% 各裂一次。
+//   60 秒对一个不动的血包，前 30 秒新鲜、后 30 秒枯燥 —— 中间插三个「有东西发生」的点，
+//   顺便掉一颗灵石：让玩家知道「我在推进」，而不是「我在磨」。
+function trialCrack(e, idx) {
+  const pct = Math.round(TRIAL_CRACKS[idx - 1] * 100);
+  spawnFloater(e.x, e.y - e.r - 30, `玄铁裂 ${pct}%`, "#fbbf24", 15, true);
+  burst(e.x, e.y, "#fbbf24", 22, 240, 4);
+  G.shake = Math.max(G.shake, 7);
+  hitStop(40);
+  G._trialCrackT = 0.9;                 // 给绘制层读：裂纹高亮 0.9 秒
+  dropPickup(e.x + rand(-40, 40), e.y + rand(-40, 40), "stone", { stone: randStone() });
+  toast(`玄铁裂 ${pct}% · 灵石一枚`, "gold");
+  AudioSys.crit();
+}
 
 function spawnTrial(wave) {
   if (G._trialWave === wave) return;
@@ -969,6 +1056,8 @@ function spawnTrial(wave) {
   toast(`${title} · ${TRIAL_TIME} 秒 · 血 ${hp}${chase ? " · 只追不打" : ""}`, "gold");
   // v7.5：这一分钟不推进波次 —— 打完测试者才继续下一波（波次计时冻结在试炼里）
   toast("妖潮暂歇 · 打完测试者才继续下一波", "cyan");
+  // v7.6：把兜底规则写在明面上 —— 玩家知道最后 15 秒桩会自解，才敢放手打而不是焦虑
+  toast(`玄铁崩解 · 最后 ${TRIAL_COLLAPSE_AT} 秒桩体自解，打掉四成就看得见它碎`, "gold");
   G.shake = Math.max(G.shake, 8);
   AudioSys.boss();
   burst(e.x, e.y, "#f0c14b", 26, 260, 5);
@@ -996,6 +1085,23 @@ function updateTrial(dt) {
     burst(e.x, e.y, "#f0c14b", 18, 200, 4);
     toast("试炼桩遁地重现 · 就在你身侧", "gold");
   }
+  // v7.6 里程碑：每啃掉 25% 裂一次 —— 给 60 秒打桩塞进节奏点，也顺手掉点灵石做正反馈
+  const prog = clamp(1 - e.hp / e.hpMax, 0, 1);
+  T.cracks = T.cracks || 0;
+  while (T.cracks < TRIAL_CRACKS.length && prog >= TRIAL_CRACKS[T.cracks]) {
+    T.cracks += 1;
+    trialCrack(e, T.cracks);
+  }
+  // v7.6 玄铁崩解：最后 15 秒桩体自行崩解（不计入玩家输出，DPS 数字仍然可信）
+  if (T.t <= TRIAL_COLLAPSE_AT && e.hp > 0) {
+    T.collapsing = true;
+    e.hp -= e.hpMax * TRIAL_COLLAPSE_RATE * dt;
+    if (e.hp <= 0) {
+      e.hp = 0;
+      killEnemy(e, true);              // 走标准击杀流程 ⇒ endTrial(true, "击碎")
+      return;
+    }
+  }
   T.t -= dt;
   if (T.t <= 0) {
     e.dead = true;                       // 不进 killEnemy：不计数、不掉装
@@ -1011,12 +1117,11 @@ function updateTrial(dt) {
 //   评分把「我这套 build 有多能打」翻译成一句人话 + 一个等级，
 //   并且每个等级都带一条可执行的下一步（补攻速 / 换武器 / 提纯度），而不是只报个冷冰冰的数字。
 // 门槛按实测标定（tools/playability-sim.js 逐波真实对局采样），不是拍脑袋。
+// v7.6 随血量重标定同步下调门槛（血量降了，还用旧门槛会人人天品，评级就没有区分度了）
 const TRIAL_GRADE_TIME = {      // 击碎用时门槛（秒）：[天品, 上品, 中品, 下品]，超出即凡品
-  // 第 3 波门槛单独放宽：5000 血在前期是「硬骨头」，实测能打碎的也多在 45~57 秒才碎，
-  //   用 15/30 波那套门槛会把「拼到最后一秒才碎」判成凡品 —— 那是最该被奖励的一局。
-  3: [28, 38, 48, 58],
-  15: [18, 30, 44, 56],
-  30: [18, 30, 44, 56],
+  3: [26, 36, 46, 56],
+  15: [22, 34, 46, 58],
+  30: [22, 34, 46, 58],
 };
 const TRIAL_GRADE_RATIO = [0.85, 0.62, 0.38, 0.18];   // 没打碎时按「打掉几成」评：中品 / 下品 / 凡品 / 劣品
 const TRIAL_GRADES = [
@@ -1079,14 +1184,18 @@ function trialHudSync(e) {
   ui.trialHud.classList.remove("hidden");
   const elapsed = Math.max(0.1, TRIAL_TIME - T.t);
   const dps = T.dealt / elapsed;
-  ui.trialName.textContent = `${trialTitle(T.wave)} · 第 ${T.wave} 波`;
-  ui.trialTimer.textContent = `${Math.max(0, T.t).toFixed(1)}s`;
-  ui.trialTimer.classList.toggle("urgent", T.t <= 10);
-  ui.trialDealt.textContent = Math.round(T.dealt).toLocaleString("en-US");
-  ui.trialDps.textContent = Math.round(dps).toLocaleString("en-US");
+  ui.trialName.textContent = `${trialTitle(T.wave)} · 第 ${T.wave} 波${T.collapsing ? " · 玄铁崩解中" : ""}`;
+  ui.trialName.classList.toggle("urgent", !!T.collapsing);
   const pct = clamp(e.hp / e.hpMax, 0, 1);
   ui.trialPct.textContent = `${Math.ceil(pct * 100)}%`;
   ui.trialFill.style.width = `${pct * 100}%`;
+  // v7.6 里程碑刻度：三条刻度线随进度点亮，玩家一眼看到「我啃到哪儿了」
+  if (ui.trialTicks) {
+    ui.trialTicks.classList.remove("hidden");
+    for (let i = 0; i < ui.trialTicks.children.length; i++) {
+      ui.trialTicks.children[i].classList.toggle("on", (T.cracks || 0) > i);
+    }
+  }
 }
 
 function endTrial(success, why) {
@@ -1185,7 +1294,10 @@ function updateAfterimages(dt) {
 }
 
 // 濒死狂血：血量跌破 25% 触发 5s 狂血（攻速 ×2 + 伤害 +50%），带 22s 内置 CD
-const FRENZY_HP = 0.25, FRENZY_TIME = 5, FRENZY_CD = 22;
+// v7.6：探针实测 600 秒一整局，濒死狂血触发 0 次 —— 门槛 25% 太苛刻：
+//   波间回血 12% + 玩家会走位，血量几乎掉不到四分之一。这个「反杀时刻」是设计好的爽点，
+//   没人见得到就等于没有。抬到 32%（仍属濒死区间，不会变成常驻 buff）。
+const FRENZY_HP = 0.32, FRENZY_TIME = 5, FRENZY_CD = 22;
 function updateFrenzy(dt) {
   G._frenzyCD = Math.max(0, (G._frenzyCD || 0) - dt);
   const ratio = G.hpMax > 0 ? G.hp / G.hpMax : 1;
@@ -1442,12 +1554,25 @@ function autoJobFromSet() {
   let bestSchool = null, bestN = 0;
   for (const s in schools) if (schools[s] > bestN) { bestN = schools[s]; bestSchool = s; }
   // v6.1：记下当前套装主派系（法门择定要用）
-  G._setSchool = bestN >= 3 ? bestSchool : null;
+  // v7.6：这里原本也要求 3 件同派系才交出主派系 —— 这才是「法门境界整局 0 次」的真因：
+  //   不是境界算法算错，是压根没人把主派系递过去，syncJobBranchesFromSet 开局就 return 了。
+  //   入门改成 2 件（先让玩家看见法门），转职（下面那个分支）仍按 3 件 —— 分层，不是放水。
+  G._setSchool = bestN >= 2 ? bestSchool : null;
   G._setCount = bestN;
+  // v7.6：道途本就由角色决定，2 件同派系就先择定 —— 法门境界必须拿到 jobPath 才可能计算，
+  //   原来 jobPath 只在 3 件时才给，等于把「法门」和「转职」绑成了同一道门槛。
+  //   「套装转职」的大字报与仪式感仍留给 3 件 —— 里程碑还是里程碑，只是不再是唯一入口。
+  const path0 = CHAR_TO_PATH[G.charId];
+  if (bestN >= 2 && path0 && !G.jobPath) {
+    G.jobPath = path0;
+    G.jobStage = Math.max(G.jobStage || 0, 1);
+    jobSyncHud(true);
+  }
   // 任意派系集齐 3 件 ⇒ 转职
   if (bestN >= 3) {
     const path = CHAR_TO_PATH[G.charId];
-    if (path && (!G.jobPath || G.jobPath !== path)) {
+    if (path && !G._jobAnnounced) {
+      G._jobAnnounced = true;
       G.jobPath = path;
       G.jobStage = 1;
       jobSyncHud(true);
@@ -1502,7 +1627,16 @@ function syncJobBranchesFromSet() {
     if ((eq.affixes || []).some((a) => AFFIX_POOL[a] && AFFIX_POOL[a].school === school)) invest += 1;
   }
   const fullSet = invest >= 3;
-  let target = 1 + (evo ? 1 : 0) + ((stoneSame && fullSet) ? 1 : 0);
+  // v7.6 触达率修复：探针实测一整局（600 秒 / 42 级 / 3320 杀）法门境界 Lv1/2/3 触发次数全是 0。
+  //   9 个法门是这一作最厚的一块内容，玩家一次都没见过，等于整块白做。
+  //   根因：Lv1 就要「3 件同派系」—— 自动合成会吃掉紫装、掉落槽位随机，
+  //   真实一局里凑齐 3 件同派系纯属概率事件。把入门降到 2 件：先让玩家看见「法门」这个概念，
+  //   再让 Lv2（满套 / 觉醒）、Lv3（满套 + 本命灵石）去奖励深耕 —— 门槛是分层了，不是取消了。
+  let target = 0;
+  if (invest >= 2) target = 1;
+  if (invest >= 3) target = 2;
+  if (evo) target = Math.max(target, 2);
+  if (target >= 2 && fullSet && stoneSame) target = 3;
   target = Math.min(JOB_BRANCH_MAX_LV, target);
   const cur = G.jobBranches[b.id] || 0;
   if (target <= cur) return;
@@ -2628,6 +2762,13 @@ function resetRun(charId) {
   G.spawnQueue = []; G._trickle = 0;
   // v7.4 玄铁试炼桩状态复位（否则上一局的试炼进度会带进新一局）
   G.trial = null; G.trialResult = null; G._trialWave = 0; G._trialCardT = 0;
+  G._trialCrackT = 0; G._insightWp = {}; G._insightHinted = false; G._jobAnnounced = false;   // v7.6
+  // v7.6 悟道便签：上一局残留的便签必须清干净，否则新一局开局就糊着旧卡
+  if (G._autoNotes && G._autoNotes.length) {
+    for (const n of G._autoNotes) { try { n.el.remove(); } catch (_) { /* noop */ } }
+  }
+  G._autoNotes = [];
+  if (ui.autoNote) ui.autoNote.innerHTML = "";
   if (ui.trialHud) ui.trialHud.classList.add("hidden");
   hideTrialCard();
   G.px = 0; G.py = 0;
@@ -2940,8 +3081,44 @@ function grantUpgrade(def) {
   G.pendingLevel = Math.max(0, (G.pendingLevel || 0) - 1);
   spawnFloater(G.px, G.py - G.pr - 18, `悟道 · ${def.name}`, "#fde68a", 14);
   toast(`自动悟道 · ${def.name} · ${def.desc}`, "gold");
+  // v7.6 悟道便签：前 10 波自动发卡解决了「打断」，代价是玩家不知道自己拿到了什么 ——
+  //   成长变成隐形的，爽感也就没了。这里补一条右侧滑入的非模态便签（不挡摇杆、不拦操作），
+  //   把「我变强了」这件事重新变得看得见。
+  showAutoNote(def);
   burst(G.px, G.py, "#fde68a", 14, 160, 3);
   AudioSys.level();
+}
+
+// v7.6 悟道便签：右侧堆叠，最多 3 条，1.6 秒滑出滑走
+function showAutoNote(def) {
+  const box = ui.autoNote;
+  if (!box || !def) return;
+  const cls = def.cls === "atk" ? "n-atk" : def.cls === "def" ? "n-def" : "n-form";
+  const tag = def.cls === "atk" ? "攻" : def.cls === "def" ? "守" : "变";
+  const el = document.createElement("div");
+  el.className = `auto-note ${cls}`;
+  el.innerHTML = `<i>${tag}</i><b>${def.name}</b><u>${def.desc || ""}</u>`;
+  box.appendChild(el);
+  G._autoNotes = G._autoNotes || [];
+  G._autoNotes.push({ el, t: 1.6, out: false });
+  // 只留最近 3 条：连升 3 级也不会糊满半屏
+  while (G._autoNotes.length > 3) {
+    const old = G._autoNotes.shift();
+    try { old.el.remove(); } catch (_) { /* DOM 桩无 remove 也无所谓 */ }
+  }
+}
+function updateAutoNotes(dt) {
+  const arr = G._autoNotes;
+  if (!arr || !arr.length) return;
+  for (let i = arr.length - 1; i >= 0; i--) {
+    const n = arr[i];
+    n.t -= dt;
+    if (!n.out && n.t <= 0.32) { n.out = true; n.el.classList.add("out"); }
+    if (n.t <= 0) {
+      try { n.el.remove(); } catch (_) { /* 同上 */ }
+      arr.splice(i, 1);
+    }
+  }
 }
 function flushAutoUpgrades() {
   let guard = 0;
@@ -3948,6 +4125,10 @@ function updateWaves(dt) {
       spawnFloater(G.px, G.py - G.pr - 16, `妖潮暂歇 +${Math.round(heal)}`, "#86efac", 13);
     }
     G.spawnQueue = buildWave(G.wave);
+    // v7.6 道途感悟：每 4 波一次兵器保底成长（让双兵合击从「运气」变成「节奏」）
+    if (G.wave >= INSIGHT_EVERY && G.wave % INSIGHT_EVERY === 0) grantWeaponInsight();
+    // v7.6 本命灵石自动入槽（攒够 3 颗同派系就上，玩家仍可手动换）
+    autoStoneSlot();
     // v7.2 悬赏令：波次推进时发牌（内部按 6 的倍数且避开妖王/尸潮波）
     startBounty(G.wave);
     const we = ELEM_BY_KEY[waveElemKey()];
@@ -5392,6 +5573,9 @@ function tickTutorial(dt) {
     G._trialCardT -= dt;
     if (G._trialCardT <= 0) hideTrialCard();
   }
+  // v7.6 裂痕高亮衰减（绘制层读它决定裂纹亮度）
+  if (G._trialCrackT > 0) G._trialCrackT = Math.max(0, G._trialCrackT - dt);
+  updateAutoNotes(dt);                 // v7.6 悟道便签生命周期
   // 橙装慢镜
   if (G._orangeT > 0) {
     G._orangeT -= dt;
@@ -6783,6 +6967,38 @@ function drawEnemy(e) {
     ctx.moveTo(-r * 0.42, 0); ctx.lineTo(r * 0.42, 0);
     ctx.moveTo(0, -r * 0.42); ctx.lineTo(0, r * 0.42);
     ctx.stroke();
+    // v7.6 裂痕可视化：啃掉一个 25% 就多一道裂口 —— 打桩 60 秒，得让玩家看见「它在崩」
+    const TT = G.trial;
+    const cn = TT && TT.active ? (TT.cracks || 0) : 0;
+    if (cn > 0) {
+      ctx.save();
+      const glow = clamp((G._trialCrackT || 0) / 0.9, 0, 1);
+      ctx.strokeStyle = `rgba(251,191,36,${0.45 + glow * 0.5})`;
+      ctx.lineWidth = 1.8;
+      ctx.lineJoin = "miter";
+      const seeds = [-0.64, 0.16, 0.76];
+      for (let i = 0; i < cn; i++) {
+        const a0 = seeds[i] * Math.PI;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        for (let k = 1; k <= 3; k++) {
+          const rr2 = r * (0.28 + k * 0.25);
+          const aa = a0 + Math.sin(i * 2.7 + k * 1.9) * 0.4;
+          ctx.lineTo(Math.cos(aa) * rr2, Math.sin(aa) * rr2);
+        }
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+    // v7.6 崩解：最后 15 秒桩体泛红脉动，明着告诉玩家「它在自己碎」
+    if (TT && TT.active && TT.collapsing) {
+      ctx.save();
+      const p2 = 0.5 + 0.5 * Math.sin(G.time * 12);
+      ctx.globalAlpha = 0.22 + p2 * 0.28;
+      ctx.fillStyle = "#f43f5e";
+      ctx.beginPath(); ctx.arc(0, 0, r * 1.02, 0, TAU); ctx.fill();
+      ctx.restore();
+    }
   } else if (e.shape === "golem") {
     ctx.beginPath();
     const rr = r * 0.9;
@@ -7819,7 +8035,7 @@ window.__XTJ__ = {
   SCHOOL_WEAPON, WEAPON_NAME, WEAPON_EVO_NAME, WEAPON_MAX_LV, WEAPON_EVO_NEED,
   syncWeaponsFromSet, SCHOOL_BRANCH_IDX, JOB_BRANCH_MAX_LV, syncJobBranchesFromSet, jobWpLvAdd,
   // v7.0 A 双兵合击 / B 尸潮·连锁 / C 瞬步·狂血
-  FUSION_DEFS, FUSION_MAX_ACTIVE, syncFusions, updateFusions, fusionHudSync, updateFusionHud,
+  FUSION_DEFS, FUSION_MAX_ACTIVE, FUSION_NEED_LV, syncFusions, updateFusions, fusionHudSync, updateFusionHud,
   addBlast, blastNow, updateBlasts,
   HORDE_EVERY, hordeSize, startHorde, updateHorde, rewardHorde, dirName,
   CHAIN_MAX_DEPTH, tryChainKill,
@@ -7838,6 +8054,9 @@ window.__XTJ__ = {
   // v7.5 健壮性探针（无副作用，仅供无头体检 tools/robustness-suite.js 调用）
   resetRun, resize, spawnAtEdge, equipRec,
   TRIAL_GRADES, TRIAL_GRADE_TIME, TRIAL_GRADE_RATIO, trialGrade, showTrialResult, hideTrialCard,
+  // v7.6 好玩性改造：试炼 2.0 / 深度系统触达 / 悟道便签
+  TRIAL_COLLAPSE_AT, TRIAL_COLLAPSE_RATE, TRIAL_CRACKS, trialCrack,
+  INSIGHT_EVERY, grantWeaponInsight, AUTO_SLOT_NEED, autoStoneSlot, showAutoNote, updateAutoNotes, JOB_BRANCH_MAX_LV,
   BOUNTY_DEFS, BOUNTY_BY_ID, startBounty, bountyAdd, completeBounty, failBounty, tickBounty,
 };
 })();

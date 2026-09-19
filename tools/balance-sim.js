@@ -7,10 +7,14 @@ const fs = require("fs");
 const path = require("path");
 
 // ---- 与 game.js 保持一致的手抄公式（改动 game.js 时请同步这里） ----
-const enemyHP  = (base, w) => base * (1 + 0.18 * w) * (1 + 0.02 * Math.pow(w, 1.25));
+// v7.3 P1 终局压力：26 波起另加一段超线性成长（与 game.js endgameHpMul/endgameAtkMul 同步）
+const ENDGAME_FROM = 26;
+const endgameHpMul  = (w) => (w <= ENDGAME_FROM ? 1 : 1 + 0.012 * Math.pow(w - ENDGAME_FROM, 1.35));
+const endgameAtkMul = (w) => (w <= ENDGAME_FROM ? 1 : 1 + 0.022 * (w - ENDGAME_FROM));
+const enemyHP  = (base, w) => base * (1 + 0.18 * w) * (1 + 0.02 * Math.pow(w, 1.25)) * endgameHpMul(w);
 // v6.1：经验随波次上涨（spawnEnemy 里 xp = round(base * (1 + w*0.07))）
 const xpScale  = (w) => 1 + 0.07 * w;
-const enemyATK = (base, w) => base * (1 + 0.12 * w);
+const enemyATK = (base, w) => base * (1 + 0.12 * w) * endgameAtkMul(w);
 const xpNeedOf = (lv) => Math.floor(20 * Math.pow(1.18, lv - 1));
 
 const WAVE_INTERVAL = 25;      // G.waveInterval

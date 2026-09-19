@@ -2056,6 +2056,7 @@ try {
   G.inventory = []; G.equipped = { weapon: null, armor: null, accessory: null };
   G._jobWpLv = { fire: 0, frost: 0, lightning: 0, array: 0 };
   G.fusions = []; G.blasts = []; G.enemies = []; G.zones = [];
+  G._stoneSlot = null;   // v7.3：本命灵石也计入派系投资，测纯装备投资需先清空
   X.equipRec();
   // 双修流：两件混搭（火+雷各 1 词条）+ 一件火 ⇒ 业火 3（觉醒）/ 紫电 2
   const m1 = X.makeEquip("weapon", "purple", { fixedAffixes: ["huo_dmg", "jin_thunder", "crit_pct"] });
@@ -2310,6 +2311,7 @@ try {
   forcePlay();
   G.enemies = []; G.particles = []; G.floaters = []; G.pickups = [];
   G.time = 0; G._dmgNumT = -9; G._comboBurstT = 0; G._noChain = true; G._noBurst = false;
+  G._burstCut = 0;     // v7.3：变类卡可削减爆发门槛，测默认节奏需先归零
   const tgt58 = X.spawnEnemy("fox", G.px + 60, G.py, 5);
   tgt58.hp = tgt58.hpMax = 1e6;
   // 同一帧连打 20 段：全局节流 0.07s ⇒ 最多 1 个数字（割草时不糊屏）
@@ -2396,7 +2398,7 @@ try {
   const wire72 = {
     "命中反馈": /feelHit\(e, d, isCrit\);/,
     "击杀爆破": /feelKill\(e\);/,
-    "连杀爆点": /combo % FEEL\.comboBurstStep === 0/,
+    "连杀爆点": /combo % burstStep\(\) === 0/,
     "悬赏倒计时": /tickBounty\(dt\);/,
     "悬赏发牌": /startBounty\(G\.wave\);/,
     "斩妖计数": /G\.bounty\.id === "kill"/,
@@ -2410,6 +2412,118 @@ try {
   const wire72Bad = Object.keys(wire72).filter((k) => !wire72[k].test(raw));
   say(`v7.2 静态接线 ${Object.keys(wire72).length - wire72Bad.length}/${Object.keys(wire72).length}` + (wire72Bad.length ? ` · 缺失：${wire72Bad.join("/")}` : ""));
   say(wire72Bad.length === 0 ? "PASS v7.2 全部接线就位" : "FAIL v7.2 接线缺失");
+
+  // ============================================================
+  // 61) v7.3 P0 · 灵石槽入口（审计：setStoneSlot 零调用，玩家够不着）
+  // ============================================================
+  say("");
+  say("== 61) v7.3 P0 · 灵石槽入口（点 HUD 灵石条设本命）==");
+  forcePlay();
+  G.inventory = []; G.equipped = { weapon: null, armor: null, accessory: null };
+  G._stoneSlot = null; G._jobWpLv = { fire: 0, frost: 0, lightning: 0, array: 0 };
+  for (const s of X.stonesOf()) G.stones[s.key] = 0;   // 清掉前面段落留下的库存
+  X.equipRec();
+  // 入槽需先拥有该灵石
+  const slotStoneA = X.stonesOf()[0];
+  const slotReject = X.toggleStoneSlot(slotStoneA.key) === false;      // 未拥有 ⇒ 拒绝
+  G.stones[slotStoneA.key] = 1;
+  const slotAccept = X.toggleStoneSlot(slotStoneA.key) === true;
+  const slotStoneName = G._stoneSlot && G._stoneSlot.name;
+  const slotToggleOff = X.toggleStoneSlot(slotStoneA.key) === true && G._stoneSlot === null;
+  say(`未拥有拒绝=${slotReject} · 拥有后入槽=${slotAccept}（${slotStoneName}）· 再点取出=${slotToggleOff}`);
+  // 灵石耗尽 ⇒ 槽位自动失效（避免「持有 0 颗却生效」的不一致）
+  X.toggleStoneSlot(slotStoneA.key);
+  G.stones[slotStoneA.key] = 0;
+  X.validateStoneSlot();
+  const slotInvalidate = G._stoneSlot === null;
+  say(`灵石被炼宝台耗尽 ⇒ 槽位自动空置=${slotInvalidate}`);
+  // 灵石槽真的给该派系词条加成（×1.30），并且把法门顶到 Lv3
+  const eqSlotA = X.makeEquip("weapon", "purple", { fixedAffixes: ["huo_dmg", "crit_pct", "xp_bonus"] });
+  const eqSlotB = X.makeEquip("armor", "purple", { fixedAffixes: ["huo_burn", "shield_max", "haste_pct"] });
+  const eqSlotC = X.makeEquip("accessory", "purple", { fixedAffixes: ["huo_fire", "lifesteal", "crit_pct"] });
+  [eqSlotA, eqSlotB, eqSlotC].forEach((e) => { X.pickUpEquip(e); X.equipTo(e.uid); });
+  const fireMul0 = X.equipBonuses().huoMul;
+  const branchLv0 = Object.values(G.jobBranches)[0] || 0;
+  const chiFengStone = X.stonesOf().find((s) => s.school === "赤锋") || X.stonesOf()[0];
+  G.stones[chiFengStone.key] = 2;
+  X.toggleStoneSlot(chiFengStone.key);
+  const fireMul1 = X.equipBonuses().huoMul;
+  const branchLv1 = Object.values(G.jobBranches)[0] || 0;
+  say(`灵石槽入赤锋：火伤系数 ${fireMul0.toFixed(3)} → ${fireMul1.toFixed(3)}（应 ↑）· 法门 Lv${branchLv0} → Lv${branchLv1}（应到 3）`);
+  const slotWired = slotReject && slotAccept && slotToggleOff && slotInvalidate && fireMul1 > fireMul0 && branchLv1 >= 3;
+
+  // ============================================================
+  // 62) v7.3 P0+ · 成长不再被装备重算抹掉
+  // ============================================================
+  say("");
+  say("== 62) v7.3 P0+ · 升级/悟道卡的成长不会被装备重算回滚 ==");
+  forcePlay();
+  G.inventory = []; G.equipped = { weapon: null, armor: null, accessory: null };
+  G._stoneSlot = null; X.equipRec();
+  G.xpNeed = 20; G.xp = 0;                             // forcePlay 把 xpNeed 顶到 1e9，测升级需放开
+  const atkPre = G.atk;
+  for (let i = 0; i < 8; i++) X.gainXP(99999);        // 连升 8 级
+  const atkLv8 = G.atk;
+  X.equipRec();                                        // 触发一次装备重算
+  const atkAfterRec = G.atk;
+  const eqGrowA = X.makeEquip("weapon", "purple", { fixedAffixes: ["huo_dmg", "crit_pct", "xp_bonus"] });
+  X.pickUpEquip(eqGrowA); X.equipTo(eqGrowA.uid);              // 穿装备（最关键的触发路径）
+  const atkAfterEquip = G.atk;
+  X.gainXP(99999);                                     // 穿装后再升级
+  const atkLv9 = G.atk;
+  X.equipRec();
+  const atkAfterRec2 = G.atk;
+  say(`升级前 ${atkPre.toFixed(1)} → 8 级后 ${atkLv8.toFixed(1)} → equipRec 后 ${atkAfterRec.toFixed(1)}（应不变）`);
+  say(`穿紫装后 ${atkAfterEquip.toFixed(1)}（应 > ${atkAfterRec.toFixed(1)}）→ 再升 1 级 ${atkLv9.toFixed(1)} → equipRec 后 ${atkAfterRec2.toFixed(1)}（应不变）`);
+  // v7.3 前：equipRec 会把 atk 打回「开局值 + 装备」，atkAfterRec ≈ atkPre，atkAfterRec2 ≈ atkAfterEquip
+  const growWired = atkLv8 > atkPre * 1.5 && Math.abs(atkAfterRec - atkLv8) < 0.01 && atkAfterEquip > atkAfterRec
+                 && atkLv9 > atkAfterEquip && Math.abs(atkAfterRec2 - atkLv9) < 0.01;
+
+  // ============================================================
+  // 63) v7.3 P1/P2 · 终局压力 / 变类卡池 / 背包腾位 / 妖王定向紫装
+  // ============================================================
+  say("");
+  say("== 63) v7.3 P1/P2 · 终局压力 + 卡池扩容 + 紫装不再被丢 ==");
+  forcePlay();
+  // 终局压力：40 波相对 20 波的血量倍率应显著高于「无压力」基线
+  const mobHp20 = X.spawnEnemy("fox", 900, 900, 20).hpMax;
+  const mobHp40 = X.spawnEnemy("fox", 900, 900, 40).hpMax;
+  const hpRatio = mobHp40 / mobHp20;
+  const mobAtk40 = X.spawnEnemy("fox", 900, 900, 40).atk;
+  const mobAtk20 = X.spawnEnemy("fox", 900, 900, 20).atk;
+  say(`小妖 HP 20 波 ${mobHp20.toFixed(0)} → 40 波 ${mobHp40.toFixed(0)}（×${hpRatio.toFixed(2)}，无终局压力时应 ≈2.9）`);
+  say(`小妖 ATK 20 波 ${mobAtk20.toFixed(1)} → 40 波 ${mobAtk40.toFixed(1)}（×${(mobAtk40 / mobAtk20).toFixed(2)}）`);
+  const endgameWired = hpRatio > 3.5 && mobAtk40 > mobAtk20 * 1.25;
+  // 卡池：变类供给必须撑得住一局 35~40 次升级
+  const formCardList = (X.UPGRADE_POOL || []).filter((u) => u.cls === "form");
+  const formSupplyN = formCardList.reduce((a, u) => a + (u.max || 99), 0);
+  say(`变类卡 ${formCardList.length} 张 · 总供给 ${formSupplyN} 次（一局约 35~40 级，v7.3 前仅 32 ⇒ 中期枯竭）`);
+  const poolWired = formSupplyN >= 45 && X.UPGRADE_BY_ID.u_burst && X.UPGRADE_BY_ID.u_exec
+                 && X.UPGRADE_BY_ID.u_zone && X.UPGRADE_BY_ID.u_elem && X.UPGRADE_BY_ID.u_after
+                 && X.UPGRADE_BY_ID.u_stone;
+  // 背包满：紫装应自动卖掉最低阶腾位，而不是被丢弃
+  G.inventory = [];
+  for (let i = 0; i < 30; i++) G.inventory.push(X.makeEquip("weapon", "white", { fixedAffixes: ["crit_pct"] }));
+  const invBefore = G.inventory.length;
+  const purpleDrop = X.makeEquip("armor", "purple", { fixedAffixes: ["huo_dmg", "crit_pct", "xp_bonus"] });
+  const purpleKept = X.pickUpEquip(purpleDrop) !== false && G.inventory.indexOf(purpleDrop) >= 0;
+  say(`背包 ${invBefore}/30 满时捡到紫装 ⇒ 入包=${purpleKept}（v7.3 前直接丢弃，紫装永远凑不齐一套）`);
+  // 静态接线
+  const v73wires = {
+    "灵石槽入口": /function toggleStoneSlot/, "耗尽校验": /function validateStoneSlot/,
+    "成长剥离": /function stripEquipFromCurrent/, "应用乘区快照": /G\._appliedMul = \{/,
+    "终局压力HP": /function endgameHpMul/, "终局压力ATK": /function endgameAtkMul/,
+    "爆发门槛可变": /function burstStep/, "残影强化": /G\._afterDmgMul/,
+    "破军令": /G\._execLv \|\| 0\) > 0/, "霜痕": /G\._zoneLv \|\| 0\) > 0/,
+    "五行通玄": /G\._elemBeatAdd/, "灵石亲和": /G\._stoneBoostAdd/,
+    "妖王补位紫装": /补齐\$\{SLOT_DEFS\[slot\]\.name\}席/, "背包腾位": /背包腾位/,
+  };
+  const miss73 = Object.keys(v73wires).filter((k) => !v73wires[k].test(src));
+  say(`v7.3 静态接线 ${Object.keys(v73wires).length} 项，缺失 ${miss73.length} 项 ${miss73.join(",")}`);
+  say(slotWired ? "PASS 灵石槽可入槽/取出/耗尽失效，且真给词条加成与法门 Lv3" : "FAIL 灵石槽入口异常");
+  say(growWired ? "PASS 升级与悟道卡的成长不再被装备重算回滚" : "FAIL 成长仍被装备重算抹掉");
+  say(endgameWired && poolWired && purpleKept && miss73.length === 0
+    ? "PASS 后期压力回升、变类卡供给充足、紫装不再被丢弃" : "FAIL v7.3 P1/P2 异常");
 
   say("== 运行状态 ==");
   say(`state=${G.state} wave=${G.wave} kills=${G.kills} enemies=${G.enemies.length} hp=${Math.round(G.hp)} lv=${G.level}`);

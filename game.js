@@ -2291,6 +2291,16 @@ const Quality = {
     if (this._acc < 1.5) return;
     this.fps = this._n / this._acc;
     this._acc = 0; this._n = 0;
+    // v7.7 阴影是 Canvas2D 上最贵的一笔开销：一旦掉帧就永久关掉，
+    //   宁可少一层光晕，也不让真机在尸潮/试炼高潮时把填充率打穿。
+    if (this.fps < 45) { this._slow = (this._slow || 0) + 1; } else { this._slow = 0; }
+    if (this._slow >= 2) { shadowOff(); this._slow = 0; }
+    // v7.7 内存护栏：堆逼近上限时提前降档（爆堆在手机上直接表现为「页面崩溃」）
+    const pm = (typeof performance !== "undefined") && performance.memory;
+    if (pm && pm.usedJSHeapSize > 260 * 1048576 && this.level !== "low") {
+      this.level = "low"; this._bad = 0; this._cool = 4; this.apply();
+      try { resize(); } catch (_) {}
+    }
     if (this._cool > 0) { this._cool -= 1; return; }
     if (this.fps < 42) {
       this._bad += 1; this._good = 0;
@@ -2316,6 +2326,12 @@ function shadowOff() {
 // ---------- Viewport ----------
 const view = { w: 0, h: 0, dpr: 1 };
 let _resizeT = 0;
+// v7.7 · 最大画布像素预算。
+//   真机上「页面崩溃」最常见的形态不是 JS 报错，而是 canvas backing store 把显存顶穿：
+//   dpr 只按倍率封顶是不够的 —— 一台 2K/3K 宽的高分屏手机，即使 dpr 只给 2，
+//   实际像素也能到 800 万以上（800 万 × 4 字节 ≈ 32MB 起步，加上合成层就爆了）。
+//   所以这里按「总像素」封顶：超过预算就把 dpr 往回压，画面略糊，但绝不能崩。
+const MAX_CANVAS_PX = 2600000;
 function resize() {
   const rect = ui.app ? ui.app.getBoundingClientRect() : null;
   let w = rect && rect.width ? Math.round(rect.width) : window.innerWidth;
@@ -2323,6 +2339,9 @@ function resize() {
   if (w < 1 || h < 1) { w = window.innerWidth; h = window.innerHeight; }
   view.w = w; view.h = h;
   view.dpr = Math.min(window.devicePixelRatio || 1, Quality.dprCap());
+  if (view.w * view.h * view.dpr * view.dpr > MAX_CANVAS_PX) {
+    view.dpr = Math.max(0.75, view.dpr * Math.sqrt(MAX_CANVAS_PX / (view.w * view.h * view.dpr * view.dpr)));
+  }
   canvas.width = Math.max(1, Math.floor(view.w * view.dpr));
   canvas.height = Math.max(1, Math.floor(view.h * view.dpr));
   canvas.style.width = view.w + "px";
@@ -4614,7 +4633,10 @@ function spawnFloater(x, y, text, color, size, crit = false) {
 }
 
 function burst(x, y, color, n = 8, speed = 120, size = 3) {
-  for (let i = 0; i < n; i++) {
+  // v7.7：粒子数按画质档位缩放（高档位仍是原值，手感不变；低档位削峰保命）
+  const k = (Quality && Quality.particleMul) ? Quality.particleMul() : 1;
+  const total = Math.max(1, Math.round(n * k));
+  for (let i = 0; i < total; i++) {
     const a = rand(0, TAU);
     const s = rand(speed * 0.4, speed);
     G.particles.push({
@@ -6097,10 +6119,19 @@ function w2s(wx, wy) {
 //   手机上就是掉帧 + 画面糊。视觉层必须自己封顶，不能把「怪多一点」变成「屏炸了」。
 const RENDER_CAP = { particles: 420, floaters: 90 };
 function trimRenderBudget() {
+  // v7.7：上限按画质档位浮动 —— 低档机在试炼高潮/尸潮时最容易一次性堆出上千个粒子，
+  //   那一瞬间的填充率尖峰就是真机「页面崩溃」的导火索。
+  const cap = renderCapNow();
   const p = G.particles || [];
-  if (p.length > RENDER_CAP.particles) p.splice(0, p.length - RENDER_CAP.particles);
+  if (p.length > cap.particles) p.splice(0, p.length - cap.particles);
   const f = G.floaters || [];
-  if (f.length > RENDER_CAP.floaters) f.splice(0, f.length - RENDER_CAP.floaters);
+  if (f.length > cap.floaters) f.splice(0, f.length - cap.floaters);
+}
+function renderCapNow() {
+  const l = Quality.level;
+  if (l === "low") return { particles: 150, floaters: 40 };
+  if (l === "mid") return { particles: 300, floaters: 65 };
+  return RENDER_CAP;
 }
 
 function draw() {
@@ -6124,6 +6155,7 @@ function draw() {
   }
 }
 function drawInner() {
+  if (G._ctxLost) return;          // v7.7：上下文丢了就别画，等 contextrestored 回来再画
   const w = view.w, h = view.h;
   trimRenderBudget();
   ctx.clearRect(0, 0, w, h);
@@ -7875,13 +7907,55 @@ function resumeGame() {
 
 // ---------- Loop ----------
 let last = performance.now();
+// v7.7 自愈主循环。
+//   旧写法：update() 抛一次异常 ⇒ requestAnimationFrame(frame) 那一行永远执行不到 ⇒
+//   整个游戏静死 —— 画面停在最后一帧，玩家看到的就是「崩了」，而且没有任何自救手段。
+//   现在：① 异常被兜住；② 立刻复位画布 + 清掉最容易污染的瞬时态；③ RAF 链在 finally 里必定续上。
+//   连续异常还会逐级降级（关阴影 → 降画质 → 收掉试炼/弹窗这类持续制造状态的东西）。
+let _frameErrN = 0;
+let _lastFrameAt = 0;
 function frame(now) {
-  const dt = Math.min(0.033, (now - last) / 1000);
-  last = now;
-  Quality.sample(dt);
-  update(dt);
-  draw();
-  requestAnimationFrame(frame);
+  _lastFrameAt = now;
+  try {
+    const dt = Math.min(0.033, (now - last) / 1000);
+    last = now;
+    Quality.sample(dt);
+    update(dt);
+    draw();
+    if (_frameErrN) _frameErrN = 0;
+  } catch (err) {
+    _frameErrN += 1;
+    salvageFrame(err);
+  } finally {
+    requestAnimationFrame(frame);
+  }
+}
+
+function salvageFrame(err) {
+  if (_frameErrN === 1 || _frameErrN % 120 === 0) {
+    try { console.warn("[玄天劫] 帧异常已自愈（游戏继续运行）：", err); } catch (_) {}
+  }
+  try {
+    ctx.setTransform(view.dpr || 1, 0, 0, view.dpr || 1, 0, 0);
+    ctx.globalAlpha = 1; ctx.shadowBlur = 0; ctx.setLineDash([]);
+    ctx.clearRect(0, 0, view.w, view.h);
+  } catch (_) {}
+  try {
+    G.particles.length = 0; G.floaters.length = 0;
+    G.shake = 0; G.hitStop = 0; G.goldFlash = 0;
+  } catch (_) {}
+  if (_frameErrN === 3) {
+    // 连着三帧都炸 = 这台机器扛不住当前规格：直接打到流畅档再试
+    Quality.level = "low"; Quality.apply();
+    try { resize(); } catch (_) {}
+    try { toast("画面异常已自动修复 · 已切到流畅模式", "cyan"); } catch (_) {}
+  }
+  if (_frameErrN >= 60) {
+    // 还是不行：收掉会持续制造状态的循环源（试炼 / 弹窗），别让玩家困在死循环里
+    try { if (G.trial && G.trial.active) endTrial(false, "异常保护"); } catch (_) {}
+    try { if (G.state === "level") closeLevelUp(); } catch (_) {}
+    _frameErrN = 0;
+  }
 }
 
 ui.btnStart.addEventListener("click", () => {
@@ -7945,6 +8019,14 @@ document.addEventListener("visibilitychange", () => {
   } else {
     AudioSys.resume();
     last = performance.now();
+    // v7.7 回前台补点火：后台期间浏览器会掐掉 RAF，万一回来时链没接上，这里补一帧。
+    //  （正常情况 _lastFrameAt 是最新的、frame 自己已经续上了，这一帧会被自然吞掉）
+    try {
+      if (G.state === "play" && performance.now() - _lastFrameAt > 1500) {
+        _lastFrameAt = performance.now();
+        requestAnimationFrame(frame);
+      }
+    } catch (_) {}
     if (G.state === "play") requestWakeLock();
   }
 });
@@ -7983,6 +8065,23 @@ if ("serviceWorker" in navigator && location.protocol === "https:") {
 }
 
 requestAnimationFrame(frame);
+
+// v7.7 Canvas 上下文丢失自愈。
+//   移动端在显存吃紧时浏览器会直接丢弃 2D 上下文（画面瞬间变白/黑，玩家看到的就是「崩了」）。
+//   不监听就永远不会恢复；这里拦下丢失事件并在恢复时重建依赖尺寸的缓存（背景渐变等）。
+try {
+  canvas.addEventListener("contextlost", (ev) => {
+    try { ev.preventDefault(); } catch (_) {}
+    G._ctxLost = true;
+  });
+  canvas.addEventListener("contextrestored", () => {
+    G._ctxLost = false;
+    bgGrad = null;
+    try { ctx.setTransform(view.dpr || 1, 0, 0, view.dpr || 1, 0, 0); resize(); } catch (_) {}
+    try { toast("画面已恢复", "cyan"); } catch (_) {}
+  });
+} catch (_) {}
+
 window.G = G;
 window.Meta = Meta;
 window.Quality = Quality;
@@ -8048,7 +8147,9 @@ window.__XTJ__ = {
   FEEL, feelHit, feelKill, feelPart, comboBurst,
   // v7.5 前 10 波自动悟道 / 渲染预算 / 伤害测试者
   AUTO_UPGRADE_MAX_WAVE, autoUpgradePhase, autoUpgradePick, grantUpgrade, flushAutoUpgrades,
-  RENDER_CAP, trimRenderBudget,
+  RENDER_CAP, trimRenderBudget, renderCapNow,
+  // v7.7 稳定性加固（真机崩溃防线）
+  MAX_CANVAS_PX, salvageFrame, renderCapNow, frame,
   TRIAL_WAVES, TRIAL_TIME, TRIAL_HP, TRIAL_CHASE, trialHPFor, trialIsWave, trialTitle,
   spawnTrial, updateTrial, endTrial, trialHudSync,
   // v7.5 健壮性探针（无副作用，仅供无头体检 tools/robustness-suite.js 调用）

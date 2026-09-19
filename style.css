@@ -3116,3 +3116,12 @@ body.orange-pause #app::after {
   padding-top: 7px; border-top: 1px solid rgba(240,193,75,0.22);
 }
 .tc-tip { margin-top: 4px; font-size: 10px; line-height: 1.5; color: #cbb887; }
+
+/* v7.5.1 版本号外显：更新不生效时一眼看出本地在跑旧缓存 */
+.ver-hint {
+  margin-top: 8px;
+  font-size: 10px;
+  letter-spacing: 0.4px;
+  color: rgba(253, 230, 138, 0.42);
+  text-align: center;
+}

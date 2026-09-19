@@ -950,10 +950,25 @@ function spawnTrial(wave) {
   const chase = !!TRIAL_CHASE[wave];
   if (chase) { e.isChaser = true; e.speed = TRIAL_CHASE_SPEED; e.color = "#f0c14b"; }
   G.trial = { active: true, wave, t: TRIAL_TIME, dealt: 0, hpMax: hp, id: e.id, killed: false, chase };
+  // v7.5 清场：把还在场上的怪全部「退散」（不给奖励、不计击杀）。
+  //   测试者的意义是「这一分钟只测输出」，混进小怪就测不准了；
+  //   而且玩家反馈的正是「没看到测试者」——一堆怪里冒出一个金色目标，一眼就淹了。
+  let cleared = 0;
+  for (const o of G.enemies) {
+    if (o === e || o.dead || o.isDummy) continue;
+    o.dead = true;
+    burst(o.x, o.y, "#94a3b8", 10, 170, 3);
+    cleared++;
+  }
+  G.spawnQueue.length = 0;
+  G._trickle = 0;
+  if (cleared) toast(`群妖退散 · 场上只留测试者（清 ${cleared} 只）`, "gold");
   const title = trialTitle(wave);
   showBigBanner(chase ? "伤害测试者" : "玄铁试炼",
     chase ? `${TRIAL_TIME} 秒内击碎 · 它只追不打` : `${TRIAL_TIME} 秒内击碎 · 桩血 ${hp}`, "orange");
   toast(`${title} · ${TRIAL_TIME} 秒 · 血 ${hp}${chase ? " · 只追不打" : ""}`, "gold");
+  // v7.5：这一分钟不推进波次 —— 打完测试者才继续下一波（波次计时冻结在试炼里）
+  toast("妖潮暂歇 · 打完测试者才继续下一波", "cyan");
   G.shake = Math.max(G.shake, 8);
   AudioSys.boss();
   burst(e.x, e.y, "#f0c14b", 26, 260, 5);
@@ -1087,6 +1102,8 @@ function endTrial(success, why) {
   const ratio = success ? 1
     : clamp(T.hpLeft != null ? 1 - T.hpLeft / T.hpMax : T.dealt / T.hpMax, 0, 1);
   G.trialResult = { wave: T.wave, success, dealt, dps, ratio, t: elapsed, chase: !!T.chase };
+  // v7.5：试炼期间波次是冻结的，这里放开 —— 3 秒后继续下一波，别让玩家打完干等
+  G.waveTimer = Math.min(G.waveTimer, 3);
   const title = trialTitle(T.wave);
   const grade = trialGrade(T.wave, G.trialResult);
   // v7.5：评定卡是这场试炼的「结论」——先给等级，再给数字，最后给下一步
@@ -2883,6 +2900,12 @@ function takeUpgrade(id) {
 }
 function closeLevelUp() {
   if (ui.levelModal) ui.levelModal.classList.add("hidden");
+  // v7.5.1：关窗必须把选项清掉。
+  //   残留的按钮仍然是「活」的（监听器还在、还能被派发 click），健壮性探针里被连点 382 次 ——
+  //   同一张悟道卡被反复 apply，攻速被连乘到 Infinity，飞剑相位跟着爆掉，
+  //   最后 ctx.arc 收到 Infinity 角度 ⇒ 花屏 / 图形截断。真实环境里虽然被 display:none 挡住，
+  //   但只要样式层出一点意外就是「白拿几百张卡」的恶性 bug —— 关窗即销毁，成本为零。
+  if (ui.levelChoices) ui.levelChoices.innerHTML = "";
   G.pendingLevel = Math.max(0, (G.pendingLevel || 0) - 1);
   if (G.state === "level") G.state = "play";
   try { last = performance.now(); } catch (_) {}
@@ -3859,6 +3882,21 @@ function buildWave(wave) {
 }
 
 function updateWaves(dt) {
+  // v7.5 试炼独占场：伤害测试期间「清场 + 停波」。
+  //   这是玩家反馈直接点名要的：测试者必须被看见，而且必须是场上唯一的目标 ——
+  //   一边被小怪追一边打桩，测出来的是走位和运气，不是输出。
+  //   所以试炼期间不刷怪、不推进波次、不触发尸潮/悬赏，整个场子只留一个测试者。
+  if (G.trial && G.trial.active) {
+    G.spawnQueue.length = 0;
+    G._trickle = 0;
+    // 极端情况兜底：万一还有别的怪溜进来（祭坛召唤 / 分裂 / 召唤术），静默清掉
+    for (const e of G.enemies) {
+      if (e.dead || e.isDummy) continue;
+      e.dead = true;
+      burst(e.x, e.y, "#94a3b8", 8, 140, 2);
+    }
+    return;
+  }
   // v7.1 开局试炼潮：0.6s 立刻丢 8 只残血小妖。
   // 黄金 15 秒的唯一任务就是「3 秒内割出第一次升级」——先给爽点，再讲系统。
   if (G._openingRush && G.time > 0.6) {
@@ -4198,6 +4236,8 @@ function failBounty(reason) {
 function tickBounty(dt) {
   const b = G.bounty;
   if (!b) return;
+  // v7.5：试炼期间场上没怪，击杀类悬赏不可能完成 —— 冻结计时，别让玩家白亏一张悬赏令
+  if (G.trial && G.trial.active) return;
   // 已完成/失败：展示一小会儿再清场（帧计时，切后台不会错乱）
   if (b.state !== "active") {
     b.hold -= dt;
@@ -4356,7 +4396,11 @@ function atkSpeedNow() {
   const h = (G.gemFx && G.gemFx.dashHaste && G.hasteT > 0) ? 1 + G.gemFx.dashHaste : 1;
   // v6.0 B 联动 · 狂血：击杀后 2s 攻速 ×2
   const f = (G._frenzyT || 0) > 0 ? 2 : 1;
-  return G.atkSpeed * h * f * (G._jobAtkSpeedMul || 1);
+  const v = G.atkSpeed * h * f * (G._jobAtkSpeedMul || 1);
+  // v7.5.1 兜底：攻速一旦变成 Infinity / NaN，飞剑相位会跟着爆掉，
+  //   ctx.arc 收到 Infinity 角度 ⇒ 浏览器静默丢弃该段路径 ⇒ 花屏 / 图形截断（不报错，最难查）。
+  //   这里把它按回 1，宁可这一帧转得慢，也不能把画面画烂。
+  return Number.isFinite(v) ? v : 1;
 }
 
 function playerDamageMult() {
@@ -5239,6 +5283,9 @@ if (ui.tutOverlay) {
 
 function endRun() {
   if (G.state === "over") return;
+  // v7.5：死在试炼里也要收场 —— 否则试炼计时器会挂到下一局，进新局第一帧就弹评定卡
+  if (G.trial && G.trial.active) endTrial(false, "力竭");
+  hideTrialCard();
   G.state = "over";
   releaseJoystick();
   releaseWakeLock();
@@ -5455,7 +5502,14 @@ function update(dt) {
   // v7.5：前 10 波自动悟道（不弹卡、不停帧），第 11 波起才弹三选一交给玩家决策
   if ((G.pendingLevel || 0) > 0 && G.state === "play") {
     if (autoUpgradePhase()) flushAutoUpgrades();
-    else { openLevelUp(); return; }
+    else {
+      openLevelUp();
+      if (G.state === "level") return;         // 弹窗拉起来了：世界暂停，等玩家点
+      // v7.5.1 防挂起：弹窗没拉起来（卡池被抽空 / DOM 缺失）时，update 会每帧在这里 return，
+      //   世界永久静止 —— 玩家除了杀进程没有任何出路。这里兜底改成自动放发，宁可少一次抉择。
+      flushAutoUpgrades();
+      if ((G.pendingLevel || 0) > 0) G.pendingLevel = 0;
+    }
   }
 
   // hit-stop
@@ -5569,6 +5623,11 @@ function update(dt) {
   updateBeasts(dt);
 
   G.swordPhase += dt * (1.8 + atkSpeedNow() * 0.5);
+  // v7.5.1：相位兜底 —— 非法就归零，过大就取模。
+  //   飞剑相位是唯一会「越跑越大」的角度量，它一旦变成 Infinity，
+  //   剑轨 arc 的起止角就是 Infinity ⇒ 那段路径被浏览器丢弃 ⇒ 玩家看到的就是花屏 + 截断。
+  if (!Number.isFinite(G.swordPhase)) G.swordPhase = 0;
+  else if (G.swordPhase > TAU * 1024) G.swordPhase -= TAU * 1024;
   const orbitCount = G.swordCount;
   const orbitDmg = G.atk * 0.62 * playerDamageMult() * (G.weapons.orbit.evo ? 1.5 : 1) * (1 + G.weapons.orbit.lv * 0.05);
   for (let i = 0; i < orbitCount; i++) {
@@ -5779,7 +5838,8 @@ function updateHUD() {
     ui.waveElem.classList.toggle("cold", rel.mul < 1);
   }
   ui.killText.textContent = G.kills;
-  ui.timeText.textContent = formatTime(G.time) + (G.waveTimer > 0 ? ` · ${Math.ceil(G.waveTimer)}s` : "");
+  const inTrial = !!(G.trial && G.trial.active);
+  ui.timeText.textContent = formatTime(G.time) + (inTrial ? " · 试炼中" : (G.waveTimer > 0 ? ` · ${Math.ceil(G.waveTimer)}s` : ""));
   ui.timeText.classList.toggle("soon", G.waveTimer > 0 && G.waveTimer < 4);
   if (ui.waveFill) {
     const pct = G.waveInterval > 0 ? clamp(1 - G.waveTimer / G.waveInterval, 0, 1) * 100 : 0;
@@ -6685,6 +6745,29 @@ function drawEnemy(e) {
   ctx.shadowColor = e.color;
   ctx.shadowBlur = e.boss ? 16 : e.elite ? 10 : 4;
   if (e.shape === "dummy") {
+    // v7.5 光柱 + 呼吸光环：玩家反馈「没看到测试者」。
+    //   场上要是还有一堆怪，一个金色目标一眼就淹了 —— 所以给它一道冲天光柱，
+    //   隔多远、隔几只怪都看得见。这货是这一分钟的唯一主角，视觉上就得是主角。
+    if (G.trial && G.trial.active) {
+      const pulse = 0.55 + 0.45 * Math.sin(G.time * 4);
+      ctx.save();
+      ctx.globalAlpha = 0.18 + 0.16 * pulse;
+      ctx.fillStyle = "#fbbf24";
+      ctx.beginPath();
+      ctx.moveTo(-r * 0.62, 0);
+      ctx.lineTo(r * 0.62, 0);
+      ctx.lineTo(r * 0.34, -r * 9);
+      ctx.lineTo(-r * 0.34, -r * 9);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+      ctx.save();
+      ctx.globalAlpha = 0.35 + 0.4 * pulse;
+      ctx.strokeStyle = "#fbbf24";
+      ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(0, 0, r * (1.5 + 0.18 * pulse), 0, TAU); ctx.stroke();
+      ctx.restore();
+    }
     // v7.4 玄铁试炼桩：一根钉在地里的铁桩 + 三道同心环 + 十字准心。
     //   视觉语言刻意做成「靶子」：一眼就知道这货不是来打你的，是给你打的。
     ctx.beginPath();
@@ -7752,6 +7835,8 @@ window.__XTJ__ = {
   RENDER_CAP, trimRenderBudget,
   TRIAL_WAVES, TRIAL_TIME, TRIAL_HP, TRIAL_CHASE, trialHPFor, trialIsWave, trialTitle,
   spawnTrial, updateTrial, endTrial, trialHudSync,
+  // v7.5 健壮性探针（无副作用，仅供无头体检 tools/robustness-suite.js 调用）
+  resetRun, resize, spawnAtEdge, equipRec,
   TRIAL_GRADES, TRIAL_GRADE_TIME, TRIAL_GRADE_RATIO, trialGrade, showTrialResult, hideTrialCard,
   BOUNTY_DEFS, BOUNTY_BY_ID, startBounty, bountyAdd, completeBounty, failBounty, tickBounty,
 };

@@ -319,21 +319,20 @@ try {
     say(`1级: xp=${G.xp} level=${lp0}->${lp1} state=${G.state} hpMax ${hp0.toFixed(1)}->${hp1.toFixed(1)} atk ${atk0.toFixed(1)}->${atk1.toFixed(1)} shieldMax ${shield0.toFixed(1)}->${shield1.toFixed(1)}`);
     const hpRatio = hp1 / hp0, atkRatio = atk1 / atk0, shieldRatio = (shield1 || 0.001) / (shield0 || 0.001);
     say(`倍率：HP×${hpRatio.toFixed(3)} ATK×${atkRatio.toFixed(3)} Shield×${shieldRatio.toFixed(3)}`);
-    say(lp1 === 2 && G.state === "play" && Math.abs(hpRatio - 1.08) < 0.01 && Math.abs(atkRatio - 1.05) < 0.01
-      ? "PASS 升级被动成长 HP×1.08 / ATK×1.05 / Shield×1.10，不弹窗"
+    // v7.1：升级倍率上调（HP×1.09 / ATK×1.075），且升级会挂起一次「悟道突破」抉择
+    say(lp1 === 2 && G.state === "play" && Math.abs(hpRatio - 1.09) < 0.01 && Math.abs(atkRatio - 1.075) < 0.01 && (G.pendingLevel || 0) > 0
+      ? "PASS 升级被动成长 HP×1.09 / ATK×1.075，并挂起一次悟道抉择"
       : "FAIL 升级没按预期触发被动成长（倍率异常）");
 
     // ---- 9.2 升级倍率：升级多次依然是 ×1.05/次 ----
     G.xp = 0; G.xpNeed = 1;
     const atkBefore = G.atk;
-    X.gainXP(1);
-    X.gainXP(1);
-    X.gainXP(1);
+    for (let i = 0; i < 3; i++) { G.xp = 0; G.xpNeed = 1; X.gainXP(1); }   // 每次都保证够升 1 级
     const atkAfter = G.atk;
     const ratio = atkAfter / atkBefore;
-    say(`3 次升级倍率 atkBefore=${atkBefore.toFixed(2)} atkAfter=${atkAfter.toFixed(2)} 比值 ${ratio.toFixed(3)}（应 ≈1.05^N，N=升级次数）`);
-    say(Math.abs(ratio - Math.pow(1.05, ratio > 1.15 ? 3 : 1)) < 0.01 || (ratio > 1.05 && ratio < 1.20)
-      ? "PASS 升级倍率稳定（×1.05 每次）"
+    say(`3 次升级倍率 atkBefore=${atkBefore.toFixed(2)} atkAfter=${atkAfter.toFixed(2)} 比值 ${ratio.toFixed(3)}（应 ≈1.075^N，N=升级次数）`);
+    say(Math.abs(ratio - Math.pow(1.075, 3)) < 0.02
+      ? "PASS 升级倍率稳定（×1.075 每次）"
       : "FAIL 升级倍率异常");
 
     // ---- 9.3 转职门槛废止：openJobModal 现在是空函数 ----
@@ -441,20 +440,23 @@ try {
 
   // ---- H 转职静态接线（v4.0 大改：弹窗不再存在） ----
   say("");
-  say("== 10) v4.0 静态接线（升级/转职/灵魄/法宝匣弹窗全部砍掉）==");
+  say("== 10) v4.0 静态接线（转职/灵魄/法宝匣弹窗砍掉；v7.1 升级弹窗回归）==");
   const jobChecks = {
     "JOB_PATHS 定义": raw.includes("const JOB_PATHS"),
     "shouldOfferJob 改返回 false": raw.includes("function shouldOfferJob() { return false; }"),
     "openJobModal 是 stub": raw.includes("function openJobModal() { /* 转职不弹窗"),
     "jobSyncHud 定义": raw.includes("function jobSyncHud"),
-    "openLevelUp 是 stub": raw.includes("function openLevelUp() { /* 升级不弹窗"),
+    // v7.1：升级弹窗回归（悟道突破三选一），不再是不弹窗的 stub
+    "openLevelUp 真实实现": raw.includes("function openLevelUp()") && raw.includes("ui.levelChoices.appendChild(btn)"),
+    "悟道卡池": raw.includes("const UPGRADE_POOL = [") && raw.includes("function buildUpgradePool"),
     "openRelicModal 是 stub": raw.includes("function openRelicModal() { /* 法宝匣不再弹窗"),
     "openEssenceModal 是 stub": raw.includes("function openEssenceModal() { /* v4.0"),
     "resolvePendingModal 是 stub": raw.includes("function resolvePendingModal() { /* v4.0"),
     "autoJobFromSet 自动转职": raw.includes("function autoJobFromSet"),
     "autoUnlockCoreCheck 自动": raw.includes("function autoUnlockCoreCheck"),
     "triggerEquipSkill 触发": raw.includes("function triggerEquipSkill"),
-    "gainXP 被动成长": raw.includes("LV_ATK_MUL = 1.05"),
+    // v7.1 再平衡：每级 ×1.075（原 1.05，撑不住 v7.0 的怪量）
+    "gainXP 被动成长": raw.includes("LV_ATK_MUL = 1.075"),
     "update tick skillCD": raw.includes("for (let i = 0; i < (G.skillCD || []).length; i++)"),
     "J/K 按键绑定": raw.includes('if (k === "j" || k === "3") triggerEquipSkill(0)'),
     "startRun 同步道途HUD": raw.includes("jobSyncHud(false);"),
@@ -859,6 +861,7 @@ try {
   G.enemies = [];
   const sb = X.spawnEnemy("golem", G.px + 60, G.py, 3); sb.hp = 1e9;
   const sbHp = sb.hp;
+  G._hurtCD = 0;   // v7.1 受击间隔
   X.damagePlayer(50);
   say(`碎盾冲击波：护盾 ${G.shield}（应 0）· 近敌 hp ${Math.round(sbHp)} -> ${Math.round(sb.hp)}`);
   say(G.shield === 0 && sb.hp < sbHp ? "PASS 玄铁不坏碎盾时爆发冲击波" : "FAIL 碎盾冲击波未生效");
@@ -869,6 +872,7 @@ try {
   G.enemies = [];
   const qk = X.spawnEnemy("golem", G.px + 50, G.py, 3); qk.hp = 1e9;
   const qkHp = qk.hp;
+  G._hurtCD = 0;   // v7.1 受击间隔
   X.damagePlayer(5);
   say(`磐石震波：近敌 hp ${Math.round(qkHp)} -> ${Math.round(qk.hp)}`);
   say(qk.hp < qkHp ? "PASS 磐石镇岳受击震波" : "FAIL 磐石震波未生效");
@@ -1464,6 +1468,7 @@ try {
     G.schoolUnlocked["龙血"] = true;
     X.equipCore("sc_longxue");
     G.hpMax = 500; G.hp = G.hpMax; G._coreDiedOnce = false;
+    G._hurtCD = 0;   // v7.1 受击间隔
     X.damagePlayer(9999);
     const revived = G.hp > 0;
     say(`龙血核心 HP=hpMax → damagePlayer 后 hp=${G.hp.toFixed(0)}（应回满） · 复活=${revived}`);
@@ -1794,6 +1799,7 @@ try {
   const wardBehavOK = wardAbs > 40 && wardAbs < 260 && Math.abs(wdE.hp - 1000) < 1;
   // 荆棘：玩家被反弹
   G.hp = G.hpMax = 500; G.shield = 0; G.invuln = 0; G.dashIFrame = 0;
+  G._hurtCD = 0;   // v7.1 受击间隔
   const thE = X.spawnEnemy("eliteFox", 340, 340, 5);
   thE.mods = ["thorns"]; thE.hpMax = thE.hp = 1e6; thE.ward = 0;
   const hpB1 = G.hp;
@@ -1811,6 +1817,7 @@ try {
   // 自爆：脚下死亡要吃伤害
   G.enemies = [];
   G.hp = G.hpMax = 500; G.invuln = 0; G.dashIFrame = 0; G.shield = 0;
+  G._hurtCD = 0;   // v7.1 受击间隔
   const bmE = X.spawnEnemy("eliteFox", G.px + 8, G.py + 8, 5);
   bmE.mods = ["bomb"]; bmE.hp = 1; bmE.ward = 0;
   const hpB2 = G.hp;
@@ -2166,8 +2173,9 @@ try {
   say("");
   say("== 53) v7.0 · 割草密度（同屏怪量是爽点的底座）==");
   const w10 = X.buildWave(10).length, w20 = X.buildWave(20).length, w30 = X.buildWave(30).length;
-  say(`第 10/20/30 波刷怪量 ${w10}/${w20}/${w30}（v7.0 前为 ${3 + Math.floor(10 * 0.85)}/${3 + Math.floor(20 * 0.85)}/${3 + Math.floor(30 * 0.85)}）`);
-  const densOK = w10 >= 17 && w20 >= 31 && w30 >= 44;
+  // v7.1 再平衡：1.35w → 0.95w（峰值交给尸潮），并前 3 波温和
+  say(`第 10/20/30 波刷怪量 ${w10}/${w20}/${w30}（v7.0 为 18/32/48，v6 为 11/20/28）`);
+  const densOK = w10 >= 13 && w20 >= 23 && w30 >= 32 && X.buildWave(1).length <= 4;
   // 静态接线：v7.0 各系统必须真的被主循环 / 击杀链调用
   const v70wires = {
     "合击定义": /const FUSION_DEFS = \[/, "合击同步": /function syncFusions/,
@@ -2175,14 +2183,122 @@ try {
     "爆点队列": /function updateBlasts/, "尸潮定义": /function startHorde/,
     "尸潮tick": /updateHorde\(dt\);/, "尸潮触发": /startHorde\(G\.wave\);/,
     "连锁挂钩": /tryChainKill\(e\);/, "瞬步残影": /function spawnAfterimage/,
-    "残影tick": /updateAfterimages\(dt\);/, "无敌延长": /G\.dashIFrame = G\.dashTime \+ 0\.25;/,
+    "残影tick": /updateAfterimages\(dt\);/, "无敌延长": /G\.dashIFrame = G\.dashTime \+ 0\.25/,
     "狂血tick": /updateFrenzy\(dt\);/, "狂血加伤": /m \*= 1\.5;/,
-    "双击瞬步": /castSkill\(1\);/, "密度提升": /4 \+ Math\.floor\(wave \* 1\.35\)/,
+    "双击瞬步": /castSkill\(1\);/, "密度提升": /4 \+ Math\.floor\(wave \* 0\.95\)/,
+    "前3波温和": /wave <= 3 \? 2 \+ wave/, "开局试炼潮": /G\._openingRush && G\.time > 0\.6/,
+    "受击间隔": /G\._hurtCD = 0\.5;/, "接触伤害改一次": /damagePlayer\(e\.atk \* 0\.28\)/,
+    "波间回血": /妖潮暂歇/, "悟道卡池": /const UPGRADE_POOL = \[/, "悟道弹窗": /ui\.levelChoices\.appendChild\(btn\)/,
+    "教程延后": /G\.time > 18/,
     "尸傀入敌表": /hordeling: \{ name: "尸傀"/,
   };
   const miss70 = Object.keys(v70wires).filter((k) => !v70wires[k].test(src));
   say(`v7.0 静态接线 ${Object.keys(v70wires).length} 项，缺失 ${miss70.length} 项 ${miss70.join(",")}`);
   say(densOK && miss70.length === 0 ? "PASS 密度抬升到位，v7.0 各系统接线完整" : "FAIL 密度/接线异常");
+
+  say("");
+  say("== 54) v7.1 · 悟道突破（升级三选一，把「决策」还回给玩家）==");
+  forcePlay();
+  G.pendingLevel = 0; G.state = "play"; G._upgradeTaken = {};
+  G.enemies = []; G.blasts = [];
+  const pool3 = X.buildUpgradePool(3);
+  const clsSet = new Set(pool3.map((c) => c.cls));
+  say(`卡池 ${X.UPGRADE_POOL.length} 张，本次发出 ${pool3.length} 张：${pool3.map((c) => c.name + "(" + c.cls + ")").join(" / ")}`);
+  const poolOK = pool3.length === 3 && new Set(pool3.map((c) => c.id)).size === 3 && clsSet.has("form");
+
+  // 弹窗：升级后 update 应把世界挂起为 level，点卡后恢复
+  const sw0 = G.swordCount, atk0b = G.atk;
+  G.xp = 0; G.xpNeed = 1;
+  X.gainXP(1);
+  const pend = G.pendingLevel;
+  X.update(0.016);
+  const stt = G.state;
+  const btns = (els["levelChoices"] || {}).children || [];
+  say(`升级后 pendingLevel=${pend} · update 一次 → state=${stt} · 卡面 ${btns.length} 张`);
+  const modalOK = pend === 1 && stt === "level" && btns.length === 3;
+
+  // 点第一张卡 ⇒ 生效并恢复战斗
+  if (btns.length) btns[0].dispatch("click");
+  const stt2 = G.state, pend2 = G.pendingLevel;
+  const changed = G.swordCount !== sw0 || G.atk !== atk0b || G.crit !== undefined;
+  say(`点卡后 state=${stt2} pendingLevel=${pend2} · 已选卡 ${JSON.stringify(G._upgradeTaken || {})}`);
+  const takeOK = stt2 === "play" && pend2 === 0 && Object.keys(G._upgradeTaken || {}).length === 1;
+
+  // 直接验证一张「变」类卡真的改变战斗形态
+  const swordBefore = G.swordCount;
+  X.takeUpgrade("u_sword");
+  say(`分化剑影：环绕飞剑 ${swordBefore} → ${G.swordCount}（应 +1）`);
+  const formOK = G.swordCount === swordBefore + 1;
+  say(poolOK && modalOK && takeOK && formOK
+    ? "PASS 升级弹三选一并真实改变战斗形态，点完即恢复战斗" : "FAIL 悟道突破异常");
+
+  say("");
+  say("== 55) v7.1 · 活得下来（受击间隔 + 波间回血）==");
+  forcePlay();
+  G.enemies = []; G.hpMax = 500; G.hp = 500; G.invuln = 0; G.dashIFrame = 0; G.shield = 0;
+  G._hurtCD = 0;
+  X.damagePlayer(50);
+  const hpA = G.hp;
+  X.damagePlayer(50);          // 0.5s 间隔内 ⇒ 应被吃掉
+  const hpB = G.hp;
+  say(`连续两击 50：${hpA.toFixed(0)} → ${hpB.toFixed(0)}（第二击应被 0.5s 受击间隔吃掉）`);
+  const guardOK = Math.abs(hpB - hpA) < 0.01;
+  // 一圈怪贴身也不该秒杀：5 只怪同时接触，1 秒内最多吃 2 次伤害
+  G.hp = 500; G._hurtCD = 0;
+  for (let i = 0; i < 5; i++) X.spawnEnemy("fox", G.px + 2, G.py + 2, 1);
+  for (let i = 0; i < 60; i++) X.update(0.016);
+  const lost = 500 - G.hp;
+  say(`5 只怪贴身 1 秒：掉血 ${lost.toFixed(0)}（v7.1 前约 ${(5 * 8 * 3.2).toFixed(0)}，应 < 60）`);
+  const notMelted = lost < 60;
+  // 波间回血
+  G.hp = G.hpMax * 0.4; G.wave = 1; G.waveTimer = 0; G.enemies = [];
+  const hpW = G.hp;
+  X.updateWaves && X.updateWaves(0.016);
+  say(`波次推进：hp ${hpW.toFixed(0)} → ${G.hp.toFixed(0)}（应 +12% 上限）`);
+  const healOK = G.hp > hpW;
+  say(guardOK && notMelted && healOK ? "PASS 受击有间隔、围攻不秒杀、波间有喘息" : "FAIL 生存改造异常");
+
+  say("");
+  say("== 56) v7.1 · 黄金 15 秒（开局立刻开打 + 立刻有反馈）==");
+  forcePlay();
+  G.enemies = []; G.time = 0; G._openingRush = true; G.spawnQueue = []; G.state = "play";
+  G.waveTimer = 999; G.kills = 0; G.level = 1; G.xp = 0; G.xpNeed = 20; G.pendingLevel = 0;
+  X.update(0.016);
+  for (let i = 0; i < 45; i++) X.update(0.016);     // 推进到 0.7s：开局潮应已入场
+  const rushN = G.enemies.filter((e) => !e.dead).length;
+  say(`0.7s 时场上 ${rushN} 只（开局试炼潮 8 只，应 ≥6）· waveTimer 起始 0.8s（原 3s）`);
+  const rushOK = rushN >= 6;
+  // 15 秒内应至少升 2 级（有东西割 ⇒ 有成长反馈）
+  let lv0 = G.level;
+  for (let i = 0; i < 15 * 60; i++) {
+    X.update(1 / 60);
+    if (G.state === "level") {
+      const b = (els["levelChoices"] || {}).children || [];
+      if (b.length) b[0].dispatch("click"); else { G.pendingLevel = 0; G.state = "play"; }
+    }
+  }
+  say(`15 秒后：击杀 ${G.kills} · 等级 ${lv0} → ${G.level} · 存活=${G.state === "play"} · 场上 ${G.enemies.filter((e) => !e.dead).length} 只`);
+  const ftueOK = G.kills >= 8 && G.level - lv0 >= 2 && G.state === "play";
+  say(rushOK && ftueOK ? "PASS 开局 1 秒内开打，15 秒内有击杀/升级反馈且不会死" : "FAIL 开局节奏异常");
+
+  say("");
+  say("== 57) v7.1 · 教程不再霸屏 ==");
+  forcePlay();
+  G.time = 0; G.tutStep = 1; G._tutT = 0;
+  els["tutOverlay"]._cls.delete("showed");
+  els["tutOverlay"]._cls.add("hidden");
+  for (let i = 0; i < 10 * 60; i++) { X.update(1 / 60); if (G.state !== "play") break; }
+  const tutEarly = !els["tutOverlay"]._cls.has("hidden");
+  say(`开局 10 秒：教程遮罩显示=${tutEarly}（应 false，18 秒后才允许弹）`);
+  // 18 秒后弹出，但 9 秒内不关就自动收起
+  G.time = 19; G.tutStep = 1; G._tutT = 0;
+  els["tutOverlay"]._cls.delete("showed");
+  X.tickTutorial(0.016);
+  const tutShown = !els["tutOverlay"]._cls.has("hidden");
+  for (let i = 0; i < 10 * 60; i++) X.tickTutorial(1 / 60);
+  const tutGone = els["tutOverlay"]._cls.has("hidden");
+  say(`19 秒弹出=${tutShown}（应 true）· 10 秒后自动收起=${tutGone}（应 true）`);
+  say(!tutEarly && tutShown && tutGone ? "PASS 教程延后到 18 秒且超时自动收起，不再霸屏" : "FAIL 教程时序异常");
 
   say("== 运行状态 ==");
   say(`state=${G.state} wave=${G.wave} kills=${G.kills} enemies=${G.enemies.length} hp=${Math.round(G.hp)} lv=${G.level}`);

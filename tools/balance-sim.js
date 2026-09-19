@@ -27,8 +27,10 @@ const TYPES = {
 };
 
 // buildWave 的构成（wave>=5 的稳定池，取平均 xp）
-// v7.0 密度：4 + 1.35w（原 3 + 0.85w）
-const WAVE_COUNT = (w) => 4 + Math.floor(w * 1.35);
+// v7.1 再平衡：怪量 1.35w → 0.95w（v7.0 抬密度却没抬玩家成长，实测 50s 必死）
+const WAVE_COUNT = (w) => (w <= 3 ? 2 + w : 4 + Math.floor(w * 0.95));
+// v7.1：玩家每级成长 1.05 → 1.075（atk）/ 1.08 → 1.09（hp）
+const LV_ATK = 1.075, LV_HP = 1.09;
 // v7.0 尸潮：每 7 波（避开 5 的倍数妖王波）灌入 46+1.4w 只低血尸傀
 const HORDE_SIZE = (w) => 46 + Math.floor(w * 1.4);
 // v7.0 连锁击杀：每只死亡平均带走 0.25 只额外目标（实测概率 ~0.3，链有衰减）
@@ -78,12 +80,12 @@ function run(scenario) {
       xp += s.xp * xpMul * comboMul;
       while (xp >= need) { xp -= need; level++; need = xpNeedOf(level); }
     }
-    const baseAtk = 12 * Math.pow(1.05, level - 1);
+    const baseAtk = 12 * Math.pow(LV_ATK, level - 1);
     const equipAtk = equipAtkAt(w);            // 装备攻击加成（场景假设）
     const atk = baseAtk + equipAtk;
     const dmgMult = scenario.dmgMultAt(w);      // 元素/纯度/联动/核心综合倍率
     const hit = atk * dmgMult;
-    const hpMax = 100 * Math.pow(1.08, level - 1) + scenario.equipHpAt(w);
+    const hpMax = 100 * Math.pow(LV_HP, level - 1) + scenario.equipHpAt(w);
     const foxHP = enemyHP(28, w);
     const bossHP = enemyHP(1400, w);
     const bossATK = enemyATK(32, w);

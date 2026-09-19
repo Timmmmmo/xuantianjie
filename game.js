@@ -912,6 +912,8 @@ function tryChainKill(e) {
   G.particles.push({ x: e.x, y: e.y, vx: 0, vy: 0, life: 0.2, max: 0.2, color: "#fbbf24", size: 3, line: { x2: tgt.x, y2: tgt.y } });
   addBlast(tgt.x, tgt.y, 82, G.atk * 0.85 * playerDamageMult(), 0.05, "#fbbf24", { kind: "chain" });
   G._chainKills = (G._chainKills || 0) + 1;
+  // v7.2 悬赏令 · 连爆令计数
+  if (G.bounty && G.bounty.id === "chain" && G.bounty.state === "active") bountyAdd(1);
   G._chainDepth -= 1;
 }
 
@@ -2366,6 +2368,10 @@ function resetRun(charId) {
   G._frenzyCD = 0;
   G._blinkT = 0;
   G._chainDepth = 0;
+  // v7.2 打击感节流状态
+  G._comboBurstT = 0;
+  G._dmgNumT = -9;
+  G.bounty = null;            // v7.2 悬赏令
   G._chainKills = 0;
   G._hurtCD = 0;
   G._openingRush = true;      // v7.1：开局试炼潮
@@ -3474,6 +3480,8 @@ function updateWaves(dt) {
       spawnFloater(G.px, G.py - G.pr - 16, `妖潮暂歇 +${Math.round(heal)}`, "#86efac", 13);
     }
     G.spawnQueue = buildWave(G.wave);
+    // v7.2 悬赏令：波次推进时发牌（内部按 6 的倍数且避开妖王/尸潮波）
+    startBounty(G.wave);
     const we = ELEM_BY_KEY[waveElemKey()];
     const rel = bestElemRelation(we.key);
     const relTxt = rel.tag ? ` · ${rel.tag}` : "";
@@ -3596,6 +3604,8 @@ function onKillCombo() {
   if (G.combo >= 3 && G.combo % 2 === 0) {
     spawnFloater(G.px, G.py - 28, `连杀×${G.combo}`, G.combo >= 50 ? "#d9f99d" : G.combo >= 25 ? "#fde68a" : "#fda4af", 12);
   }
+  // v7.2 连杀爆点：每 20 连斩自动放一次「剑意爆发」（低频、有 CD，不会刷屏）
+  if (G.combo > 0 && G.combo % FEEL.comboBurstStep === 0 && (G._comboBurstT || 0) <= 0) comboBurst();
   ui.comboBadge.classList.remove("hidden", "hot", "legend");
   if (G.combo >= 50) ui.comboBadge.classList.add("legend");
   else if (G.combo >= 25) ui.comboBadge.classList.add("hot");
@@ -3605,6 +3615,198 @@ function onKillCombo() {
 }
 function hitStop(ms) {
   G.hitStop = Math.max(G.hitStop, ms / 1000);
+}
+
+// ================= v7.2 · 打击感（刀刀到肉）================
+// 诊断（ftue-sim 复测 + 静态审查）：
+//   v7.1 之后玩家活得下来、升得了级、有抉择，但「打出去没有回应」——
+//   · 普通命中：连伤害数字都没有（只有暴击 / 联动才跳字），玩家不知道自己打出了多少
+//   · 普通击杀：只有 +xp 一个飘字，无粒子、无冲击环、无屏震
+//     而一局割草里 90% 的击杀是小怪 ⇒ 最核心的那一秒是空的
+//
+// 设计原则（避免把割草做成「粘」）：
+//   · 普通命中 **不顿帧**：高频命中一旦顿帧就会一顿一顿，手感变粘、操作不跟手。
+//     改用「伤害数字 + 敌人闪白」表达"打到了"。
+//   · 顿帧只留给低频爆点：暴击、精英 / 妖王击杀、剑意爆发。
+//   · 击杀用「冲击环 + 血雾 + 微屏震」表达力度——不打断帧，不影响跟手。
+//   · 数字 / 粒子全部走节流与硬上限，同屏 110 只时不糊屏、不掉帧。
+const FEEL = {
+  numGate: 0.07,       // 全局伤害数字节流：0.07s 最多 1 个（≈14 个/秒）
+  numMerge: 0.14,      // 同一目标 0.14s 内的多段伤害合并成一个数字，读得出总数
+  partCap: 420,        // 粒子硬上限，超出丢弃（尸潮同屏 110 只时保帧）
+  comboBurstStep: 20,  // 每 20 连杀触发一次「剑意爆发」
+  executeMark: 0.3,    // 血量低于 30% 亮处决标记
+};
+
+function feelPart(o) {
+  if (G.particles.length < FEEL.partCap) G.particles.push(o);
+}
+
+// 命中反馈：合并伤害数字 + 敌人闪白；暴击额外给顿帧与屏震
+function feelHit(e, dmg, isCrit) {
+  if (!e) return;
+  e.flash = Math.max(e.flash || 0, isCrit ? 0.16 : 0.09);
+  const now = G.time;
+  e._numBuf = (e._numBuf || 0) + dmg;
+  if (isCrit) e._numCrit = true;
+  // 注意：G.time 从 0 开始，0 是 falsy —— 必须显式判 undefined，不能写 `G._dmgNumT || -9`，
+  // 否则开局那 0.07 秒里节流哨兵恒为 -9，伤害数字会一次性糊屏（真实 bug，测试 58 抓到）
+  const gLast = G._dmgNumT === undefined ? -9 : G._dmgNumT;
+  const eLast = e._numT === undefined ? -9 : e._numT;
+  if (now - gLast < FEEL.numGate) return;                   // 全局节流
+  if (eLast >= 0 && now - eLast < FEEL.numMerge) return;    // 等合并窗口
+  const total = Math.round(e._numBuf);
+  if (total <= 0) { e._numBuf = 0; return; }
+  G._dmgNumT = now; e._numT = now; e._numBuf = 0;
+  const crit = !!e._numCrit; e._numCrit = false;
+  spawnFloater(e.x + rand(-5, 5), e.y - e.r - 8,
+    crit ? `${total}!` : String(total),
+    crit ? "#fde047" : "#e2e8f0", crit ? 17 : 12, crit);
+  if (crit) G.shake = Math.max(G.shake, 3.5);
+}
+
+// 击杀爆破：冲击环 + 血雾 + 屏震。小怪也要有——这是割草的本体
+function feelKill(e) {
+  const boss = !!e.boss, elite = !!e.elite;
+  const blood = boss ? "#f59e0b" : (e.color || "#b91c1c");
+  if (!boss && !elite) {
+    // 精英 / 妖王的环在 killEnemy 里已有，这里只补小怪
+    feelPart({ x: e.x, y: e.y, vx: 0, vy: 0, life: 0.22, max: 0.22,
+      color: blood, size: 3, ring: { r0: e.r * 0.6, r1: e.r + 22 } });
+  }
+  const n = boss ? 26 : elite ? 14 : 6;
+  for (let i = 0; i < n; i++) {
+    const a = rand(0, TAU), s = rand(60, boss ? 300 : elite ? 200 : 130);
+    feelPart({
+      x: e.x, y: e.y, vx: Math.cos(a) * s, vy: Math.sin(a) * s,
+      life: rand(0.18, 0.42), max: 0.42,
+      color: i % 3 === 0 ? "#fca5a5" : blood,
+      size: rand(1.6, boss ? 5 : 3.2),
+    });
+  }
+  // 小怪只给极小的震（1.6px），靠「量」堆出割草的力度感而不至于晃晕
+  G.shake = Math.max(G.shake, boss ? 10 : elite ? 6 : 1.6);
+}
+
+// ================= v7.2 · 悬赏令（局内限时挑战）================
+// 产品判断：v7.1 解决了「前 15 秒」，但波次之间仍然只有「活下去」这一个目标。
+//   割草类的留存靠的是「下一个可期待的事件」。悬赏令每 6 波发一张，限时完成给即时
+//   奖励 —— 把平淡推进切成一段段有始有终的小挑战，也给了玩家一个「要不要为了它
+//   改变打法」的抉择（例如避煞令会逼你放弃贴脸换血）。
+// 刻意避开妖王波（5 的倍数）和尸潮波（7 的倍数），不在难度尖刺上再叠要求。
+const BOUNTY_DEFS = [
+  {
+    id: "kill", name: "斩妖令", verb: "限时斩妖", unit: "只",
+    need: (w) => 12 + Math.floor(w * 1.0), time: 26,
+    pay: (w) => 60 + w * 6,
+  },
+  {
+    id: "nohurt", name: "避煞令", verb: "全身而退", unit: "秒",
+    need: () => 16, time: 16,
+    pay: (w) => 80 + w * 8,
+  },
+  {
+    id: "chain", name: "连爆令", verb: "引爆连锁", unit: "次",
+    need: (w) => 3 + Math.floor(w * 0.22), time: 24,
+    pay: (w) => 70 + w * 7,
+  },
+];
+const BOUNTY_BY_ID = {};
+for (const b of BOUNTY_DEFS) BOUNTY_BY_ID[b.id] = b;
+
+function startBounty(wave) {
+  if (G._noBounty) return;                                 // 测试钩子：隔离击杀副作用
+  if (wave < 6 || wave % 6 !== 0) return;
+  if (wave % 5 === 0 || wave % 7 === 0) return;          // 妖王波 / 尸潮波不发
+  if (G.bounty && G.bounty.state === "active") return;
+  const def = pick(BOUNTY_DEFS);
+  G.bounty = { id: def.id, need: def.need(wave), got: 0, left: def.time, total: def.time, state: "active" };
+  showBigBanner("悬赏令", `${def.name} · ${def.verb} ${G.bounty.need}${def.unit} · ${def.time}秒`, "gold");
+  toast(`悬赏 · ${def.name}：${def.verb} ${G.bounty.need}${def.unit}`, "gold");
+}
+
+function bountyAdd(n) {
+  const b = G.bounty;
+  if (!b || b.state !== "active") return;
+  b.got += (n || 1);
+  if (b.got >= b.need) completeBounty();
+}
+
+function completeBounty() {
+  const b = G.bounty;
+  if (!b || b.state !== "active") return;
+  const def = BOUNTY_BY_ID[b.id];
+  b.state = "done";
+  const pay = def.pay(G.wave || 1);
+  G.coinsRun += pay;
+  // 奖励落在脚下，不用玩家满地图找
+  for (let i = 0; i < 4; i++) {
+    dropPickup(G.px + rand(-40, 40), G.py + rand(-40, 40), "stone", { stone: randStone() });
+  }
+  if (b.id === "nohurt") dropPickup(G.px + rand(-30, 30), G.py + rand(-30, 30), "relic");
+  else dropPickup(G.px + rand(-30, 30), G.py + rand(-30, 30), "equip", { equip: makeEquip(pick(["weapon", "armor", "accessory"]), "blue") });
+  burst(G.px, G.py, "#fde047", 26, 240, 4);
+  G.goldFlash = Math.max(G.goldFlash || 0, 0.3);
+  G.shake = Math.max(G.shake, 8);
+  showBigBanner("悬赏达成", `${def.name} · 灵玉 +${pay}`, "gold");
+  spawnFloater(G.px, G.py - 44, `+${pay} 灵玉`, "#fde047", 16, true);
+  AudioSys.level();
+  b.hold = 2.6;                       // 结果展示 2.6s 后由 tickBounty 清掉（不用 setTimeout：切后台会错乱）
+}
+
+function failBounty(reason) {
+  const b = G.bounty;
+  if (!b || b.state !== "active") return;
+  b.state = "fail";
+  b.hold = 1.6;                       // 同上，帧计时清场（不用 setTimeout）
+  const def = BOUNTY_BY_ID[b.id];
+  toast(`悬赏失败 · ${def.name}`, "red");
+}
+
+function tickBounty(dt) {
+  const b = G.bounty;
+  if (!b) return;
+  // 已完成/失败：展示一小会儿再清场（帧计时，切后台不会错乱）
+  if (b.state !== "active") {
+    b.hold -= dt;
+    if (b.hold <= 0) G.bounty = null;
+    return;
+  }
+  b.left -= dt;
+  // 避煞令是「坚持 N 秒不受伤」，靠 got 计时；其余看 left
+  if (b.id === "nohurt") {
+    b.got += dt;
+    if (b.got >= b.need) completeBounty();
+    return;
+  }
+  if (b.left <= 0) failBounty("timeout");
+}
+
+// 连杀爆点：把「连杀数字变大」变成一件可期待的事
+function comboBurst() {
+  if (G._noBurst) return;                 // 测试钩子：隔离击杀副作用（掉率统计要纯净）
+  const tier = Math.min(6, Math.floor(G.combo / FEEL.comboBurstStep));
+  const radius = 150 + tier * 24;
+  const dmg = G.atk * (3 + tier * 0.9) * playerDamageMult();
+  let hits = 0;
+  for (const e of G.enemies) {
+    if (e.dead || hits >= 40) continue;
+    if (dist(e.x, e.y, G.px, G.py) < radius) { hits += 1; applyHit(e, dmg); }
+  }
+  feelPart({ x: G.px, y: G.py, vx: 0, vy: 0, life: 0.34, max: 0.34,
+    color: "#fde68a", size: 5, ring: { r0: G.pr, r1: radius } });
+  for (let i = 0; i < 16; i++) {
+    const a = (i / 16) * TAU + rand(-0.1, 0.1);
+    feelPart({ x: G.px, y: G.py, vx: Math.cos(a) * 420, vy: Math.sin(a) * 420,
+      life: 0.2, max: 0.2, color: "#fef3c7", size: 3 });
+  }
+  G.shake = Math.max(G.shake, 12);
+  hitStop(90);
+  G.goldFlash = Math.max(G.goldFlash || 0, 0.18);
+  G._comboBurstT = 1.2;                    // 内置 CD，防止高连杀时每帧刷屏
+  spawnFloater(G.px, G.py - 40, `剑意 ×${tier}`, "#fde047", 18, true);
+  showBigBanner("剑意爆发", `${G.combo} 连斩 · 剑气纵横 ${Math.round(radius)}`, "gold");
+  AudioSys.crit();
 }
 
 // 震波：把周围妖物推开一点（磐石/铁骨的圆满效果用）
@@ -3676,6 +3878,8 @@ function damagePlayer(amount) {
   }
   if (amount <= 0) return;
   G.hp -= amount;
+  // v7.2 悬赏令 · 避煞令：受伤即失败（逼玩家为了悬赏改变打法）
+  if (G.bounty && G.bounty.id === "nohurt" && G.bounty.state === "active") failBounty("hurt");
   G.playerHurt = 0.18;
   G.flash = 0.15;
   G.shake = Math.min(10, G.shake + amount * 0.08);
@@ -3762,6 +3966,8 @@ function killEnemy(e, byPlayer = true) {
   if (e.dead) return;
   e.dead = true;
   G.kills += 1;
+  // v7.2 悬赏令 · 斩妖令计数
+  if (G.bounty && G.bounty.id === "kill" && G.bounty.state === "active") bountyAdd(1);
   onKillCombo();
   // v7.0 B2 连锁击杀：尸体引爆，向最近敌人传导（尸潮/高连杀时概率更高）
   tryChainKill(e);
@@ -3899,6 +4105,8 @@ function killEnemy(e, byPlayer = true) {
       G.shake = Math.max(G.shake, 8);
     }
   }
+  // v7.2 打击感：小怪击杀也必须有爆破（冲击环 + 血雾 + 微屏震）
+  feelKill(e);
   spawnFloater(e.x, e.y, `+${xp}`, "#a3e635", 12);
   AudioSys.kill();
   if (e.elite || e.boss) hitStop(e.boss ? 80 : 50);
@@ -4173,6 +4381,8 @@ function applyHit(e, dmg, opts = {}) {
     }
   }
   e.hp -= d;
+  // v7.2 打击感：命中就有数字（节流 + 同目标合并），普通命中不顿帧以免手感发粘
+  feelHit(e, d, isCrit);
   // v6.0 A 词缀 · 荆棘：玩家打它会被反弹
   if (e.mods && e.mods.indexOf("thorns") >= 0 && d > 0) damagePlayer(d * 0.18);
   e.flash = 0.1;
@@ -4674,6 +4884,27 @@ function tickTutorial(dt) {
 function updateGoalBar() {
   if (!ui.goalBar) return;
   ui.goalBar.classList.remove("hidden");
+  // v7.2 悬赏令优先：有限时挑战时，目标条让位给短期目标（玩家此刻真正在追的东西）
+  const bt = G.bounty;
+  if (bt && bt.state) {
+    const bd = BOUNTY_BY_ID[bt.id] || BOUNTY_DEFS[0];
+    const gotV = bt.id === "nohurt" ? Math.min(bt.need, bt.got) : bt.got;
+    const pct = bt.need > 0 ? (gotV / bt.need) * 100 : 0;
+    const lbl = bt.state === "done" ? `悬赏达成 · ${bd.name}`
+      : bt.state === "fail" ? `悬赏失败 · ${bd.name}`
+      : `悬赏 · ${bd.name} · ${bd.verb}`;
+    const det = bt.state === "active"
+      ? `${bt.id === "nohurt" ? gotV.toFixed(1) : Math.round(gotV)}/${bt.need}${bd.unit} · 剩 ${Math.max(0, bt.left).toFixed(1)}s`
+      : `${bt.id === "nohurt" ? gotV.toFixed(1) : Math.round(gotV)}/${bt.need}${bd.unit}`;
+    ui.goalIco.textContent = "赏";
+    ui.goalText.textContent = lbl;
+    ui.goalDetail.textContent = det;
+    ui.goalFill.style.width = Math.min(100, Math.max(0, pct)) + "%";
+    ui.goalFill.classList.toggle("complete", bt.state === "done");
+    ui.goalBar.classList.toggle("bounty", bt.state === "active");
+    return;
+  }
+  ui.goalBar.classList.remove("bounty");
   const w = G.wave || 0;
   // 优先级目标：当前阶段缺什么
   // 1) 紫装 < 3 件 ⇒ 凑齐紫装
@@ -4751,6 +4982,7 @@ function update(dt) {
   G.dashCDLeft = Math.max(0, G.dashCDLeft - dt);
   // v5.0 PM 视角：教程 + 大字报 + 橙装慢镜 + 目标进度条
   tickTutorial(dt);
+  tickBounty(dt);        // v7.2 悬赏令倒计时
   updateGoalBar();
   // v4.0 装备主动技能 CD tick
   for (let i = 0; i < (G.skillCD || []).length; i++) {
@@ -4759,6 +4991,7 @@ function update(dt) {
   // v4.0 装备主动技能持续时长 tick（如剑气护体 +6s）
   // v6.0 B 联动 · 狂血：CD tick
   G._frenzyT = Math.max(0, (G._frenzyT || 0) - dt);
+  G._comboBurstT = Math.max(0, (G._comboBurstT || 0) - dt);   // v7.2 剑意爆发 CD
   G._hurtCD = Math.max(0, (G._hurtCD || 0) - dt);   // v7.1 受击间隔
   G._swordArrayT = Math.max(0, (G._swordArrayT || 0) - dt);
   G._shadowT = Math.max(0, (G._shadowT || 0) - dt);
@@ -5799,6 +6032,17 @@ function drawEnemy(e) {
   ctx.beginPath();
   ctx.ellipse(0, r * 0.7, r * 0.9, r * 0.35, 0, 0, TAU);
   ctx.fill();
+  // v7.2 处决标记：残血目标外圈红脉冲 —— 把「该打谁」变成一眼可读的信息
+  if (!e.dead && e.hpMax > 0 && e.hp / e.hpMax < FEEL.executeMark) {
+    const pulse = 0.5 + 0.5 * Math.sin(G.time * 9 + (e.r || 8));
+    ctx.save();
+    ctx.strokeStyle = `rgba(248,113,113,${0.32 + pulse * 0.45})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(0, 0, r + 6 + pulse * 2.5, 0, TAU);
+    ctx.stroke();
+    ctx.restore();
+  }
   // 五行标识：脚下短弧，颜色即本波属性
   const ed = ELEM_BY_KEY[e.elem];
   if (ed) {
@@ -6899,7 +7143,7 @@ window.__XTJ__ = {
   ELEM_OVERCOME, ELEM_GENERATE, PATH_ELEMS, elemRelation, bestElemRelation, elemMulVs, elemMatchText, waveElemKey,
   REL_BEAT, REL_LOSE, REL_FED, REL_DRAIN,
   DROP_MOB, DROP_ELITE, DROP_BOSS, ESSENCE_GAIN, buildWave, updateWaves,
-  applyHit, update,
+  applyHit, update, updateGoalBar,
   collectPickup, dropPickup, killEnemy, spawnEnemy, damagePlayer, updateHUD, ENEMY_TYPES,
   recomputeResonance, resonanceJust, renderResonance, resHudSync, gemsOfId,
   ATK_BASE: 12,   // 测试用：玩家初始攻击（用于计算升级成长比值）
@@ -6923,5 +7167,8 @@ window.__XTJ__ = {
   // v7.1 黄金 15 秒：悟道突破 + 生存改造
   UPGRADE_POOL, UPGRADE_BY_ID, UPGRADE_CLS, buildUpgradePool, takeUpgrade, closeLevelUp,
   LV_ATK_MUL, LV_HP_MUL, damagePlayer, updateWaves, tickTutorial, hideTutorial,
+  // v7.2 打击感 + 悬赏令
+  FEEL, feelHit, feelKill, feelPart, comboBurst,
+  BOUNTY_DEFS, BOUNTY_BY_ID, startBounty, bountyAdd, completeBounty, failBounty, tickBounty,
 };
 })();

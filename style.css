@@ -2625,6 +2625,20 @@ canvas#game {
   pointer-events: none;
   animation: goalIn 0.4s ease both;
 }
+/* v7.2 悬赏令：目标条进入「限时挑战」态（红橙脉冲，与常态目标一眼区分） */
+.goal-bar.bounty {
+  border-color: rgba(248, 113, 113, 0.68);
+  animation: bountyPulse 1.1s ease-in-out infinite alternate;
+}
+.goal-bar.bounty .goal-fill {
+  background: linear-gradient(90deg, #ef4444, #fb923c, #fde68a);
+  box-shadow: 0 0 10px #fb923c;
+}
+.goal-bar.bounty .goal-label { color: #fca5a5; }
+@keyframes bountyPulse {
+  from { box-shadow: 0 0 12px rgba(248, 113, 113, 0.18), inset 0 0 10px rgba(248, 113, 113, 0.05); }
+  to   { box-shadow: 0 0 24px rgba(248, 113, 113, 0.45), inset 0 0 14px rgba(248, 113, 113, 0.12); }
+}
 .goal-bar.hidden { display: none; }
 @keyframes goalIn {
   from { opacity: 0; transform: translateX(-50%) translateY(-8px); }

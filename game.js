@@ -74,6 +74,9 @@ const ui = {
   fusionHud: $("fusionHud"),
   hordeBar: $("hordeBar"), hordeFill: $("hordeFill"), hordeText: $("hordeText"),
   frenzyHud: $("frenzyHud"),
+  // v7.4 玄铁试炼桩（伤害测试者）
+  trialHud: $("trialHud"), trialName: $("trialName"), trialTimer: $("trialTimer"),
+  trialFill: $("trialFill"), trialDealt: $("trialDealt"), trialDps: $("trialDps"), trialPct: $("trialPct"),
 };
 
 // ---------- Audio ----------
@@ -903,6 +906,128 @@ function rewardHorde(timeout) {
   showBigBanner("尸潮尽屠", `灵石 ×${n} · 蓝装 · 遗物 · 灵玉 +120`, "gold");
   toast("尸潮尽屠 · 赐福降临", "gold");
   burst(G.px, G.py, "#fbbf24", 40, 300, 6);
+  AudioSys.level();
+}
+
+// ================= v7.4 · 玄铁试炼桩（伤害测试者） =================
+// 产品判断：割草玩到 15 波，玩家心里的真问题是「我这套 build 到底有多能打」。
+//   场上数字一直在跳，但没有任何一个瞬间能回答这个问题。
+//   解法：第 15 / 30 波丢下一根不会动、不会还手的玄铁桩，给 60 秒，
+//   打碎 = 这套 build 的输出达标；打不碎也把「累计伤害 / DPS / 打掉几成」摊开给玩家看 ——
+//   失败同样有信息量：你知道差多少，也知道该补攻击还是补攻速。
+// 血量按「60 秒打掉多少」实测标定（tools/playability-sim.js 第 15/30 波试炼成绩）：
+//   桩是不动的血包，会把群伤/溅射/灼烧全吃掉 —— 实测对桩持续输出 1k~35k DPS，
+//   build 好坏能差 15 倍。取中位数（15 波 ≈6k、30 波 ≈20k）× 40 秒，
+//   即「打得好的 25~35 秒打碎，打得一般的差一口气」—— 过与不过都给得出信息。
+const TRIAL_WAVES = [15, 30];
+const TRIAL_TIME = 60;                 // 试炼时长（秒）
+const TRIAL_HP = { 15: 250000, 30: 1500000 };
+function trialHPFor(wave) { return TRIAL_HP[wave] || Math.round(28000 * Math.pow(1.5, (wave - 15) / 5)); }
+function trialIsWave(wave) { return TRIAL_WAVES.indexOf(wave) >= 0; }
+
+function spawnTrial(wave) {
+  if (G._trialWave === wave) return;
+  G._trialWave = wave;
+  const ang = rand(0, TAU);
+  const e = spawnEnemy("dummy", G.px + Math.cos(ang) * 200, G.py + Math.sin(ang) * 200, wave);
+  const hp = trialHPFor(wave);
+  e.hp = e.hpMax = hp;
+  e.isDummy = true;
+  e.atk = 0; e.speed = 0; e.xp = 0; e.mods = [];
+  e.boss = false; e.elite = false;
+  G.trial = { active: true, wave, t: TRIAL_TIME, dealt: 0, hpMax: hp, id: e.id, killed: false };
+  showBigBanner("玄铁试炼", `${TRIAL_TIME} 秒内击碎 · 桩血 ${hp}`, "orange");
+  toast(`玄铁试炼 · ${TRIAL_TIME} 秒 · 桩血 ${hp}`, "gold");
+  G.shake = Math.max(G.shake, 8);
+  AudioSys.boss();
+  burst(e.x, e.y, "#f0c14b", 26, 260, 5);
+}
+
+function updateTrial(dt) {
+  const T = G.trial;
+  if (!T || !T.active) return;
+  const e = G.enemies.find((x) => x.id === T.id && !x.dead);
+  if (!e) { if (!T.killed) endTrial(false, "试炼桩已遁走"); return; }
+  T.hpLeft = e.hp;
+  // 试炼桩「遁地重现」：玩家跑远了就贴过去。
+  //   桩是死物，玩家一拉扯战场就再也打不到它 —— 那测的就不是输出，是站位。
+  //   超过 560 就在玩家身边重铸（掉血进度保留），保证这 60 秒真的在测伤害。
+  if (dist(e.x, e.y, G.px, G.py) > 560) {
+    const a2 = rand(0, TAU);
+    burst(e.x, e.y, "#94a3b8", 14, 160, 3);
+    e.x = G.px + Math.cos(a2) * 190;
+    e.y = G.py + Math.sin(a2) * 190;
+    burst(e.x, e.y, "#f0c14b", 18, 200, 4);
+    toast("试炼桩遁地重现 · 就在你身侧", "gold");
+  }
+  T.t -= dt;
+  if (T.t <= 0) {
+    e.dead = true;                       // 不进 killEnemy：不计数、不掉装
+    burst(e.x, e.y, "#94a3b8", 30, 240, 5);
+    endTrial(false, "时限已尽");
+    return;
+  }
+  trialHudSync(e);
+}
+
+function trialHudSync(e) {
+  const T = G.trial;
+  T.hpLeft = e.hp;
+  if (!ui.trialHud) return;
+  ui.trialHud.classList.remove("hidden");
+  const elapsed = Math.max(0.1, TRIAL_TIME - T.t);
+  const dps = T.dealt / elapsed;
+  ui.trialName.textContent = `玄铁试炼桩 · 第 ${T.wave} 波`;
+  ui.trialTimer.textContent = `${Math.max(0, T.t).toFixed(1)}s`;
+  ui.trialTimer.classList.toggle("urgent", T.t <= 10);
+  ui.trialDealt.textContent = Math.round(T.dealt).toLocaleString("en-US");
+  ui.trialDps.textContent = Math.round(dps).toLocaleString("en-US");
+  const pct = clamp(e.hp / e.hpMax, 0, 1);
+  ui.trialPct.textContent = `${Math.ceil(pct * 100)}%`;
+  ui.trialFill.style.width = `${pct * 100}%`;
+}
+
+function endTrial(success, why) {
+  const T = G.trial;
+  if (!T || !T.active) return;
+  T.active = false;
+  if (ui.trialHud) ui.trialHud.classList.add("hidden");
+  const dealt = Math.round(T.dealt);
+  const elapsed = Math.max(0.1, TRIAL_TIME - T.t);
+  const dps = Math.round(dealt / elapsed);
+  // 注意：灼烧/力场/溅射这些不走 applyHit 的伤害扣的是血、没记进 dealt，
+  //   所以「打掉几成」以桩的实际剩血为准，成功即 100%（不能用 dealt/hpMax，会显示成 89%）
+  const ratio = success ? 1
+    : clamp(T.hpLeft != null ? 1 - T.hpLeft / T.hpMax : T.dealt / T.hpMax, 0, 1);
+  G.trialResult = { wave: T.wave, success, dealt, dps, ratio, t: elapsed };
+  if (success) {
+    showBigBanner("试炼达成", `${Math.round(elapsed)}s 击碎 · DPS ${dps}`, "gold");
+    toast(`玄铁试炼通过 · ${Math.round(elapsed)}s · DPS ${dps}`, "gold");
+    // 通过奖励：橙装 + 灵石包 + 灵玉
+    const slot = pick(["weapon", "armor", "accessory"]);
+    const orangeEq = makeEquip(slot, "orange");
+    dropPickup(G.px + rand(-40, 40), G.py + rand(-40, 40), "equip", { equip: orangeEq });
+    toast(`试炼赐 · 橙·${ITEM_TYPES[orangeEq.typeKey].name}`, "orange");
+    for (let i = 0; i < 6; i++) dropPickup(G.px + rand(-70, 70), G.py + rand(-70, 70), "stone", { stone: randStone() });
+    G.coinsRun += 260;
+    G.goldFlash = Math.max(G.goldFlash || 0, 0.3);
+    burst(G.px, G.py, "#fbbf24", 44, 320, 6);
+  } else {
+    const pctTxt = `${Math.round(ratio * 100)}%`;
+    showBigBanner("试炼未成", `${why} · 打掉 ${pctTxt} · DPS ${dps}`, "violet");
+    toast(`玄铁试炼 · ${why} · 累计 ${dealt.toLocaleString("en-US")} 伤害 · DPS ${dps} · 打掉 ${pctTxt}`, "violet");
+    // 未通过也按完成度给台阶：70% 给紫装，40% 给蓝装，否则只给灵石
+    if (ratio >= 0.7) {
+      dropPickup(G.px + rand(-40, 40), G.py + rand(-40, 40), "equip",
+        { equip: makeEquip(pick(["weapon", "armor", "accessory"]), "purple") });
+      toast("差一口气 · 赐紫装一件", "violet");
+    } else if (ratio >= 0.4) {
+      dropPickup(G.px + rand(-40, 40), G.py + rand(-40, 40), "equip",
+        { equip: makeEquip(pick(["weapon", "armor", "accessory"]), "blue") });
+      toast("输出尚可 · 赐蓝装一件", "violet");
+    }
+    for (let i = 0; i < 3; i++) dropPickup(G.px + rand(-60, 60), G.py + rand(-60, 60), "stone", { stone: randStone() });
+  }
   AudioSys.level();
 }
 
@@ -2312,6 +2437,8 @@ const G = {
   hitStop: 0,
   time: 0, wave: 0, kills: 0, waveTimer: 0, waveInterval: 25,
   spawnQueue: [], _trickle: 0,
+  // v7.4 玄铁试炼桩（伤害测试者）状态
+  trial: null, trialResult: null, _trialWave: 0,
   px: 0, py: 0, pr: 16,
   hp: 100, hpMax: 100, mp: 50, mpMax: 50, mpRegen: 2.5,
   level: 1, xp: 0, xpNeed: 20,
@@ -2391,6 +2518,9 @@ function resetRun(charId) {
   G.hitStop = 0;
   G.time = 0; G.wave = 0; G.kills = 0; G.waveTimer = 0.8;   // v7.1：开局 3s 空场 → 0.8s 就开打
   G.spawnQueue = []; G._trickle = 0;
+  // v7.4 玄铁试炼桩状态复位（否则上一局的试炼进度会带进新一局）
+  G.trial = null; G.trialResult = null; G._trialWave = 0;
+  if (ui.trialHud) ui.trialHud.classList.add("hidden");
   G.px = 0; G.py = 0;
   G.hpMax = 100 + shop.hpBonus;
   G.hp = G.hpMax;
@@ -2664,6 +2794,45 @@ function closeLevelUp() {
   G.pendingLevel = Math.max(0, (G.pendingLevel || 0) - 1);
   if (G.state === "level") G.state = "play";
   try { last = performance.now(); } catch (_) {}
+}
+
+// ================= v7.4 · 前 15 级自动悟道（不再打断） =================
+// 玩家反馈：前 15 级每升一级就弹一次三选一，开局节奏被切成碎片 ——
+//   「刚割爽就被按停」是这一段最大的体感损失，而且前 15 级玩家还没 build 概念，
+//   三选一给的也不是抉择，是打扰。
+// 改法：1~15 级自动随机领悟（不弹窗、不停帧、不打断），15 级之后恢复手动三选一 ——
+//   前期负责「割得顺」，后期把 build 的决策权完整交回玩家。
+const AUTO_UPGRADE_MAX_LEVEL = 15;
+function autoUpgradePick() {
+  const choices = buildUpgradePool(3);
+  if (!choices.length) return null;
+  // 加权随机：攻 50% / 变 32% / 守 18%。
+  //   纯随机会出现「前期连拿两张防御」这种让人提不起劲的结果 —— 新手最缺的是输出。
+  const weight = { atk: 0.5, form: 0.32, def: 0.18 };
+  let total = 0;
+  for (const c of choices) total += weight[c.cls] || 0.1;
+  let r = Math.random() * total;
+  for (const c of choices) { r -= (weight[c.cls] || 0.1); if (r <= 0) return c; }
+  return choices[choices.length - 1];
+}
+function grantUpgrade(def) {
+  if (!def) return;
+  G._upgradeTaken = G._upgradeTaken || {};
+  G._upgradeTaken[def.id] = upgradeTakenCount(def.id) + 1;
+  def.apply();
+  G.pendingLevel = Math.max(0, (G.pendingLevel || 0) - 1);
+  spawnFloater(G.px, G.py - G.pr - 18, `悟道 · ${def.name}`, "#fde68a", 14);
+  toast(`自动悟道 · ${def.name} · ${def.desc}`, "gold");
+  burst(G.px, G.py, "#fde68a", 14, 160, 3);
+  AudioSys.level();
+}
+function flushAutoUpgrades() {
+  let guard = 0;
+  while ((G.pendingLevel || 0) > 0 && G.level <= AUTO_UPGRADE_MAX_LEVEL && guard++ < 40) {
+    const c = autoUpgradePick();
+    if (!c) { G.pendingLevel = 0; break; }
+    grantUpgrade(c);
+  }
 }
 function shouldOfferJob() { return false; }
 function openJobModal() { /* 转职不弹窗，由套装触发 */ }
@@ -3507,6 +3676,9 @@ const ENEMY_TYPES = {
   bossGolem: { name: "山神傀儡", r: 36, hp: 1400, atk: 32, speed: 45, xp: 150, color: "#f59e0b", shape: "golem", boss: true, slam: true },
   // v7.0 B 尸潮涌：低血高速的炮灰，靠数量制造割草密度，不靠单只强度
   hordeling: { name: "尸傀", r: 9, hp: 14, atk: 6, speed: 150, xp: 2, color: "#78716c", shape: "ghost" },
+  // v7.4 玄铁试炼桩：伤害测试者 —— 不动、不还手、只挨打。
+  //   血量由 spawnTrial 直接覆写（这里写 100 只是占位），60 秒内打碎即算通过。
+  dummy: { name: "玄铁试炼桩", r: 34, hp: 100, atk: 0, speed: 0, xp: 0, color: "#94a3b8", shape: "dummy" },
 };
 // v6.1 平衡：原指数 1.35 让 40 波血量 ×32 而攻击只 ×4.4，35~40 波必然撞墙
 //      指数降到 1.25（40 波 ×24.7）；经验随波次上涨见 spawnEnemy
@@ -3657,6 +3829,8 @@ function updateWaves(dt) {
     if (G.wave >= HORDE_EVERY && G.wave % HORDE_EVERY === 0 && G.wave % 5 !== 0) {
       startHorde(G.wave);
     }
+    // v7.4 玄铁试炼桩：第 15 / 30 波丢下伤害测试者，给 60 秒打桩
+    if (trialIsWave(G.wave)) spawnTrial(G.wave);
   }
   if (G.spawnQueue.length) {
     for (const item of G.spawnQueue) item.delay -= dt;
@@ -3978,7 +4152,7 @@ function comboBurst() {
 // 震波：把周围妖物推开一点（磐石/铁骨的圆满效果用）
 function knockEnemies(cx, cy, radius, force) {
   for (const e of G.enemies) {
-    if (e.dead || e.boss) continue;
+    if (e.dead || e.boss || e.isDummy) continue;   // v7.4 试炼桩钉死不动
     const d = dist(cx, cy, e.x, e.y);
     if (d < radius && d > 0.01) {
       const f = force * (1 - d / radius);
@@ -4114,6 +4288,9 @@ function playerDamageMult() {
 }
 
 function spawnFloater(x, y, text, color, size, crit = false) {
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return;      // v7.4：非法坐标不入队（会画成整屏乱线）
+  // v7.4：飘字硬上限 —— 尸潮波实测同屏 260+ 条，屏幕糊成一片还掉帧
+  if (G.floaters.length >= RENDER_CAP.floaters) G.floaters.shift();
   G.floaters.push({ x, y, text, color, size, life: 0.85, vy: -40, crit });
 }
 
@@ -4132,6 +4309,16 @@ function killEnemy(e, byPlayer = true) {
   if (e.dead) return;
   e.dead = true;
   G.kills += 1;
+  // v7.4 玄铁试炼桩：打碎即通过 —— 不发普通战利品，奖励统一在 endTrial 里按成绩给
+  if (e.isDummy) {
+    if (G.trial && G.trial.active) { G.trial.killed = true; endTrial(true, "击碎"); }
+    burst(e.x, e.y, "#f0c14b", 36, 320, 6);
+    G.shake = Math.max(G.shake, 10);
+    G.goldFlash = Math.max(G.goldFlash || 0, 0.26);
+    feelKill(e);
+    AudioSys.kill();
+    return;
+  }
   // v7.2 悬赏令 · 斩妖令计数
   if (G.bounty && G.bounty.id === "kill" && G.bounty.state === "active") bountyAdd(1);
   onKillCombo();
@@ -4585,6 +4772,8 @@ function applyHit(e, dmg, opts = {}) {
       spawnFloater(e.x, e.y - e.r - 22, "护盾碎", "#cbd5e1", 12);
     }
   }
+  // v7.4 玄铁试炼桩：只统计打在桩身上的伤害（含灼烧 / 爆点 / 传导，口径统一）
+  if (e.isDummy && G.trial && G.trial.active) G.trial.dealt += Math.max(0, d);
   e.hp -= d;
   // v7.2 打击感：命中就有数字（节流 + 同目标合并），普通命中不顿帧以免手感发粘
   feelHit(e, d, isCrit);
@@ -5164,8 +5353,11 @@ function update(dt) {
   if (G.state === "menu" || G.state === "over" || G.state === "shop" || G.state === "pause" || G.state === "codex") return;
   if (G.state === "level" || G.state === "job" || G.state === "forge") return;
   if (G.state === "altar") { updateHUD(); return; }   // v6.0 C 祭坛：暂停世界等玩家抉择
-  // v7.1：升级抉择优先 —— 有未处理的境界突破就弹卡（世界暂停，玩家点完继续）
-  if ((G.pendingLevel || 0) > 0 && G.state === "play") { openLevelUp(); return; }
+  // v7.4：前 15 级自动悟道（不弹卡、不停帧），15 级之后才弹三选一交给玩家决策
+  if ((G.pendingLevel || 0) > 0 && G.state === "play") {
+    if (G.level <= AUTO_UPGRADE_MAX_LEVEL) flushAutoUpgrades();
+    else { openLevelUp(); return; }
+  }
 
   // hit-stop
   if (G.hitStop > 0) {
@@ -5175,6 +5367,9 @@ function update(dt) {
   }
 
   G.time += dt;
+  // v7.4 兜底：坐标一旦变成 NaN，整屏都会画不出来（玩家看到的就是黑屏 / 花屏 / 截断）。
+  //   没人能说清它会在哪一帧发生，所以这里钉一道保险：发现就拉回原点。
+  if (!Number.isFinite(G.px) || !Number.isFinite(G.py)) { G.px = 0; G.py = 0; }
   G.flash = Math.max(0, G.flash - dt);
   G.goldFlash = Math.max(0, (G.goldFlash || 0) - dt);
   G.shake = Math.max(0, G.shake - dt * 30);
@@ -5336,6 +5531,9 @@ function update(dt) {
       if (e.slow <= 0) e.slowMul = 1;
     }
 
+    // v7.4 玄铁试炼桩：钉死在场上 —— 不移动、不被拉扯，否则玩家要追着桩跑，测的就不是输出了
+    if (e.isDummy) { e.flash = Math.max(0, e.flash - dt); continue; }
+
     const ang = angleTo(e.x, e.y, G.px, G.py);
     let mx = Math.cos(ang), my = Math.sin(ang);
     if (e.shape === "bat") {
@@ -5440,6 +5638,7 @@ function update(dt) {
     if (p.vx) { p.vx *= 0.96; p.vy *= 0.96; }
   }
   G.particles = G.particles.filter((p) => p.life > 0);
+  trimRenderBudget();     // v7.4：尸潮波把粒子顶到 1900+ 会掉帧糊屏，这里封顶
 
   for (const f of G.floaters) {
     f.life -= dt;
@@ -5448,6 +5647,8 @@ function update(dt) {
   }
   G.floaters = G.floaters.filter((f) => f.life > 0);
 
+  // v7.4 玄铁试炼桩：60 秒伤害测试倒计时（HUD 里实时显示已伤 / DPS / 剩余血量）
+  updateTrial(dt);
   updateWaves(dt);
   updateHUD();
 }
@@ -5536,8 +5737,40 @@ function w2s(wx, wy) {
   return { x: wx - G.px + view.w / 2, y: wy - G.py + view.h / 2 };
 }
 
+// v7.4 渲染预算：粒子 / 飘字硬上限。
+//   尸潮波实测同屏粒子冲到 1900+（tools/render-audit.js），每个还可能带一份径向渐变，
+//   手机上就是掉帧 + 画面糊。视觉层必须自己封顶，不能把「怪多一点」变成「屏炸了」。
+const RENDER_CAP = { particles: 420, floaters: 90 };
+function trimRenderBudget() {
+  const p = G.particles || [];
+  if (p.length > RENDER_CAP.particles) p.splice(0, p.length - RENDER_CAP.particles);
+  const f = G.floaters || [];
+  if (f.length > RENDER_CAP.floaters) f.splice(0, f.length - RENDER_CAP.floaters);
+}
+
 function draw() {
+  // v7.4 渲染兜底：任何一处绘制抛异常都会让这一帧只画一半（clearRect 之后中断），
+  //   玩家看到的就是「花屏 + 画面被截断」。这里兜住异常，强制复位画布状态并整帧清屏，
+  //   保证下一帧一定是完整的 —— 宁可少画一层，也不能把画面留在半张。
+  try {
+    drawInner();
+  } catch (err) {
+    if (!draw._reported) {
+      draw._reported = true;
+      try { console.warn("[玄天劫] 绘制异常已兜住（画面已复位）：", err); } catch (_) {}
+    }
+    try {
+      ctx.setTransform(view.dpr || 1, 0, 0, view.dpr || 1, 0, 0);
+      ctx.globalAlpha = 1;
+      ctx.shadowBlur = 0;
+      ctx.setLineDash([]);
+      ctx.clearRect(0, 0, view.w, view.h);
+    } catch (_) {}
+  }
+}
+function drawInner() {
   const w = view.w, h = view.h;
+  trimRenderBudget();
   ctx.clearRect(0, 0, w, h);
   let ox = 0, oy = 0;
   if (G.shake > 0) { ox = rand(-G.shake, G.shake); oy = rand(-G.shake, G.shake); }
@@ -6340,7 +6573,23 @@ function drawEnemy(e) {
   ctx.lineWidth = e.boss || e.elite ? 2.5 : 1.5;
   ctx.shadowColor = e.color;
   ctx.shadowBlur = e.boss ? 16 : e.elite ? 10 : 4;
-  if (e.shape === "golem") {
+  if (e.shape === "dummy") {
+    // v7.4 玄铁试炼桩：一根钉在地里的铁桩 + 三道同心环 + 十字准心。
+    //   视觉语言刻意做成「靶子」：一眼就知道这货不是来打你的，是给你打的。
+    ctx.beginPath();
+    ctx.moveTo(-r * 0.55, r * 0.95); ctx.lineTo(-r * 0.5, -r * 0.55);
+    ctx.lineTo(r * 0.5, -r * 0.55); ctx.lineTo(r * 0.55, r * 0.95);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    for (let i = 1; i <= 3; i++) {
+      ctx.globalAlpha = 0.75 - i * 0.16;
+      ctx.beginPath(); ctx.arc(0, 0, r * (0.32 + i * 0.2), 0, TAU); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    ctx.beginPath();
+    ctx.moveTo(-r * 0.42, 0); ctx.lineTo(r * 0.42, 0);
+    ctx.moveTo(0, -r * 0.42); ctx.lineTo(0, r * 0.42);
+    ctx.stroke();
+  } else if (e.shape === "golem") {
     ctx.beginPath();
     const rr = r * 0.9;
     ctx.moveTo(-rr, -rr * 0.6); ctx.lineTo(rr, -rr * 0.8);
@@ -6830,7 +7079,15 @@ function drawParticle(p) {
     return;
   }
   if (p.line) {
-    const e = w2s(p.line.x, p.line.y);
+    // v7.4 P0：字段口径不统一 —— 有的粒子写 {x,y}，有的写 {x2,y2}，读的却是 .x/.y，
+    //   于是 lineTo(NaN, NaN)。浏览器对非有限参数直接 return（不加点、不报错），
+    //   表现就是「线画不出来 + 上一段路径被留在那儿」= 玩家看到的花屏 / 图形被截断。
+    //   探针实测一局 2 万次（tools/render-audit.js）。这里兜底读两种写法并丢弃非法值。
+    const lx = p.line.x !== undefined ? p.line.x : p.line.x2;
+    const ly = p.line.y !== undefined ? p.line.y : p.line.y2;
+    if (!Number.isFinite(lx) || !Number.isFinite(ly)) return;
+    const e = w2s(lx, ly);
+    if (!Number.isFinite(e.x) || !Number.isFinite(e.y)) return;
     ctx.strokeStyle = p.color;
     ctx.globalAlpha = a;
     ctx.lineWidth = 2;
@@ -7349,6 +7606,10 @@ window.__XTJ__ = {
   REL_BEAT, REL_LOSE, REL_FED, REL_DRAIN,
   DROP_MOB, DROP_ELITE, DROP_BOSS, ESSENCE_GAIN, buildWave, updateWaves,
   applyHit, update, updateGoalBar,
+  // v7.4 渲染探针（无副作用，仅供无头体检 tools/render-audit.js 调用）
+  ctx,
+  spawnFloater, burst,
+  draw, drawInner, drawEnemy, drawFloater, drawParticle, drawZones, drawBlasts, drawOffscreenIndicators, view, w2s,
   collectPickup, dropPickup, killEnemy, spawnEnemy, damagePlayer, updateHUD, ENEMY_TYPES,
   recomputeResonance, resonanceJust, renderResonance, resHudSync, gemsOfId,
   ATK_BASE: 12,   // 测试用：玩家初始攻击（用于计算升级成长比值）
@@ -7375,6 +7636,10 @@ window.__XTJ__ = {
   LV_ATK_MUL, LV_HP_MUL, damagePlayer, updateWaves, tickTutorial, hideTutorial,
   // v7.2 打击感 + 悬赏令
   FEEL, feelHit, feelKill, feelPart, comboBurst,
+  // v7.4 前 15 级自动悟道 / 渲染预算 / 玄铁试炼桩
+  AUTO_UPGRADE_MAX_LEVEL, autoUpgradePick, grantUpgrade, flushAutoUpgrades,
+  RENDER_CAP, trimRenderBudget,
+  TRIAL_WAVES, TRIAL_TIME, TRIAL_HP, trialHPFor, trialIsWave, spawnTrial, updateTrial, endTrial, trialHudSync,
   BOUNTY_DEFS, BOUNTY_BY_ID, startBounty, bountyAdd, completeBounty, failBounty, tickBounty,
 };
 })();

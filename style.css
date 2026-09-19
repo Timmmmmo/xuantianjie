@@ -3009,3 +3009,56 @@ body.orange-pause #app::after {
 @media (max-width: 430px) {
   .syn-hud { top: calc(30% + 158px); }
 }
+
+/* ============================================================
+ * v7.4 · 玄铁试炼桩（伤害测试者 HUD）
+ * 60 秒内打碎它 = 这套 build 的输出达标；打不碎也把「打了多少 / DPS」摊开给玩家看
+ * ============================================================ */
+.trial-hud {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  top: calc(30% + 214px);
+  width: min(78vw, 340px);
+  padding: 7px 10px 8px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(24,16,6,0.92), rgba(12,9,4,0.88));
+  border: 1px solid rgba(240,193,75,0.55);
+  box-shadow: 0 6px 22px rgba(0,0,0,0.55), 0 0 0 1px rgba(0,0,0,0.4) inset;
+  color: #fde68a;
+  z-index: 13;
+  pointer-events: none;
+}
+.trial-top { display: flex; align-items: center; gap: 7px; }
+.trial-ico {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px; border-radius: 5px;
+  background: linear-gradient(180deg, #f0c14b, #b45309);
+  color: #1a1206; font-size: 11px; font-weight: 900;
+}
+.trial-hud b { font-size: 12px; font-weight: 800; letter-spacing: 0.4px; color: #fde68a; }
+.trial-timer {
+  margin-left: auto;
+  font-size: 13px; font-weight: 900; color: #fbbf24;
+  font-variant-numeric: tabular-nums;
+}
+.trial-timer.urgent { color: #f87171; animation: trialBlink 0.6s steps(2) infinite; }
+@keyframes trialBlink { 50% { opacity: 0.45; } }
+.trial-track {
+  margin-top: 6px;
+  height: 9px; border-radius: 999px;
+  background: rgba(0,0,0,0.55);
+  border: 1px solid rgba(240,193,75,0.25);
+  overflow: hidden;
+}
+.trial-fill {
+  display: block; height: 100%; width: 100%;
+  background: linear-gradient(90deg, #fbbf24, #f43f5e);
+  transition: width 0.08s linear;
+}
+.trial-stats {
+  margin-top: 5px;
+  display: flex; justify-content: space-between;
+  font-size: 10px; color: #e5c07b; letter-spacing: 0.3px;
+}
+.trial-stats b { color: #fff7d6; font-size: 11px; font-weight: 800; font-variant-numeric: tabular-nums; }

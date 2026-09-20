@@ -3,16 +3,19 @@
  * 用法：
  *   node tools/deploy.js                      # 自动 diff：把「本地 与 远端 main 不一致」的文件全部推送
  *   node tools/deploy.js --dry                # 只打印差异与提交信息，不推送
+ *   node tools/deploy.js --verify             # 不推送，只对线上地址跑探针（发布后终验）
  *   node tools/deploy.js --skip tests/last-run.txt
  *   node tools/deploy.js game.js index.html   # 只推指定文件（覆盖自动 diff）
  *   node tools/deploy.js --msg docs/RELEASE_NOTES_v7.8.6.md
+ *   node tools/deploy.js --msg-text "chore: 修工具探针"
  *   GH_TOKEN=ghp_xxx node tools/deploy.js     # 令牌也可放在 GH_TOKEN_FILE 指向的文件里
  *
- * v7.8.6 起的两点改动（都是这次踩出来的）：
+ * v7.8.6 起的三点改动（都是这次踩出来的）：
  *   1) 提交信息不再硬编码 —— 默认取 docs 下最新的 RELEASE_NOTES_ 文件，
  *      避免出现「发的是 v7.8.6、提交信息还写着 v7.1」这种对不上号的情况；
  *   2) 文件清单不再硬编码 —— 改为自动 diff（比对 git blob 哈希），
- *      避免新增的文件（报告 / 新工具）被漏推，导致线上与本地悄悄分叉。
+ *      避免新增的文件（报告 / 新工具）被漏推，导致线上与本地悄悄分叉；
+ *   3) 新增 --verify —— 发布后不产生新提交也能对线上复查，且探针就是发布用的那一套。
  */
 const fs = require("fs");
 const path = require("path");
@@ -33,24 +36,31 @@ const DIR = path.join(__dirname, "..");
 
 const argv = process.argv.slice(2);
 const DRY = argv.includes("--dry");
-// 逐位解析：--msg / --skip 后面跟的是「值」，不算待推送文件
+const VERIFY = argv.includes("--verify");
 const explicit = [];
 const skipArg = [];
 let msgArg = null;
+let msgText = null;
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (a === "--msg") {
     msgArg = argv[++i] || null;
+  } else if (a === "--msg-text") {
+    msgText = argv[++i] || null;
   } else if (a === "--skip") {
     if (argv[i + 1]) skipArg.push(argv[++i]);
   } else if (a.startsWith("--")) {
-    // 其它开关（如 --dry）忽略
+    // 其它开关（--dry / --verify）已单独解析
   } else {
     explicit.push(a);
   }
 }
 
 const REPORT = process.env.XTJ_DEPLOY_OUT || path.join(__dirname, "last-deploy.txt");
+// 每次跑工具都会变的「运行日志」默认不推送 —— 否则每次发布都会顺带塞进一个
+// 描述上一次发布的日志文件，既没用又制造无意义的 diff。
+// （tools/*-report.txt 属于探针证据，仍然照常推送）
+const DEFAULT_SKIP = ["tests/last-run.txt", "tools/last-deploy.txt"];
 const OUT = [];
 const log = (s) => {
   OUT.push(String(s));
@@ -127,8 +137,9 @@ function blobSha(buf) {
   return h.digest("hex");
 }
 
-// 提交信息：默认取 docs 下最新的 RELEASE_NOTES_ 文件
+// 提交信息：--msg-text 优先，其次 --msg 文件，最后取 docs 下最新的 RELEASE_NOTES_ 文件
 function resolveMessage() {
+  if (msgText) return { text: msgText, from: "--msg-text" };
   const explicitPath = msgArg || process.env.XTJ_MSG_FILE;
   if (explicitPath) {
     const p = path.isAbsolute(explicitPath) ? explicitPath : path.join(DIR, explicitPath);
@@ -143,6 +154,63 @@ function resolveMessage() {
     .sort((a, b) => b.m - a.m);
   if (!cands.length) return { text: "chore: 发布更新", from: "(默认)" };
   return { text: fs.readFileSync(path.join(docsDir, cands[0].f), "utf8").trim(), from: "docs/" + cands[0].f };
+}
+
+// 线上探针：发布后终验（--verify 也复用这一套）
+async function liveProbes() {
+  const g = await getUrl("timmmmmo.github.io", "/xuantianjie/game.js");
+  const h = await getUrl("timmmmmo.github.io", "/xuantianjie/index.html");
+  const s = await getUrl("timmmmmo.github.io", "/xuantianjie/sw.js");
+  const c = await getUrl("timmmmmo.github.io", "/xuantianjie/style.css");
+  log("");
+  log(`线上探测 game.js   -> HTTP ${g.status} bytes=${g.text.length}`);
+  log(`线上探测 index.html-> HTTP ${h.status} bytes=${h.text.length}`);
+  log(`线上探测 sw.js     -> HTTP ${s.status} bytes=${s.text.length}`);
+  log(`线上探测 style.css -> HTTP ${c.status} bytes=${c.text.length}`);
+
+  const smoke = fs.readFileSync(path.join(DIR, "tests/logic-smoke.js"), "utf8");
+  const entryIdxOk =
+    h.text.indexOf('id="btnStart"') >= 0 && h.text.indexOf('id="btnStart"') < h.text.indexOf('id="revisitPanel"');
+  const checks = [
+    // v7.8.6 版本单一来源（三处必须都升到 7.8.6）
+    ["版本单一源 APP_VERSION", /const APP_VERSION = "v7\.8\.6-mr"/.test(g.text)],
+    ["sw 缓存名随版本升级", /const CACHE = "xuantianjie-v7\.8\.6-mr"/.test(s.text)],
+    ["index 版本标签", /ver-hint">v7\.8\.6/.test(h.text)],
+    // v7.8.6 入口修复
+    ["修行录面板", /id="revisitPanel"/.test(h.text)],
+    ["修行录开关", /id="btnRevisitToggle"/.test(h.text)],
+    ["修行录徽标", /id="revisitBadge"/.test(h.text)],
+    ["主入口排在回访壳之前", entryIdxOk],
+    ["入口可达性巡检", /function syncStartLayout/.test(g.text)],
+    ["折叠状态记档", /const REVISIT_KEY = "xuantianjie_revisit_open"/.test(g.text)],
+    ["折叠开合", /function setRevisitOpen/.test(g.text)],
+    ["徽标刷新", /function refreshRevisitBadge/.test(g.text)],
+    ["面板样式", /\.revisit-panel/.test(c.text)],
+    ["开始页可竖向滑动", /touch-action:\s*pan-y/.test(c.text)],
+    // 本批 P1：冒烟可复现（固定种子）
+    ["冒烟固定种子", /mulberry32/.test(smoke) && /XTJ_SEED/.test(smoke)],
+    ["入口架构硬规则", /主入口必须排在/.test(smoke) || /revisitPanel/.test(smoke)],
+    // v7.7 六道崩溃防线仍在
+    ["自愈主循环", /function salvageFrame/.test(g.text) && /requestAnimationFrame\(frame\)/.test(g.text)],
+    ["画布像素预算", /MAX_CANVAS_PX/.test(g.text)],
+    ["上下文丢失自愈", /contextrestored/.test(g.text)],
+    ["内存护栏", /usedJSHeapSize/.test(g.text)],
+    // 试炼桩 / 伤害测试者 / 深度系统
+    ["试炼桩血量表", /TRIAL_HP/.test(g.text)],
+    ["玄铁崩解", /TRIAL_COLLAPSE/.test(g.text)],
+    ["道途感悟保底", /INSIGHT_EVERY/.test(g.text)],
+    ["本命灵石自动入槽", /function autoStoneSlot/.test(g.text)],
+  ];
+  log("");
+  log("=== 线上探针（v7.8.6）===");
+  let bad = 0;
+  checks.forEach(([k, v]) => {
+    if (!v) bad++;
+    log(`  ${v ? "true  " : "FALSE "}${k}`);
+  });
+  log("");
+  log(bad === 0 ? `PASS 线上探针 ${checks.length}/${checks.length} 全部命中` : `FAIL 线上探针有 ${bad} 项未命中`);
+  return bad;
 }
 
 (async () => {
@@ -173,9 +241,13 @@ function resolveMessage() {
       });
       const local = walk(DIR, "");
       const added = [],
-        changed = [];
+        changed = [],
+        skipped = [];
       for (const f of local) {
-        if (skipArg.includes(f)) continue;
+        if (skipArg.includes(f) || DEFAULT_SKIP.includes(f)) {
+          skipped.push(f);
+          continue;
+        }
         const sha = blobSha(fs.readFileSync(path.join(DIR, f)));
         if (!(f in remote)) added.push(f);
         else if (remote[f] !== sha) changed.push(f);
@@ -185,11 +257,21 @@ function resolveMessage() {
       added.forEach((f) => log("  + " + f));
       changed.forEach((f) => log("  M " + f));
       deleted.forEach((f) => log("  - " + f + "（保留线上，不删除）"));
+      if (skipped.length) log(`  跳过运行日志：${skipped.join("、")}`);
       files = added.concat(changed);
     }
 
+    if (VERIFY) {
+      log("");
+      log("--verify：跳过推送，直接对线上跑探针。");
+      const bad = await liveProbes();
+      process.exitCode = bad ? 1 : 0;
+      log("完成。");
+      return;
+    }
+
     if (!files.length) {
-      log("没有差异，无需发布。");
+      log("没有差异，无需发布；如需复核线上可加 --verify。");
       return;
     }
     const msg = resolveMessage();
@@ -263,60 +345,12 @@ function resolveMessage() {
 
     // ---------- 线上探测 ----------
     await sleep(3000);
-    const g = await getUrl("timmmmmo.github.io", "/xuantianjie/game.js");
-    const h = await getUrl("timmmmmo.github.io", "/xuantianjie/index.html");
-    const s = await getUrl("timmmmmo.github.io", "/xuantianjie/sw.js");
-    const c = await getUrl("timmmmmo.github.io", "/xuantianjie/style.css");
-    log("");
-    log(`线上探测 game.js   -> HTTP ${g.status} bytes=${g.text.length}`);
-    log(`线上探测 index.html-> HTTP ${h.status} bytes=${h.text.length}`);
-    log(`线上探测 sw.js     -> HTTP ${s.status} bytes=${s.text.length}`);
-    log(`线上探测 style.css -> HTTP ${c.status} bytes=${c.text.length}`);
-
-    const smoke = fs.readFileSync(path.join(DIR, "tests/logic-smoke.js"), "utf8");
-    const entryIdxOk = h.text.indexOf('id="btnStart"') >= 0 && h.text.indexOf('id="btnStart"') < h.text.indexOf('id="revisitPanel"');
-    const checks = [
-      // v7.8.6 版本单一来源（三处必须都升到 7.8.6）
-      ["版本单一源 APP_VERSION", /const APP_VERSION = "v7\.8\.6-mr"/.test(g.text)],
-      ["sw 缓存名随版本升级", /const CACHE = "xuantianjie-v7\.8\.6-mr"/.test(s.text)],
-      ["index 版本标签", /ver-hint">v7\.8\.6/.test(h.text)],
-      // v7.8.6 入口修复
-      ["修行录面板", /id="revisitPanel"/.test(h.text)],
-      ["修行录开关", /id="btnRevisitToggle"/.test(h.text)],
-      ["修行录徽标", /id="revisitBadge"/.test(h.text)],
-      ["主入口排在回访壳之前", entryIdxOk],
-      ["入口可达性巡检", /function syncStartLayout/.test(g.text)],
-      ["折叠状态记档", /const REVISIT_KEY = "xuantianjie_revisit_open"/.test(g.text)],
-      ["折叠开合", /function setRevisitOpen/.test(g.text)],
-      ["徽标刷新", /function refreshRevisitBadge/.test(g.text)],
-      ["面板样式", /\.revisit-panel/.test(c.text)],
-      ["触摸收敛到玩法层", /touch-action:\s*pinch-zoom/.test(c.text)],
-      // 本批 P1：冒烟可复现（固定种子）
-      ["冒烟固定种子", /mulberry32/.test(smoke) && /XTJ_SEED/.test(smoke)],
-      ["入口架构硬规则", /主入口必须排在/.test(smoke) || /revisitPanel/.test(smoke)],
-      // v7.7 六道崩溃防线仍在
-      ["自愈主循环", /function salvageFrame/.test(g.text) && /requestAnimationFrame\(frame\)/.test(g.text)],
-      ["画布像素预算", /MAX_CANVAS_PX/.test(g.text)],
-      ["上下文丢失自愈", /contextrestored/.test(g.text)],
-      ["内存护栏", /usedJSHeapSize/.test(g.text)],
-      // 试炼桩 / 伤害测试者 / 深度系统
-      ["试炼桩血量表", /TRIAL_HP/.test(g.text)],
-      ["玄铁崩解", /TRIAL_COLLAPSE/.test(g.text)],
-      ["道途感悟保底", /INSIGHT_EVERY/.test(g.text)],
-      ["本命灵石自动入槽", /function autoStoneSlot/.test(g.text)],
-    ];
-    log("");
-    log("=== 线上探针（v7.8.6）===");
-    let bad = 0;
-    checks.forEach(([k, v]) => {
-      if (!v) bad++;
-      log(`  ${v ? "true  " : "FALSE "}${k}`);
-    });
-    log("");
-    log(bad === 0 ? `PASS 线上探针 ${checks.length}/${checks.length} 全部命中` : `FAIL 线上探针有 ${bad} 项未命中`);
+    const bad = await liveProbes();
     log("完成。");
+    process.exitCode = bad ? 1 : 0;
   } catch (e) {
     log("DEPLOY ERROR: " + (e && e.stack ? e.stack : e));
+    process.exitCode = 1;
   } finally {
     flush();
   }

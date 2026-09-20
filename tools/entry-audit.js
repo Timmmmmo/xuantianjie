@@ -13,6 +13,7 @@
  *     ⑤ 顺带走一遍 开始→暂停→继续→返回山门 的闭环
  *
  * 用法：node tools/entry-audit.js
+ *       node tools/entry-audit.js --url https://timmmmmo.github.io/xuantianjie   # 直接审线上（发布后终验）
  */
 const http = require("http");
 const fs = require("fs");
@@ -27,6 +28,12 @@ let CDP_PORT = 9300 + Math.floor(Math.random() * 600);
 const VIEW = { width: 414, height: 896 };
 const EDGE = "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe";
 const SAFE_PORTS = [8791, 8811, 8877, 8901, 8973, 8123, 8361];
+
+// v7.8.6：支持直接审线上地址 —— 本地绿不等于线上绿（SW 缓存 / CDN 未更新都可能让线上还是旧壳）
+const _argv = process.argv.slice(2);
+const _ui = _argv.indexOf("--url");
+const REMOTE = _ui >= 0 && _argv[_ui + 1] ? _argv[_ui + 1].replace(/\/+$/, "") : null;
+const BASE = REMOTE || null;
 
 const MIME = {
   ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8",
@@ -283,6 +290,7 @@ const AUDIT = `
   if (!out.loops.entryReachableAfterMenus) out.problems.push("P1 逛完商店/图鉴回菜单后，主入口又不在视口内了");
   if (!out.loops.entryReachableAfterRun) out.problems.push("P1 打完一局回菜单后，主入口又不在视口内了");
 
+  out.appVersion = (window.__XTJ__ && window.__XTJ__.APP_VERSION) || "(取不到)";
   out.errs = window.__CRASH__.errs.slice(0, 20);
   out.console = window.__CRASH__.console.slice(0, 20);
   return out;
@@ -304,21 +312,32 @@ const AUDIT = `
     await cdp.send("Emulation.setDeviceMetricsOverride", { width: VIEW.width, height: VIEW.height, deviceScaleFactor: 3, mobile: true });
 
     let has = false;
-    for (const port of SAFE_PORTS) {
-      try { if (server) server.close(); } catch (_) {}
-      server = await serve(port);
-      PORT = port;
-      await cdp.send("Page.navigate", { url: `http://127.0.0.1:${PORT}/index.html` });
-      await sleep(1200);
-      const fails = cdp.drain().filter((e) => e.method === "Network.loadingFailed");
-      if (fails.length) { console.log(`端口 ${PORT} 被拒（${fails[0].params.errorText}），换下一个`); continue; }
-      for (let i = 0; i < 24; i++) {
+    if (BASE) {
+      // 审线上：不启本地静态服，直连已发布地址
+      console.log(`=== 审线上地址：${BASE} ===`);
+      await cdp.send("Page.navigate", { url: BASE + "/index.html" });
+      for (let i = 0; i < 40; i++) {
         await sleep(500);
         has = await cdp.eval("!!(window.__XTJ__ && window.G)");
         if (has) break;
       }
-      if (has) break;
-      console.log(`端口 ${PORT} 未加载出游戏，换下一个`);
+    } else {
+      for (const port of SAFE_PORTS) {
+        try { if (server) server.close(); } catch (_) {}
+        server = await serve(port);
+        PORT = port;
+        await cdp.send("Page.navigate", { url: `http://127.0.0.1:${PORT}/index.html` });
+        await sleep(1200);
+        const fails = cdp.drain().filter((e) => e.method === "Network.loadingFailed");
+        if (fails.length) { console.log(`端口 ${PORT} 被拒（${fails[0].params.errorText}），换下一个`); continue; }
+        for (let i = 0; i < 24; i++) {
+          await sleep(500);
+          has = await cdp.eval("!!(window.__XTJ__ && window.G)");
+          if (has) break;
+        }
+        if (has) break;
+        console.log(`端口 ${PORT} 未加载出游戏，换下一个`);
+      }
     }
     if (!has) throw new Error("游戏未启动：__XTJ__ 不存在");
 
@@ -327,6 +346,7 @@ const AUDIT = `
 
     console.log("=== 视口 ===");
     console.log(`  ${res.viewport.w} x ${res.viewport.h}`);
+    console.log(`  构建版本 = ${res.appVersion}`);
     console.log("=== 开始页元素 ===");
     for (const e of res.elements) {
       const flag = e.inViewport ? " 视口内 " : (e.clippedBottom ? " 裁下沿 " : e.clippedTop ? " 裁上沿 " : " 越界  ");

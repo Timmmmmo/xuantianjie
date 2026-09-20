@@ -39,7 +39,7 @@
           <span id="mpText" class="val">50/50</span>
         </div>
         <div class="stat-row">
-          <span class="chip wave"><i class="chip-ico ci-wave"></i>第 <b id="waveText">0</b> 波<i id="waveElem" class="wave-elem">金</i></span>
+          <span class="chip wave"><i class="chip-ico ci-wave"></i>第 <b id="waveText">0</b> 波</span>
           <span class="chip kills"><i class="chip-ico ci-kill"></i>斩 <b id="killText">0</b></span>
           <span class="chip time" id="timeText">0:00</span>
           <span class="chip coin"><i class="chip-ico ci-coin"></i>灵石 <b id="coinText">0</b></span>
@@ -59,104 +59,7 @@
       <span class="combo-label">连杀</span>
     </div>
 
-    <div id="nodeHud" class="node-hud hidden">
-      <div class="node-hud-ring"><span id="nodeHudIco">焰</span></div>
-      <div class="node-hud-body">
-        <div class="node-hud-top"><b id="nodeHudName">烈焰剑阵</b><span id="nodeHudBuff">攻击 +25%</span></div>
-        <div class="node-hud-bar"><div id="nodeHudFill" class="node-hud-fill"></div></div>
-      </div>
-    </div>
-
-    <div id="jobHud" class="job-hud hidden">
-      <span id="jobHudIco" class="job-hud-ico">剑</span>
-      <div class="job-hud-body">
-        <b id="jobHudPath">剑道</b>
-        <span id="jobHudBranch">未择法门</span>
-      </div>
-    </div>
-
-    <div id="beastHud" class="beast-hud hidden">
-      <span id="beastHudIco" class="beast-hud-ico">鸾</span>
-      <span id="beastHudName" class="beast-hud-name">青鸾</span>
-    </div>
-
-    <button id="forgeBtn" class="forge-btn" type="button">
-      <span class="forge-btn-ico">宝</span>
-      <span class="forge-btn-label">炼宝台</span>
-      <span id="forgeBtnCount" class="forge-btn-count">0</span>
-    </button>
-
-    <button id="invBtn" class="inv-btn" type="button">
-      <span class="inv-btn-ico">包</span>
-      <span class="inv-btn-label">背包</span>
-      <span id="invBtnCount" class="inv-btn-count">0/30</span>
-    </button>
-
-    <div id="stoneRow" class="stone-row hidden"></div>
-
-    <div id="resHud" class="res-hud hidden"><span id="resHudList"></span></div>
-
-    <div id="coreHud" class="core-hud hidden"><span id="coreHudList"></span></div>
-
-    <div id="synHud" class="syn-hud hidden">
-      <span class="syn-hud-tag">联动 <b id="synHudCount">0/8</b></span>
-      <span id="synHudList" class="syn-hud-list"></span>
-    </div>
-
-    <!-- v7.0 A 双兵合击：已解锁的合击技与蓄能进度 -->
-    <div id="fusionHud" class="fusion-hud hidden"></div>
-
-    <!-- v7.0 B 尸潮涌：剩余尸傀计数 -->
-    <div id="hordeBar" class="horde-bar hidden">
-      <span class="horde-ico">潮</span>
-      <span id="hordeText" class="horde-text">尸潮 0</span>
-      <span class="horde-track"><i id="hordeFill" class="horde-fill"></i></span>
-    </div>
-
-    <!-- v7.4 玄铁试炼桩：60 秒伤害测试 -->
-    <div id="trialHud" class="trial-hud hidden">
-      <div class="trial-top">
-        <span class="trial-ico">试</span>
-        <b id="trialName">玄铁试炼桩</b>
-        <span id="trialTimer" class="trial-timer">60.0s</span>
-      </div>
-      <div class="trial-track"><i id="trialFill" class="trial-fill"></i></div>
-      <div class="trial-stats">
-        <span>已伤 <b id="trialDealt">0</b></span>
-        <span>DPS <b id="trialDps">0</b></span>
-        <span>剩余 <b id="trialPct">100%</b></span>
-        <!-- v7.6 里程碑刻度：啃掉 25% / 50% / 75% 依次点亮 -->
-        <span id="trialTicks" class="trial-ticks hidden"><u></u><u></u><u></u></span>
-      </div>
-    </div>
-
-    <!-- v7.5 攻击能力评定卡（试炼结束后弹出 · 不挡操作 · 7 秒自动收起） -->
-    <div id="trialCard" class="trial-card hidden">
-      <div class="tc-head">
-        <span class="tc-title">攻击能力评定</span>
-        <span class="tc-sub" id="tcSub">第 3 波 · 伤害测试者</span>
-      </div>
-      <div class="tc-body">
-        <div class="tc-rankbox"><i id="tcRank">A</i><u id="tcRankName">上品</u></div>
-        <div class="tc-metrics">
-          <span><i>每秒伤害</i><b id="tcDps">0</b></span>
-          <span><i>累计伤害</i><b id="tcDealt">0</b></span>
-          <span><i>用时</i><b id="tcTime">0s</b></span>
-          <span><i>打掉</i><b id="tcPct">0%</b></span>
-        </div>
-      </div>
-      <div class="tc-comment" id="tcComment"></div>
-      <div class="tc-tip" id="tcTip"></div>
-    </div>
-
-    <!-- v7.6 悟道便签：前 10 波自动领悟的卡从这里滑出来，不挡摇杆、不拦操作 -->
-    <div id="autoNote" class="auto-note-box"></div>
-
-    <!-- v7.0 C 濒死狂血 -->
-    <div id="frenzyHud" class="frenzy-hud hidden"><span>狂</span><b>濒死狂血</b></div>
-
     <div class="hud-bottom">
-      <div id="relicRow" class="relic-row hidden"></div>
       <div class="xp-wrap">
         <div class="level-badge">境界 <span id="levelText">1</span> · <span id="titleText">炼气</span> · <span id="weaponHint">飞剑</span></div>
         <div class="xp-bar"><div id="xpFill" class="xp-fill"></div><div class="bar-shine"></div></div>
@@ -202,86 +105,6 @@
     </div>
   </div>
 
-  <!-- 转职 -->
-  <div id="jobModal" class="modal hidden">
-    <div class="modal-card level-card job-card">
-      <div class="modal-ornament"></div>
-      <h2 id="jobTitle">择道</h2>
-      <p class="modal-sub" id="jobSub">三途择一 · 道途自此分野</p>
-      <div id="jobChoices" class="choices"></div>
-    </div>
-  </div>
-
-  <!-- 铸器台 -->
-  <div id="forgeModal" class="modal hidden">
-    <div class="modal-card forge-card">
-      <div class="modal-ornament"></div>
-      <h2>炼宝台</h2>
-      <p class="modal-sub">本命三系灵石 · 只够凝两颗宝石，想好走哪一系</p>
-      <div id="forgeStones" class="forge-crystals"></div>
-      <div class="forge-slots">
-        <span class="forge-slot excl">流派宝石 <b id="forgeGemCount">0/2</b></span>
-        <span class="forge-slot eq">装备 <b id="forgeEquipCount">0/3</b></span>
-      </div>
-      <div class="forge-scroll">
-        <div class="forge-sec-title"><i class="forge-dot d-excl"></i>流派宝石 · 属性与技能大增，圆满另有特效</div>
-        <div id="forgeGems" class="forge-list"></div>
-        <div class="forge-sec-title"><i class="forge-dot d-eq"></i>装备 · 怪物掉落 · 背包自动合成 · 紫/橙可装备</div>
-        <div id="forgeEquip" class="eq-quick"></div>
-        <div id="forgeMeltWrap" class="hidden">
-          <div class="forge-sec-title"><i class="forge-dot d-melt"></i>灵石淬体 · 宝石满后的去处</div>
-          <div id="forgeMelt" class="forge-list"></div>
-        </div>
-        <div class="forge-sec-title"><i class="forge-dot d-res"></i>派系核心 · 同派系 5 颗灵石觉醒一个，永久被动 + 终极技能</div>
-        <div id="forgeCores" class="res-list"></div>
-        <div class="forge-sec-title"><i class="forge-dot d-res"></i>共鸣 · 多颗宝石的协同奖励</div>
-        <div id="forgeResonance" class="res-list"></div>
-      </div>
-      <button id="btnForgeClose" class="btn-primary forge-close" type="button"><span>收工 · 继续战斗</span></button>
-    </div>
-  </div>
-
-  <!-- v6.0 C 祭坛赌注：走近祭坛触发，3 选 1，可拒绝 -->
-  <div id="altarModal" class="modal hidden">
-    <div class="modal-card level-card altar-modal-card">
-      <div class="modal-ornament"></div>
-      <h2>血契祭坛</h2>
-      <p class="modal-sub">三契择一 · 皆有所偿 —— 拿得越狠，代价越重</p>
-      <div id="altarChoices" class="choices"></div>
-      <button id="btnAltarSkip" class="btn-ghost altar-skip" type="button">不立契 · 转身离去</button>
-    </div>
-  </div>
-
-  <!-- 背包 v3.0 -->
-  <div id="invModal" class="modal hidden">
-    <div class="modal-card inv-card">
-      <div class="modal-ornament"></div>
-      <h2>装备背包</h2>
-      <p class="modal-sub">怪物掉落 · 2 同阶同槽位 + 至少 1 词条重叠 = 自动合成 · 紫/橙可装备</p>
-      <div class="inv-equipped">
-        <div id="invSlotWeapon"    class="inv-slot" data-slot="weapon">
-          <span class="inv-slot-label">武器</span>
-          <span class="inv-slot-eq"></span>
-        </div>
-        <div id="invSlotArmor"     class="inv-slot" data-slot="armor">
-          <span class="inv-slot-label">防具</span>
-          <span class="inv-slot-eq"></span>
-        </div>
-        <div id="invSlotAccessory" class="inv-slot" data-slot="accessory">
-          <span class="inv-slot-label">饰品</span>
-          <span class="inv-slot-eq"></span>
-        </div>
-        <div id="invSlotStone"     class="inv-slot inv-slot-stone" data-slot="stone">
-          <span class="inv-slot-label">灵石</span>
-          <span class="inv-slot-eq"></span>
-        </div>
-      </div>
-      <div class="inv-grid" id="invGrid"></div>
-      <div id="invDetail" class="inv-detail"></div>
-      <button id="btnInvClose" class="btn-primary forge-close" type="button"><span>收工 · 继续战斗</span></button>
-    </div>
-  </div>
-
   <!-- 暂停 -->
   <div id="pauseScreen" class="screen pause-screen hidden">
     <div class="start-fade"></div>
@@ -307,9 +130,9 @@
         </div>
         <div class="title-rule"></div>
         <div class="mode-chips">
-          <span class="mode-chip">无尽模式</span>
-          <span class="mode-chip gold">本命灵石</span>
-          <span class="mode-chip violet">三系择二</span>
+          <span class="mode-chip gold">灵石养成</span>
+          <span class="mode-chip violet">三修开局</span>
+          <span class="mode-chip">日课修行</span>
         </div>
       </div>
       <div class="records records-coin">
@@ -317,10 +140,19 @@
         <span class="rec"><em>最高波</em><b id="bestWave">0</b></span>
         <span class="rec"><em>最高连杀</em><b id="bestCombo">0</b></span>
       </div>
+      <div class="mode-select-row" id="modeRow"></div>
+      <div class="daily-box">
+        <div class="daily-head"><span>每日修行</span><b id="dailyCount">0/3</b></div>
+        <div id="dailyList" class="daily-list"></div>
+      </div>
+      <div class="signin-box" id="signinBox">
+        <div class="daily-head"><span>修行签到</span><b id="signinStatus">今日可领</b></div>
+        <div id="signinCycle" class="signin-cycle"></div>
+        <button id="btnSignin" class="btn-primary signin-claim" type="button"><span>领取签到</span></button>
+      </div>
       <div class="char-row" id="charRow"></div>
       <div class="btn-row">
         <button id="btnShop" class="btn-ghost btn-shop"><span class="btn-ico">灵</span>灵石商店</button>
-        <button id="btnCodex" class="btn-ghost btn-codex"><span class="btn-ico">鉴</span>万宝图鉴</button>
         <button id="btnStart" class="btn-primary"><span>踏入战场</span></button>
       </div>
       <div class="quick-row">
@@ -328,8 +160,6 @@
         <button id="btnSound" class="mini-btn" type="button">音效 开</button>
       </div>
       <div class="controls-hint">拖动屏幕任意位置移动 · 飞剑自动索敌 · 剑气 / 御风清场</div>
-      <!-- v7.5.1：版本号外显 —— 更新不生效时，一眼就能看出是不是本地还在跑旧缓存 -->
-      <div class="ver-hint">v7.7 · 崩溃防线 · 自愈主循环</div>
     </div>
   </div>
 
@@ -340,24 +170,6 @@
       <div class="records"><span class="rec"><em>持有灵石</em><b id="shopCoins">0</b></span></div>
       <div id="shopList" class="shop-list"></div>
       <button id="btnShopBack" class="btn-primary"><span>返回山门</span></button>
-    </div>
-  </div>
-
-  <!-- Codex -->
-  <div id="codexScreen" class="screen codex-screen hidden">
-    <div class="start-inner codex-inner">
-      <div class="codex-title">万宝图鉴</div>
-      <div class="codex-sub">法宝局内开匣收录 · 灵兽解锁后可契约同行</div>
-      <div class="records"><span class="rec"><em>收录进度</em><b id="codexProgress">法宝 0/8 · 灵兽 0/6</b></span></div>
-      <div class="codex-section">
-        <div class="codex-head"><i class="codex-dot d-relic"></i>法宝</div>
-        <div id="codexArtifacts" class="codex-grid"></div>
-      </div>
-      <div class="codex-section">
-        <div class="codex-head"><i class="codex-dot d-beast"></i>灵兽<em class="codex-hint">每局可带 1 只</em></div>
-        <div id="codexBeasts" class="codex-grid"></div>
-      </div>
-      <button id="btnCodexBack" class="btn-primary"><span>返回山门</span></button>
     </div>
   </div>
 
@@ -380,41 +192,26 @@
       </div>
       <div class="over-msg" id="overMsg"></div>
       <div class="btn-row">
+        <button id="btnRevive" class="btn-ghost hidden" type="button">灵力回溯 · 续命</button>
+        <button id="btnShare" class="btn-ghost" type="button">分享战绩</button>
+      </div>
+      <div class="btn-row">
         <button id="btnRetry" class="btn-primary"><span>再战一局</span></button>
         <button id="btnHome" class="btn-ghost">返回山门</button>
       </div>
     </div>
   </div>
 
+  <div id="tutorialOverlay" class="tutorial-overlay hidden"></div>
   <div id="toast" class="toast hidden"></div>
-
-  <!-- v5.0 PM视角：目标进度条（顶部常驻） -->
-  <div id="goalBar" class="goal-bar hidden">
-    <div class="goal-label">
-      <span id="goalIco">目</span>
-      <span id="goalText">当前目标</span>
-    </div>
-    <div class="goal-track"><div id="goalFill" class="goal-fill"></div></div>
-    <div class="goal-detail" id="goalDetail">0/0</div>
-  </div>
-
-  <!-- v5.0 大字报：里程碑 / 紫装入手 / 橙装觉醒 -->
-  <div id="bigBanner" class="big-banner hidden">
-    <div class="big-banner-sub" id="bigBannerSub">里程碑</div>
-    <div class="big-banner-text" id="bigBannerText">—</div>
-  </div>
-
-  <!-- v5.0 新手教程遮罩 -->
-  <div id="tutOverlay" class="tut-overlay hidden">
-    <div class="tut-card" id="tutCard">
-      <div class="tut-step">第 <span id="tutStepNum">1</span> 步 / 共 <span id="tutStepTotal">4</span></div>
-      <div class="tut-title" id="tutTitle">—</div>
-      <div class="tut-body" id="tutBody">—</div>
-      <div class="tut-tip" id="tutTip"></div>
-      <button id="tutNext" class="btn-primary" type="button"><span>知道了</span></button>
-    </div>
-  </div>
 </div>
+<script src="js/analytics.js"></script>
+<script src="js/meta.js"></script>
+<script src="js/daily.js"></script>
+<script src="js/modes.js"></script>
+<script src="js/signin.js"></script>
+<script src="js/tutorial.js"></script>
+<script src="js/sharecard.js"></script>
 <script src="game.js"></script>
 </body>
 </html>

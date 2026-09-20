@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -8,9 +8,9 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="玄天劫">
-<meta name="description" content="玄天劫 · 刷不完的怪 —— 单人修真幸存者手游，无尽妖潮，飞剑自动索敌。">
-<title>玄天劫 · 刷不完的怪</title>
+<meta name="apple-mobile-web-app-title" content="鐜勫ぉ鍔?>
+<meta name="description" content="鐜勫ぉ鍔?路 鍒蜂笉瀹岀殑鎬?鈥斺€?鍗曚汉淇湡骞稿瓨鑰呮墜娓革紝鏃犲敖濡栨疆锛岄鍓戣嚜鍔ㄧ储鏁屻€?>
+<title>鐜勫ぉ鍔?路 鍒蜂笉瀹岀殑鎬?/title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
@@ -21,7 +21,7 @@
   <canvas id="game"></canvas>
   <div id="bgLayer" class="bg-layer"></div>
 
-  <!-- 全屏触摸摇杆感应区（HUD 之下、技能按钮之下） -->
+  <!-- 鍏ㄥ睆瑙︽懜鎽囨潌鎰熷簲鍖猴紙HUD 涔嬩笅銆佹妧鑳芥寜閽箣涓嬶級 -->
   <div id="joyZone" class="joy-zone"></div>
 
   <!-- HUD -->
@@ -39,56 +39,56 @@
           <span id="mpText" class="val">50/50</span>
         </div>
         <div class="stat-row">
-          <span class="chip wave"><i class="chip-ico ci-wave"></i>第 <b id="waveText">0</b> 波<i id="waveElem" class="wave-elem">金</i></span>
-          <span class="chip kills"><i class="chip-ico ci-kill"></i>斩 <b id="killText">0</b></span>
+          <span class="chip wave"><i class="chip-ico ci-wave"></i>绗?<b id="waveText">0</b> 娉?i id="waveElem" class="wave-elem">閲?/i></span>
+          <span class="chip kills"><i class="chip-ico ci-kill"></i>鏂?<b id="killText">0</b></span>
           <span class="chip time" id="timeText">0:00</span>
-          <span class="chip coin"><i class="chip-ico ci-coin"></i>灵石 <b id="coinText">0</b></span>
+          <span class="chip coin"><i class="chip-ico ci-coin"></i>鐏电煶 <b id="coinText">0</b></span>
         </div>
         <div class="wave-track" aria-hidden="true"><div id="waveFill" class="wave-fill"></div></div>
       </div>
     </div>
 
     <div id="bossBar" class="boss-bar hidden">
-      <div class="boss-bar-name" id="bossBarName">九尾妖王</div>
+      <div class="boss-bar-name" id="bossBarName">涔濆熬濡栫帇</div>
       <div class="boss-bar-track"><div id="bossBarFill" class="boss-bar-fill"></div></div>
     </div>
 
     <div id="comboBadge" class="combo-badge hidden">
       <div class="combo-ring"></div>
       <span id="comboNum">0</span>
-      <span class="combo-label">连杀</span>
+      <span class="combo-label">杩炴潃</span>
     </div>
 
     <div id="nodeHud" class="node-hud hidden">
-      <div class="node-hud-ring"><span id="nodeHudIco">焰</span></div>
+      <div class="node-hud-ring"><span id="nodeHudIco">鐒?/span></div>
       <div class="node-hud-body">
-        <div class="node-hud-top"><b id="nodeHudName">烈焰剑阵</b><span id="nodeHudBuff">攻击 +25%</span></div>
+        <div class="node-hud-top"><b id="nodeHudName">鐑堢劙鍓戦樀</b><span id="nodeHudBuff">鏀诲嚮 +25%</span></div>
         <div class="node-hud-bar"><div id="nodeHudFill" class="node-hud-fill"></div></div>
       </div>
     </div>
 
     <div id="jobHud" class="job-hud hidden">
-      <span id="jobHudIco" class="job-hud-ico">剑</span>
+      <span id="jobHudIco" class="job-hud-ico">鍓?/span>
       <div class="job-hud-body">
-        <b id="jobHudPath">剑道</b>
-        <span id="jobHudBranch">未择法门</span>
+        <b id="jobHudPath">鍓戦亾</b>
+        <span id="jobHudBranch">鏈嫨娉曢棬</span>
       </div>
     </div>
 
     <div id="beastHud" class="beast-hud hidden">
-      <span id="beastHudIco" class="beast-hud-ico">鸾</span>
-      <span id="beastHudName" class="beast-hud-name">青鸾</span>
+      <span id="beastHudIco" class="beast-hud-ico">楦?/span>
+      <span id="beastHudName" class="beast-hud-name">闈掗妇</span>
     </div>
 
     <button id="forgeBtn" class="forge-btn" type="button">
-      <span class="forge-btn-ico">宝</span>
-      <span class="forge-btn-label">炼宝台</span>
+      <span class="forge-btn-ico">瀹?/span>
+      <span class="forge-btn-label">鐐煎疂鍙?/span>
       <span id="forgeBtnCount" class="forge-btn-count">0</span>
     </button>
 
     <button id="invBtn" class="inv-btn" type="button">
-      <span class="inv-btn-ico">包</span>
-      <span class="inv-btn-label">背包</span>
+      <span class="inv-btn-ico">鍖?/span>
+      <span class="inv-btn-label">鑳屽寘</span>
       <span id="invBtnCount" class="inv-btn-count">0/30</span>
     </button>
 
@@ -99,66 +99,66 @@
     <div id="coreHud" class="core-hud hidden"><span id="coreHudList"></span></div>
 
     <div id="synHud" class="syn-hud hidden">
-      <span class="syn-hud-tag">联动 <b id="synHudCount">0/8</b></span>
+      <span class="syn-hud-tag">鑱斿姩 <b id="synHudCount">0/8</b></span>
       <span id="synHudList" class="syn-hud-list"></span>
     </div>
 
-    <!-- v7.0 A 双兵合击：已解锁的合击技与蓄能进度 -->
+    <!-- v7.0 A 鍙屽叺鍚堝嚮锛氬凡瑙ｉ攣鐨勫悎鍑绘妧涓庤搫鑳借繘搴?-->
     <div id="fusionHud" class="fusion-hud hidden"></div>
 
-    <!-- v7.0 B 尸潮涌：剩余尸傀计数 -->
+    <!-- v7.0 B 灏告疆娑岋細鍓╀綑灏稿個璁℃暟 -->
     <div id="hordeBar" class="horde-bar hidden">
-      <span class="horde-ico">潮</span>
-      <span id="hordeText" class="horde-text">尸潮 0</span>
+      <span class="horde-ico">娼?/span>
+      <span id="hordeText" class="horde-text">灏告疆 0</span>
       <span class="horde-track"><i id="hordeFill" class="horde-fill"></i></span>
     </div>
 
-    <!-- v7.4 玄铁试炼桩：60 秒伤害测试 -->
+    <!-- v7.4 鐜勯搧璇曠偧妗╋細60 绉掍激瀹虫祴璇?-->
     <div id="trialHud" class="trial-hud hidden">
       <div class="trial-top">
-        <span class="trial-ico">试</span>
-        <b id="trialName">玄铁试炼桩</b>
+        <span class="trial-ico">璇?/span>
+        <b id="trialName">鐜勯搧璇曠偧妗?/b>
         <span id="trialTimer" class="trial-timer">60.0s</span>
       </div>
       <div class="trial-track"><i id="trialFill" class="trial-fill"></i></div>
       <div class="trial-stats">
-        <span>已伤 <b id="trialDealt">0</b></span>
+        <span>宸蹭激 <b id="trialDealt">0</b></span>
         <span>DPS <b id="trialDps">0</b></span>
-        <span>剩余 <b id="trialPct">100%</b></span>
-        <!-- v7.6 里程碑刻度：啃掉 25% / 50% / 75% 依次点亮 -->
+        <span>鍓╀綑 <b id="trialPct">100%</b></span>
+        <!-- v7.6 閲岀▼纰戝埢搴︼細鍟冩帀 25% / 50% / 75% 渚濇鐐逛寒 -->
         <span id="trialTicks" class="trial-ticks hidden"><u></u><u></u><u></u></span>
       </div>
     </div>
 
-    <!-- v7.5 攻击能力评定卡（试炼结束后弹出 · 不挡操作 · 7 秒自动收起） -->
+    <!-- v7.5 鏀诲嚮鑳藉姏璇勫畾鍗★紙璇曠偧缁撴潫鍚庡脊鍑?路 涓嶆尅鎿嶄綔 路 7 绉掕嚜鍔ㄦ敹璧凤級 -->
     <div id="trialCard" class="trial-card hidden">
       <div class="tc-head">
-        <span class="tc-title">攻击能力评定</span>
-        <span class="tc-sub" id="tcSub">第 3 波 · 伤害测试者</span>
+        <span class="tc-title">鏀诲嚮鑳藉姏璇勫畾</span>
+        <span class="tc-sub" id="tcSub">绗?3 娉?路 浼ゅ娴嬭瘯鑰?/span>
       </div>
       <div class="tc-body">
-        <div class="tc-rankbox"><i id="tcRank">A</i><u id="tcRankName">上品</u></div>
+        <div class="tc-rankbox"><i id="tcRank">A</i><u id="tcRankName">涓婂搧</u></div>
         <div class="tc-metrics">
-          <span><i>每秒伤害</i><b id="tcDps">0</b></span>
-          <span><i>累计伤害</i><b id="tcDealt">0</b></span>
-          <span><i>用时</i><b id="tcTime">0s</b></span>
-          <span><i>打掉</i><b id="tcPct">0%</b></span>
+          <span><i>姣忕浼ゅ</i><b id="tcDps">0</b></span>
+          <span><i>绱浼ゅ</i><b id="tcDealt">0</b></span>
+          <span><i>鐢ㄦ椂</i><b id="tcTime">0s</b></span>
+          <span><i>鎵撴帀</i><b id="tcPct">0%</b></span>
         </div>
       </div>
       <div class="tc-comment" id="tcComment"></div>
       <div class="tc-tip" id="tcTip"></div>
     </div>
 
-    <!-- v7.6 悟道便签：前 10 波自动领悟的卡从这里滑出来，不挡摇杆、不拦操作 -->
+    <!-- v7.6 鎮熼亾渚跨锛氬墠 10 娉㈣嚜鍔ㄩ鎮熺殑鍗′粠杩欓噷婊戝嚭鏉ワ紝涓嶆尅鎽囨潌銆佷笉鎷︽搷浣?-->
     <div id="autoNote" class="auto-note-box"></div>
 
-    <!-- v7.0 C 濒死狂血 -->
-    <div id="frenzyHud" class="frenzy-hud hidden"><span>狂</span><b>濒死狂血</b></div>
+    <!-- v7.0 C 婵掓鐙傝 -->
+    <div id="frenzyHud" class="frenzy-hud hidden"><span>鐙?/span><b>婵掓鐙傝</b></div>
 
     <div class="hud-bottom">
       <div id="relicRow" class="relic-row hidden"></div>
       <div class="xp-wrap">
-        <div class="level-badge">境界 <span id="levelText">1</span> · <span id="titleText">炼气</span> · <span id="weaponHint">飞剑</span></div>
+        <div class="level-badge">澧冪晫 <span id="levelText">1</span> 路 <span id="titleText">鐐兼皵</span> 路 <span id="weaponHint">椋炲墤</span></div>
         <div class="xp-bar"><div id="xpFill" class="xp-fill"></div><div class="bar-shine"></div></div>
       </div>
       <div class="controls">
@@ -173,9 +173,9 @@
               <path d="M14 34 Q24 18 34 34" fill="none" stroke="currentColor" stroke-width="2" opacity="0.7"/>
               <circle cx="24" cy="36" r="3" fill="currentColor"/>
             </svg>
-            <span class="skill-name">剑气</span>
+            <span class="skill-name">鍓戞皵</span>
             <span class="skill-cd" id="cd1"></span>
-            <span class="skill-cost">◆ 20</span>
+            <span class="skill-cost">鈼?20</span>
           </button>
           <button id="btnSkill2" class="skill-btn skill-w" type="button">
             <svg class="skill-ico" viewBox="0 0 48 48" aria-hidden="true">
@@ -183,9 +183,9 @@
               <path d="M18 34c3-5 5-8 6-10 1 2 3 5 6 10" fill="none" stroke="currentColor" stroke-width="2" opacity="0.75"/>
               <path d="M8 38h32" stroke="currentColor" stroke-width="2" opacity="0.5" stroke-linecap="round"/>
             </svg>
-            <span class="skill-name">御风</span>
+            <span class="skill-name">寰￠</span>
             <span class="skill-cd" id="cd2"></span>
-            <span class="skill-cost">◆ 15</span>
+            <span class="skill-cost">鈼?15</span>
           </button>
         </div>
       </div>
@@ -196,101 +196,101 @@
   <div id="levelModal" class="modal hidden">
     <div class="modal-card level-card">
       <div class="modal-ornament"></div>
-      <h2>悟道突破</h2>
-      <p class="modal-sub">选择一项领悟，增强道途</p>
+      <h2>鎮熼亾绐佺牬</h2>
+      <p class="modal-sub">閫夋嫨涓€椤归鎮燂紝澧炲己閬撻€?/p>
       <div id="levelChoices" class="choices"></div>
     </div>
   </div>
 
-  <!-- 转职 -->
+  <!-- 杞亴 -->
   <div id="jobModal" class="modal hidden">
     <div class="modal-card level-card job-card">
       <div class="modal-ornament"></div>
-      <h2 id="jobTitle">择道</h2>
-      <p class="modal-sub" id="jobSub">三途择一 · 道途自此分野</p>
+      <h2 id="jobTitle">鎷╅亾</h2>
+      <p class="modal-sub" id="jobSub">涓夐€旀嫨涓€ 路 閬撻€旇嚜姝ゅ垎閲?/p>
       <div id="jobChoices" class="choices"></div>
     </div>
   </div>
 
-  <!-- 铸器台 -->
+  <!-- 閾稿櫒鍙?-->
   <div id="forgeModal" class="modal hidden">
     <div class="modal-card forge-card">
       <div class="modal-ornament"></div>
-      <h2>炼宝台</h2>
-      <p class="modal-sub">本命三系灵石 · 只够凝两颗宝石，想好走哪一系</p>
+      <h2>鐐煎疂鍙?/h2>
+      <p class="modal-sub">鏈懡涓夌郴鐏电煶 路 鍙鍑濅袱棰楀疂鐭筹紝鎯冲ソ璧板摢涓€绯?/p>
       <div id="forgeStones" class="forge-crystals"></div>
       <div class="forge-slots">
-        <span class="forge-slot excl">流派宝石 <b id="forgeGemCount">0/2</b></span>
-        <span class="forge-slot eq">装备 <b id="forgeEquipCount">0/3</b></span>
+        <span class="forge-slot excl">娴佹淳瀹濈煶 <b id="forgeGemCount">0/2</b></span>
+        <span class="forge-slot eq">瑁呭 <b id="forgeEquipCount">0/3</b></span>
       </div>
       <div class="forge-scroll">
-        <div class="forge-sec-title"><i class="forge-dot d-excl"></i>流派宝石 · 属性与技能大增，圆满另有特效</div>
+        <div class="forge-sec-title"><i class="forge-dot d-excl"></i>娴佹淳瀹濈煶 路 灞炴€т笌鎶€鑳藉ぇ澧烇紝鍦嗘弧鍙︽湁鐗规晥</div>
         <div id="forgeGems" class="forge-list"></div>
-        <div class="forge-sec-title"><i class="forge-dot d-eq"></i>装备 · 怪物掉落 · 背包自动合成 · 紫/橙可装备</div>
+        <div class="forge-sec-title"><i class="forge-dot d-eq"></i>瑁呭 路 鎬墿鎺夎惤 路 鑳屽寘鑷姩鍚堟垚 路 绱?姗欏彲瑁呭</div>
         <div id="forgeEquip" class="eq-quick"></div>
         <div id="forgeMeltWrap" class="hidden">
-          <div class="forge-sec-title"><i class="forge-dot d-melt"></i>灵石淬体 · 宝石满后的去处</div>
+          <div class="forge-sec-title"><i class="forge-dot d-melt"></i>鐏电煶娣綋 路 瀹濈煶婊″悗鐨勫幓澶?/div>
           <div id="forgeMelt" class="forge-list"></div>
         </div>
-        <div class="forge-sec-title"><i class="forge-dot d-res"></i>派系核心 · 同派系 5 颗灵石觉醒一个，永久被动 + 终极技能</div>
+        <div class="forge-sec-title"><i class="forge-dot d-res"></i>娲剧郴鏍稿績 路 鍚屾淳绯?5 棰楃伒鐭宠閱掍竴涓紝姘镐箙琚姩 + 缁堟瀬鎶€鑳?/div>
         <div id="forgeCores" class="res-list"></div>
-        <div class="forge-sec-title"><i class="forge-dot d-res"></i>共鸣 · 多颗宝石的协同奖励</div>
+        <div class="forge-sec-title"><i class="forge-dot d-res"></i>鍏遍福 路 澶氶瀹濈煶鐨勫崗鍚屽鍔?/div>
         <div id="forgeResonance" class="res-list"></div>
       </div>
-      <button id="btnForgeClose" class="btn-primary forge-close" type="button"><span>收工 · 继续战斗</span></button>
+      <button id="btnForgeClose" class="btn-primary forge-close" type="button"><span>鏀跺伐 路 缁х画鎴樻枟</span></button>
     </div>
   </div>
 
-  <!-- v6.0 C 祭坛赌注：走近祭坛触发，3 选 1，可拒绝 -->
+  <!-- v6.0 C 绁潧璧屾敞锛氳蛋杩戠キ鍧涜Е鍙戯紝3 閫?1锛屽彲鎷掔粷 -->
   <div id="altarModal" class="modal hidden">
     <div class="modal-card level-card altar-modal-card">
       <div class="modal-ornament"></div>
-      <h2>血契祭坛</h2>
-      <p class="modal-sub">三契择一 · 皆有所偿 —— 拿得越狠，代价越重</p>
+      <h2>琛€濂戠キ鍧?/h2>
+      <p class="modal-sub">涓夊鎷╀竴 路 鐨嗘湁鎵€鍋?鈥斺€?鎷垮緱瓒婄嫚锛屼唬浠疯秺閲?/p>
       <div id="altarChoices" class="choices"></div>
-      <button id="btnAltarSkip" class="btn-ghost altar-skip" type="button">不立契 · 转身离去</button>
+      <button id="btnAltarSkip" class="btn-ghost altar-skip" type="button">涓嶇珛濂?路 杞韩绂诲幓</button>
     </div>
   </div>
 
-  <!-- 背包 v3.0 -->
+  <!-- 鑳屽寘 v3.0 -->
   <div id="invModal" class="modal hidden">
     <div class="modal-card inv-card">
       <div class="modal-ornament"></div>
-      <h2>装备背包</h2>
-      <p class="modal-sub">怪物掉落 · 2 同阶同槽位 + 至少 1 词条重叠 = 自动合成 · 紫/橙可装备</p>
+      <h2>瑁呭鑳屽寘</h2>
+      <p class="modal-sub">鎬墿鎺夎惤 路 2 鍚岄樁鍚屾Ы浣?+ 鑷冲皯 1 璇嶆潯閲嶅彔 = 鑷姩鍚堟垚 路 绱?姗欏彲瑁呭</p>
       <div class="inv-equipped">
         <div id="invSlotWeapon"    class="inv-slot" data-slot="weapon">
-          <span class="inv-slot-label">武器</span>
+          <span class="inv-slot-label">姝﹀櫒</span>
           <span class="inv-slot-eq"></span>
         </div>
         <div id="invSlotArmor"     class="inv-slot" data-slot="armor">
-          <span class="inv-slot-label">防具</span>
+          <span class="inv-slot-label">闃插叿</span>
           <span class="inv-slot-eq"></span>
         </div>
         <div id="invSlotAccessory" class="inv-slot" data-slot="accessory">
-          <span class="inv-slot-label">饰品</span>
+          <span class="inv-slot-label">楗板搧</span>
           <span class="inv-slot-eq"></span>
         </div>
         <div id="invSlotStone"     class="inv-slot inv-slot-stone" data-slot="stone">
-          <span class="inv-slot-label">灵石</span>
+          <span class="inv-slot-label">鐏电煶</span>
           <span class="inv-slot-eq"></span>
         </div>
       </div>
       <div class="inv-grid" id="invGrid"></div>
       <div id="invDetail" class="inv-detail"></div>
-      <button id="btnInvClose" class="btn-primary forge-close" type="button"><span>收工 · 继续战斗</span></button>
+      <button id="btnInvClose" class="btn-primary forge-close" type="button"><span>鏀跺伐 路 缁х画鎴樻枟</span></button>
     </div>
   </div>
 
-  <!-- 暂停 -->
+  <!-- 鏆傚仠 -->
   <div id="pauseScreen" class="screen pause-screen hidden">
     <div class="start-fade"></div>
     <div class="start-inner">
-      <div class="subtitle">道法暂歇</div>
-      <div class="pause-tip">已自动暂停，回到页面继续</div>
+      <div class="subtitle">閬撴硶鏆傛瓏</div>
+      <div class="pause-tip">宸茶嚜鍔ㄦ殏鍋滐紝鍥炲埌椤甸潰缁х画</div>
       <div class="btn-row">
-        <button id="btnResume" class="btn-primary"><span>继续战斗</span></button>
-        <button id="btnPauseHome" class="btn-ghost">返回山门</button>
+        <button id="btnResume" class="btn-primary"><span>缁х画鎴樻枟</span></button>
+        <button id="btnPauseHome" class="btn-ghost">杩斿洖灞遍棬</button>
       </div>
     </div>
   </div>
@@ -300,75 +300,75 @@
     <div class="start-fade"></div>
     <div class="start-inner">
       <div class="title-block">
-        <div class="title-kicker">无尽妖潮 · 单人修真</div>
+        <div class="title-kicker">鏃犲敖濡栨疆 路 鍗曚汉淇湡</div>
         <div class="title-row">
-          <div class="title-glow">玄天劫</div>
-          <div class="title-seal" aria-hidden="true">劫</div>
+          <div class="title-glow">鐜勫ぉ鍔?/div>
+          <div class="title-seal" aria-hidden="true">鍔?/div>
         </div>
         <div class="title-rule"></div>
         <div class="mode-chips">
-          <span class="mode-chip">无尽模式</span>
-          <span class="mode-chip gold">本命灵石</span>
-          <span class="mode-chip violet">三系择二</span>
+          <span class="mode-chip">鏃犲敖妯″紡</span>
+          <span class="mode-chip gold">鏈懡鐏电煶</span>
+          <span class="mode-chip violet">涓夌郴鎷╀簩</span>
         </div>
       </div>
       <div class="records records-coin">
-        <span class="rec"><em>灵石</em><b id="metaCoins">0</b></span>
-        <span class="rec"><em>最高波</em><b id="bestWave">0</b></span>
-        <span class="rec"><em>最高连杀</em><b id="bestCombo">0</b></span>
+        <span class="rec"><em>鐏电煶</em><b id="metaCoins">0</b></span>
+        <span class="rec"><em>鏈€楂樻尝</em><b id="bestWave">0</b></span>
+        <span class="rec"><em>鏈€楂樿繛鏉€</em><b id="bestCombo">0</b></span>
       </div>
       <div class="daily-box">
-        <div class="daily-head"><span>每日修行</span><b id="dailyCount">0/3</b></div>
+        <div class="daily-head"><span>姣忔棩淇</span><b id="dailyCount">0/3</b></div>
         <div id="dailyList" class="daily-list"></div>
-        <button id="btnAdDaily" class="mini-btn ad-btn" type="button">补全一条日课 · 演示广告</button>
+        <button id="btnAdDaily" class="mini-btn ad-btn" type="button">琛ュ叏涓€鏉℃棩璇?路 婕旂ず骞垮憡</button>
       </div>
       <div class="signin-box" id="signinBox">
-        <div class="daily-head"><span>修行签到</span><b id="signinStatus">今日可领</b></div>
+        <div class="daily-head"><span>淇绛惧埌</span><b id="signinStatus">浠婃棩鍙</b></div>
         <div id="signinCycle" class="signin-cycle"></div>
-        <button id="btnSignin" class="btn-primary signin-claim" type="button"><span>领取签到</span></button>
+        <button id="btnSignin" class="btn-primary signin-claim" type="button"><span>棰嗗彇绛惧埌</span></button>
       </div>
       <div class="char-row" id="charRow"></div>
       <div class="btn-row">
-        <button id="btnShop" class="btn-ghost btn-shop"><span class="btn-ico">灵</span>灵石商店</button>
-        <button id="btnCodex" class="btn-ghost btn-codex"><span class="btn-ico">鉴</span>万宝图鉴</button>
-        <button id="btnStart" class="btn-primary"><span>踏入战场</span></button>
+        <button id="btnShop" class="btn-ghost btn-shop"><span class="btn-ico">鐏?/span>鐏电煶鍟嗗簵</button>
+        <button id="btnCodex" class="btn-ghost btn-codex"><span class="btn-ico">閴?/span>涓囧疂鍥鹃壌</button>
+        <button id="btnStart" class="btn-primary"><span>韪忓叆鎴樺満</span></button>
       </div>
       <div class="btn-row">
-        <button id="btnFullscreen" class="mini-btn" type="button">全屏</button>
-        <button id="btnSound" class="mini-btn" type="button">音效 开</button>
-        <button id="btnPremiumMock" class="mini-btn" type="button">预研·去广告</button>
+        <button id="btnFullscreen" class="mini-btn" type="button">鍏ㄥ睆</button>
+        <button id="btnSound" class="mini-btn" type="button">闊虫晥 寮€</button>
+        <button id="btnPremiumMock" class="mini-btn" type="button">棰勭爺路鍘诲箍鍛?/button>
       </div>
-      <div class="controls-hint">拖动屏幕任意位置移动 · 飞剑自动索敌 · 剑气 / 御风清场</div>
-      <!-- v7.5.1：版本号外显 —— 更新不生效时，一眼就能看出是不是本地还在跑旧缓存 -->
-      <div class="ver-hint">v7.8.3 · IAA 预研 · v7.7玩法 + 签到/日课/分享</div>
+      <div class="controls-hint">鎷栧姩灞忓箷浠绘剰浣嶇疆绉诲姩 路 椋炲墤鑷姩绱㈡晫 路 鍓戞皵 / 寰￠娓呭満</div>
+      <!-- v7.5.1锛氱増鏈彿澶栨樉 鈥斺€?鏇存柊涓嶇敓鏁堟椂锛屼竴鐪煎氨鑳界湅鍑烘槸涓嶆槸鏈湴杩樺湪璺戞棫缂撳瓨 -->
+      <div class="ver-hint">v7.8.3 路 IAA 棰勭爺 路 v7.7鐜╂硶 + 绛惧埌/鏃ヨ/鍒嗕韩</div>
     </div>
   </div>
 
   <!-- Shop -->
   <div id="shopScreen" class="screen shop-screen hidden">
     <div class="start-inner shop-inner">
-      <div class="subtitle shop-title">灵石商店 · 永久强化</div>
-      <div class="records"><span class="rec"><em>持有灵石</em><b id="shopCoins">0</b></span></div>
+      <div class="subtitle shop-title">鐏电煶鍟嗗簵 路 姘镐箙寮哄寲</div>
+      <div class="records"><span class="rec"><em>鎸佹湁鐏电煶</em><b id="shopCoins">0</b></span></div>
       <div id="shopList" class="shop-list"></div>
-      <button id="btnShopBack" class="btn-primary"><span>返回山门</span></button>
+      <button id="btnShopBack" class="btn-primary"><span>杩斿洖灞遍棬</span></button>
     </div>
   </div>
 
   <!-- Codex -->
   <div id="codexScreen" class="screen codex-screen hidden">
     <div class="start-inner codex-inner">
-      <div class="codex-title">万宝图鉴</div>
-      <div class="codex-sub">法宝局内开匣收录 · 灵兽解锁后可契约同行</div>
-      <div class="records"><span class="rec"><em>收录进度</em><b id="codexProgress">法宝 0/8 · 灵兽 0/6</b></span></div>
+      <div class="codex-title">涓囧疂鍥鹃壌</div>
+      <div class="codex-sub">娉曞疂灞€鍐呭紑鍖ｆ敹褰?路 鐏靛吔瑙ｉ攣鍚庡彲濂戠害鍚岃</div>
+      <div class="records"><span class="rec"><em>鏀跺綍杩涘害</em><b id="codexProgress">娉曞疂 0/8 路 鐏靛吔 0/6</b></span></div>
       <div class="codex-section">
-        <div class="codex-head"><i class="codex-dot d-relic"></i>法宝</div>
+        <div class="codex-head"><i class="codex-dot d-relic"></i>娉曞疂</div>
         <div id="codexArtifacts" class="codex-grid"></div>
       </div>
       <div class="codex-section">
-        <div class="codex-head"><i class="codex-dot d-beast"></i>灵兽<em class="codex-hint">每局可带 1 只</em></div>
+        <div class="codex-head"><i class="codex-dot d-beast"></i>鐏靛吔<em class="codex-hint">姣忓眬鍙甫 1 鍙?/em></div>
         <div id="codexBeasts" class="codex-grid"></div>
       </div>
-      <button id="btnCodexBack" class="btn-primary"><span>返回山门</span></button>
+      <button id="btnCodexBack" class="btn-primary"><span>杩斿洖灞遍棬</span></button>
     </div>
   </div>
 
@@ -377,56 +377,56 @@
     <div class="start-fade"></div>
     <div class="start-inner">
       <div class="title-row over-title-row">
-        <div class="title-glow over">道消形散</div>
-        <div class="title-seal over-seal" aria-hidden="true">终</div>
+        <div class="title-glow over">閬撴秷褰㈡暎</div>
+        <div class="title-seal over-seal" aria-hidden="true">缁?/div>
       </div>
-      <div class="subtitle" id="overTitle">炼气境</div>
+      <div class="subtitle" id="overTitle">鐐兼皵澧?/div>
       <div class="over-stats">
-        <div class="ostat"><span>撑过波次</span><b id="overWave">0</b></div>
-        <div class="ostat"><span>斩妖数</span><b id="overKills">0</b></div>
-        <div class="ostat"><span>存活</span><b id="overTime">0s</b></div>
-        <div class="ostat"><span>峰值连杀</span><b id="overCombo">0</b></div>
-        <div class="ostat"><span>境界</span><b id="overLevel">1</b></div>
-        <div class="ostat gold-card"><span>获得灵石</span><b id="overCoins">+0</b></div>
+        <div class="ostat"><span>鎾戣繃娉㈡</span><b id="overWave">0</b></div>
+        <div class="ostat"><span>鏂╁鏁?/span><b id="overKills">0</b></div>
+        <div class="ostat"><span>瀛樻椿</span><b id="overTime">0s</b></div>
+        <div class="ostat"><span>宄板€艰繛鏉€</span><b id="overCombo">0</b></div>
+        <div class="ostat"><span>澧冪晫</span><b id="overLevel">1</b></div>
+        <div class="ostat gold-card"><span>鑾峰緱鐏电煶</span><b id="overCoins">+0</b></div>
       </div>
       <div class="over-msg" id="overMsg"></div>
       <div class="btn-row">
-        <button id="btnAdDouble" class="btn-ghost ad-btn" type="button"><span>灵石×2 · 演示广告</span></button>
-        <button id="btnShare" class="btn-ghost" type="button">分享战绩</button>
+        <button id="btnAdDouble" class="btn-ghost ad-btn" type="button"><span>鐏电煶脳2 路 婕旂ず骞垮憡</span></button>
+        <button id="btnShare" class="btn-ghost" type="button">鍒嗕韩鎴樼哗</button>
       </div>
       <div class="btn-row">
-        <button id="btnRetry" class="btn-primary"><span>再战一局</span></button>
-        <button id="btnHome" class="btn-ghost">返回山门</button>
+        <button id="btnRetry" class="btn-primary"><span>鍐嶆垬涓€灞€</span></button>
+        <button id="btnHome" class="btn-ghost">杩斿洖灞遍棬</button>
       </div>
     </div>
   </div>
 
   <div id="toast" class="toast hidden"></div>
 
-  <!-- v5.0 PM视角：目标进度条（顶部常驻） -->
+  <!-- v5.0 PM瑙嗚锛氱洰鏍囪繘搴︽潯锛堥《閮ㄥ父椹伙級 -->
   <div id="goalBar" class="goal-bar hidden">
     <div class="goal-label">
-      <span id="goalIco">目</span>
-      <span id="goalText">当前目标</span>
+      <span id="goalIco">鐩?/span>
+      <span id="goalText">褰撳墠鐩爣</span>
     </div>
     <div class="goal-track"><div id="goalFill" class="goal-fill"></div></div>
     <div class="goal-detail" id="goalDetail">0/0</div>
   </div>
 
-  <!-- v5.0 大字报：里程碑 / 紫装入手 / 橙装觉醒 -->
+  <!-- v5.0 澶у瓧鎶ワ細閲岀▼纰?/ 绱鍏ユ墜 / 姗欒瑙夐啋 -->
   <div id="bigBanner" class="big-banner hidden">
-    <div class="big-banner-sub" id="bigBannerSub">里程碑</div>
-    <div class="big-banner-text" id="bigBannerText">—</div>
+    <div class="big-banner-sub" id="bigBannerSub">閲岀▼纰?/div>
+    <div class="big-banner-text" id="bigBannerText">鈥?/div>
   </div>
 
-  <!-- v5.0 新手教程遮罩 -->
+  <!-- v5.0 鏂版墜鏁欑▼閬僵 -->
   <div id="tutOverlay" class="tut-overlay hidden">
     <div class="tut-card" id="tutCard">
-      <div class="tut-step">第 <span id="tutStepNum">1</span> 步 / 共 <span id="tutStepTotal">4</span></div>
-      <div class="tut-title" id="tutTitle">—</div>
-      <div class="tut-body" id="tutBody">—</div>
+      <div class="tut-step">绗?<span id="tutStepNum">1</span> 姝?/ 鍏?<span id="tutStepTotal">4</span></div>
+      <div class="tut-title" id="tutTitle">鈥?/div>
+      <div class="tut-body" id="tutBody">鈥?/div>
       <div class="tut-tip" id="tutTip"></div>
-      <button id="tutNext" class="btn-primary" type="button"><span>知道了</span></button>
+      <button id="tutNext" class="btn-primary" type="button"><span>鐭ラ亾浜?/span></button>
     </div>
   </div>
 </div>
@@ -438,3 +438,4 @@
 <script src="game.js"></script>
 </body>
 </html>
+

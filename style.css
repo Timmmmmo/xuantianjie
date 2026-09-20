@@ -3243,3 +3243,17 @@ body.orange-pause #app::after {
 .signin-day.today b { color: #fde68a; }
 .signin-claim { width: 100%; min-width: 0 !important; padding: 12px 16px !important; font-size: 14px !important; letter-spacing: 2px !important; }
 .signin-claim:disabled { filter: grayscale(0.6) brightness(0.7); cursor: default; }
+
+/* M-Biz 激励位 */
+.ad-btn {
+  margin-top: 8px;
+  width: 100%;
+  pointer-events: auto;
+  border-color: rgba(240,193,75,0.45) !important;
+  color: #fde68a !important;
+}
+.ad-btn:disabled {
+  opacity: 0.55;
+  filter: grayscale(0.5);
+}
+.daily-box .ad-btn { margin-top: 8px; font-size: 11px; padding: 8px 10px; }

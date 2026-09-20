@@ -1,5 +1,6 @@
-/* 玄天劫 · 离线缓存 Service Worker */
-const CACHE = "xuantianjie-v2.0.1-sprint-b";
+/* 玄天劫 · 离线缓存 Service Worker — v7.8 合并版
+   代码类网络优先（保证热更到达），图片缓存优先（省流量秒开） */
+const CACHE = "xuantianjie-v7.8.1-merge";
 const ASSETS = [
   "./",
   "./index.html",
@@ -7,11 +8,8 @@ const ASSETS = [
   "./game.js",
   "./manifest.webmanifest",
   "./js/analytics.js",
-  "./js/meta.js",
-  "./js/daily.js",
-  "./js/modes.js",
   "./js/signin.js",
-  "./js/tutorial.js",
+  "./js/daily.js",
   "./js/sharecard.js",
   "./assets/bg-start.png",
   "./assets/char-sword.png",
@@ -42,7 +40,6 @@ self.addEventListener("activate", (e) => {
 self.addEventListener("fetch", (e) => {
   const req = e.request;
   if (req.method !== "GET" || !req.url.startsWith(self.location.origin)) return;
-  // 导航请求：网络优先，离线回退缓存
   if (req.mode === "navigate") {
     e.respondWith(
       fetch(req)
@@ -55,7 +52,22 @@ self.addEventListener("fetch", (e) => {
     );
     return;
   }
-  // 其余静态资源：缓存优先
+  const url = new URL(req.url);
+  const isCode = /\.(html|js|css|json|webmanifest)$/.test(url.pathname) || url.pathname.endsWith("/");
+  if (isCode) {
+    e.respondWith(
+      fetch(req)
+        .then((res) => {
+          if (res && res.status === 200) {
+            const copy = res.clone();
+            caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
+          }
+          return res;
+        })
+        .catch(() => caches.match(req).then((hit) => hit || caches.match("./index.html")))
+    );
+    return;
+  }
   e.respondWith(
     caches.match(req).then((hit) => {
       if (hit) return hit;

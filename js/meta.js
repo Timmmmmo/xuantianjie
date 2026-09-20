@@ -22,6 +22,10 @@
     };
   }
 
+  function emptySignin() {
+    return { nextDay: 1, lastClaimDate: "", claims: 0 };
+  }
+
   function defaults() {
     return {
       coins: 0,
@@ -34,6 +38,8 @@
       daily: emptyDaily(),
       modeStats: { quickWins: 0, endlessBestWave: 0 },
       lastMode: "endless",
+      signin: emptySignin(),
+      tutorialDone: false,
       version: 3,
     };
   }
@@ -55,6 +61,8 @@
         daily: emptyDaily(),
         modeStats: { quickWins: 0, endlessBestWave: base.bestWave },
         lastMode: "endless",
+        signin: emptySignin(),
+        tutorialDone: false,
         version: 3,
       };
     } catch (_) {
@@ -76,10 +84,15 @@
             shop: d.shop || {},
             daily: { ...emptyDaily(), ...(d.daily || {}) },
             modeStats: { ...base.modeStats, ...(d.modeStats || {}) },
+            signin: { ...emptySignin(), ...(d.signin || {}) },
+            tutorialDone: !!d.tutorialDone,
             version: 3,
           };
           merged.daily.progress = { ...emptyDaily().progress, ...((d.daily && d.daily.progress) || {}) };
           merged.daily.granted = { ...emptyDaily().granted, ...((d.daily && d.daily.granted) || {}) };
+          if (!merged.signin.nextDay || merged.signin.nextDay < 1 || merged.signin.nextDay > 7) {
+            merged.signin.nextDay = 1;
+          }
           return merged;
         }
         const migrated = migrateFromV2();
@@ -144,6 +157,12 @@
       const d = this.load();
       d.lastMode = mode;
       this.save(d);
+    },
+    setTutorialDone() {
+      const d = this.load();
+      d.tutorialDone = true;
+      this.save(d);
+      return d;
     },
   };
 

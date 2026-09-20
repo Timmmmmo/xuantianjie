@@ -1,0 +1,29 @@
+仓库 ok: Timmmmmo/xuantianjie 默认分支=main private=false
+当前 head(main) = c905c39819157a2787b31cfa55cbb9c7bc60bef5
+自动 diff：新增 9 · 修改 12 · 远端有而本地无 0
+  + docs/DELIVERY_TEST_REPORT_v7.8.5.md
+  + docs/ENTRY_FIX_REPORT_v7.8.6.md
+  + docs/FIX_VERIFY_REPORT_v7.8.5.md
+  + docs/RELEASE_NOTES_v7.8.6.md
+  + tests/last-run.txt
+  + tools/crash-repro.js
+  + tools/entry-audit.js
+  + tools/gate-report.txt
+  + tools/gate.js
+  M docs/PM_OPERATING.md
+  M docs/README.md
+  M game.js
+  M index.html
+  M style.css
+  M sw.js
+  M tests/logic-smoke.js
+  M tools/audit-report.txt
+  M tools/balance-report.txt
+  M tools/deploy.js
+  M tools/ftue-report.txt
+  M tools/playability-report.txt
+
+提交信息来源：docs/RELEASE_NOTES_v7.8.6.md
+提交信息首行：release: v7.8.6-mr —— 修「主界面只剩签到、进不去游戏」的入口事故
+
+--dry：仅预览，未推送。

@@ -1,0 +1,640 @@
+== 1) 加载 game.js ==
+PASS 加载无异常
+暴露对象: G=true Meta=true Quality=true
+
+== 2) 进入战斗 ==
+state=play  剑阵数=4
+剑阵: 烈焰剑阵(260,-260) r=78 | 玄冰剑阵(260,260) r=78 | 天雷剑阵(-260,260) r=78 | 聚灵剑阵(-260,-260) r=78
+
+== 3) 站上「烈焰剑阵」 ==
+charge=1.00 active=true inside=fire atkMul=1.25
+PASS 烈焰阵激活，攻击 +25% 生效
+
+== 4) 离开剑阵，余威约 5s 后熄灭 ==
+离开~1.0s: active=true holdT=4.04 atkMul=1
+离开~5.8s: active=false holdT=0.00 charge=0.00
+PASS 余威按时熄灭，增益失效
+
+== 5) 玄冰阵减伤 & 聚灵阵经验 ==
+玄冰: active=true dmgTakenMul=0.8
+聚灵: active=true xpMul=1.35
+PASS 玄冰减伤 / 聚灵经验 生效
+
+== 6) 聚灵阵持续回血 ==
+hp 45.0 -> 51.7 (回血 6.7)
+PASS 阵内回血生效
+
+== 7) 代码接线静态检查 ==
+  OK   updateNodes 定义
+  OK   drawNodes 定义
+  OK   updateNodes 被调用
+  OK   drawNodes 被调用
+  OK   升级-阵纹扩张
+  OK   升级-阵心通明
+  OK   HUD-节点引用
+  OK   伤害接入 nodeAtkMul
+  OK   经验接入 nodeXpMul
+  OK   减伤接入 nodeDmgTakenMul
+  OK   移速接入 nodeMoveMul
+PASS 全部接线检查通过
+
+== 8) DOM id 对齐 ==
+引用 id 156 个，缺失 0 个 
+PASS 所有 $() id 均存在于 HTML
+
+== 9) v4.0 纯打装流：升级不弹窗 / 被动成长 / 套装转职 ==
+1级: xp=0 level=1->2 state=play hpMax 90.0->98.1 atk 15.0->16.1 shieldMax 0.0->0.0
+倍率：HP×1.090 ATK×1.075 Shield×1.000
+PASS 升级被动成长 HP×1.09 / ATK×1.075，并挂起一次悟道抉择
+3 次升级倍率 atkBefore=16.13 atkAfter=20.03 比值 1.242（应 ≈1.075^N，N=升级次数）
+PASS 升级倍率稳定（×1.075 每次）
+Lv.5 调 openJobModal：state=play 弹窗仍 hidden=true shouldOfferJob=true
+PASS v4.0 转职不弹窗（shouldOfferJob=false）
+3 件赤锋派紫装齐套：jobPath=sword jobStage=1 ACTIVE=1 PASSIVE=1
+PASS 套装齐套自动转职剑道，且装备主动技能入槽
+触发主动技能 sk_fire_jet：castOK=true skillCD 0->4 子弹数 0->6
+PASS 主动技能可触发并产生效果（子弹/buff/粒子）
+被动 sk_hp_regen tick：tick 后 hp=180（应回 +12 → 192）
+PASS 被动技能 tick 生效（每 5s 自动回 HP）
+凑齐 5 颗赤锋派：G.schoolUnlocked={"赤锋":true} G.cores=["sc_chifeng"]
+PASS 凑齐 5 颗同派系灵石自动解锁派系核心
+relic 拾取：0->1 jobModal 仍 hidden=true
+PASS 法宝匣不再弹窗，掉直接入列
+灵魄入体：8 颗赤锋（应 8 = 5+3）
+PASS 灵魄自动追加最多派系 +3 颗
+阵半径 78.0->97.5 nodeBonus 0->0.20 余威 0->2
+PASS 「守阵天君」强化剑阵（范围/站阵伤害/余威）
+dmgTakenMul 1.0000->0.8800（应 ×0.88） frostLv=1 系数=0.88
+PASS 「玄冰封天」减伤 + 解锁寒冰锥（v6.1 系数化，不被 equipRec 覆盖）
+PASS damagePlayer/剑阵余威 已接入转职增益
+
+== 10) v4.0 静态接线（转职/灵魄/法宝匣弹窗砍掉；v7.1 升级弹窗回归）==
+  OK   JOB_PATHS 定义
+  OK   shouldOfferJob 改返回 false
+  OK   openJobModal 是 stub
+  OK   jobSyncHud 定义
+  OK   openLevelUp 真实实现
+  OK   悟道卡池
+  OK   openRelicModal 是 stub
+  OK   openEssenceModal 是 stub
+  OK   resolvePendingModal 是 stub
+  OK   autoJobFromSet 自动转职
+  OK   autoUnlockCoreCheck 自动
+  OK   triggerEquipSkill 触发
+  OK   gainXP 被动成长
+  OK   update tick skillCD
+  OK   J/K 按键绑定
+  OK   startRun 同步道途HUD
+  OK   update 暂停 job 态
+  OK   draw 兼容 job 态
+PASS v4.0 接线检查通过
+
+== 11) v4.0 法宝匣：掉直接入列（不再 3 选 1）==
+拾取后 state=play jobModal hidden=true 选项数=0 relics 1->2
+PASS v4.0 法宝匣不再弹窗，掉直接入列（state 仍 = play）
+满 5 件后再拾：护盾 0->30 state=play relics=5
+PASS 满员后自动转化为护盾（不再弹窗）
+
+== 12) 八件法宝效果实装 ==
+  · 凡品 青锋剑匣 — 飞剑 +1 · 攻击 +12%
+  · 凡品 玄武宝甲 — 护盾上限 +25 · 立即获得 40 护盾
+  · 灵品 火灵珠 — 攻击 +18% · 灼烧伤害翻倍
+  · 灵品 雷音铃 — 飞剑攻速 +20% · 击杀有 12% 概率落雷
+  · 灵品 寒水镜 — 暴击率 +12% · 暴击伤害 +40%
+  · 宝品 聚灵幡 — 经验 +30% · 灵力回复 +2/s
+  · 宝品 血玉葫芦 — 击杀吸血 +3 · 气血上限 +50 并回复
+  · 仙品 天机盘 — 攻击 / 攻速 / 移速 +10% · 暴击率 +6%
+检查 14 项战斗属性，未命中：无
+PASS 全部法宝效果均命中现有战斗属性
+
+== 13) 灵兽契约与参战 ==
+解锁灵兽 5/6：青鸾、玄龟、火麒麟、雷鹏、烛龙（白泽按图鉴收集解锁）
+PASS 波次/击杀条件解锁 5 只，白泽仍锁在收集条件上
+补满法宝图鉴后 白泽解锁=true
+PASS 收集型解锁条件生效
+契约后 G.beast=雷鹏 HUD隐藏=false
+雷鹏输出 4s：傀儡 hp 3058 -> -92（-3150）
+PASS 灵兽参战造成伤害
+玄龟输出 7s：护盾=70
+PASS 护盾型灵兽生效
+白泽契约：xpMul 1.30 -> 1.49
+PASS 灵兽被动增益生效
+
+== 14) 万宝图鉴界面 ==
+法宝格 8/8 · 灵兽格 6/6
+进度文案="法宝 2/8 · 灵兽 3/6"
+PASS 图鉴两册格数正确
+高阶存档：灵兽格带契约按钮 6 个（已解锁 6）；法宝格点亮 2 个
+PASS 已解锁灵兽给契约按钮，未收录法宝显示占位
+新手存档：契约按钮 0 个（应为 0），条件文案=true
+PASS 未解锁态显示条件且无契约按钮
+showCodex → 打开成功=true，返回后 state=menu
+PASS 图鉴打开 / 返回正常
+
+== 15) 法宝/灵兽接线静态检查 ==
+  OK   ARTIFACTS 定义
+  OK   BEASTS 定义
+  OK   Meta.recordArtifact
+  OK   Meta.beastUnlocked
+  OK   Meta.toggleContract
+  OK   updateBeasts 定义
+  OK   updateBeasts 被调用
+  OK   drawBeasts 被调用
+  OK   Boss 必掉法宝匣
+  OK   法宝匣拾取分支
+  OK   灼烧接入 burnMul
+  OK   雷音铃落雷
+  OK   图鉴状态排除
+  OK   灵兽 HUD 同步
+  OK   法宝 HUD 同步
+  OK   弹窗队列收尾
+PASS 法宝/灵兽接线检查通过
+
+== 16) 角色专属灵石：三系分色 · 掉落 → 拾取 → 计数 ==
+三角色各九颗（3 派系 ×3）：sword=赤锋石/锋刃石/烈焰石/疾风石/穿云石/翠叶石/血煞石/白骨石/碎金石
+                  mage =雷灵石/天雷石/金雷石/霜晶石/冰魄石/玄水石/焚天石/朱雀石/离火石
+                  body =玄铁石/庚金石/陨铁石/龙血石/朱龙石/炎血石/磐石石/厚土石/坤元石
+灵石 key 唯一性：27/27 ｜派系数：9（应 9）
+PASS 每个角色都有 3 派系 ×3 颗灵石，且 key 全局唯一
+小妖 8000 只，掉灵石 62 次（实测 0.78%，配置 0.80%）· 跨派系 26/62=41.9%（应 ≈40%）
+跨派系容差 ±24.9pt（4σ · n=62）
+PASS 掉率符合配置，且跨派系也能掉（≈40%）
+三派系内分布（12000 次）：chifeng=806 fengren=785 lieyan=819 jifeng=789 chuanyun=805 cuiye=779 xuesha=837 baigu=739 suijin=827（偏离均值 7.4%）
+PASS 三派系大致均分
+拾取后 chifeng=2 fengren=1 总数 3｜HUD 芯片 9（应 9）
+PASS 灵石分类计数 + HUD 九颗同步
+剑修也能拾雷灵石：tianlei=1（应 1）· 跨派系也可纳入淬体/通用装备
+PASS 跨派系灵石也能拾取
+切到法修后，可拾取的灵石变为：leiling/tianlei/jinlei...（应 mage 9 颗）
+PASS 灵石跟随角色切换
+
+== 17) 流派宝石：三阶配方（初凝·化形·圆满）/ 槽位 2 ==
+配方：初凝(2主+0配) → 化形(2主+1配) → 圆满(3主+2配)｜槽位上限 2｜本角色宝石 3 颗
+PASS 每角色三系宝石，三阶配方齐备
+初凝后 rank=1 穿透 1->2 攻击 ×1.10 余石 赤锋=5 疾风=6
+化形后 rank=2 剑气范围 ×1.25 剑气冷却 ×0.85 余石 赤锋=3 疾风=6
+圆满后 rank=3 飞剑 8->9 cleave=0.4 余石 赤锋=0
+PASS 三阶配方逐阶生效（属性→技能→特殊效果）
+占两席后再凝血剑：宝石数=2（应 2）血煞石=0（应 0，未误扣）
+PASS 流派位只有 2 席，第三系凝不动
+法修在剑修局里凝雷印：宝石数 2->2（应不变）
+PASS 只能凝本角色的宝石
+
+== 18) 九系法门：属性 / 技能 / 特殊效果逐一半实装 ==
+  OK   剑罡流
+  OK   御风流
+  OK   血剑流
+  OK   雷印流
+  OK   玄冰流
+  OK   焚天流
+  OK   铁骨流
+  OK   龙血流
+  OK   磐石流
+PASS 九系法门全部落地
+御风提速：静态 1.82 → 御风后 2.37（应 ×1.3）
+PASS 御风圆满让攻速短时大涨
+龙血狂化（清空装备后）：气血 90% 系数 1.00 → 气血 30% 系数 1.25（应 +0.25，差 0.25）
+PASS 龙血战体让残血时伤害 +0.25
+
+== 19) 特殊攻击效果在命中与受击瞬间生效 ==
+命中：burn=2.20 burnDmg=35.0 slow=1.50 slowMul=0.55
+溅射：身侧小妖 hp 1000000000 -> 999999960
+PASS 灼烧 / 寒毒 / 剑气溅射在命中瞬间生效
+玄冰圆满：未受寒毒 100.0 → 受寒毒 125.0（应 ×1.25）
+PASS 太阴冰魄让受寒毒者额外受伤
+暴击溅血：相邻小妖 hp 1000000000 -> 999999950
+PASS 噬血剑心暴击时溅血爆裂
+碎盾冲击波：护盾 0（应 0）· 近敌 hp 1000000000 -> 999999916
+PASS 玄铁不坏碎盾时爆发冲击波
+磐石震波：近敌 hp 1000000000 -> 999999940
+PASS 磐石镇岳受击震波
+
+== 20) 宝石的持续增益：气血滋长 / 护盾再生 / 龙血定期回复 ==
+2s 后：hp 500.0->503.8（+3.8） shield 0.0->5.8
+PASS 每帧持续生效（气血滋长 / 护盾再生）
+龙血定期回复：hp 400.0->480.4（应 +80.0）
+PASS 龙血战体每 8s 回复 8% 气血
+龙血狂化：气血 90% 时不加成，低于 45% 时 +25%（结算见 applyHit 系数）
+
+== 21) 花料顺序（保留 v2.0 行为）==
+消耗 2 颗：赤锋 5->5（大堆保住） 疾风 2->0（先掏碎堆）
+PASS 花料优先掏最少的堆，护住正在攒的那一系
+
+== 22) v3.0 装备：5 阶品阶 · 词条库 · makeEquip 基础结构 ==
+品阶 5/5 · 槽位 3/3 · 词条 26（派系 9 稀有 5）· 底材 9/9
+PASS 装备数据层结构正确
+白装词条 1-2：true · 紫装词条 3 + ≥1 稀有：true · 橙装词条 4 + ≥1 稀有：true
+PASS 品阶-词条规则正确
+武器 atk 序列：8/11/14/19/26（应递增）
+PASS 武器攻击随阶递增
+
+== 23) v3.0 自动合成：canMerge / mergeEquip / autoMergeEquip ==
+同阶同 slot + 至少 1 词条重叠：a+b=true（应 true）· a+c=false（应 false：火 vs 木+经验）
+PASS canMerge 词条重叠判定正确
+背包 [a, b] autoMerge → 背包剩 1 件，合成 1 次，新件品阶 green（应 green）
+PASS 2 件白自动合成 1 件绿
+2 件橙 + 不同槽位 autoMerge → 背包 2（应 2，无合）
+PASS 橙装不可再合（顶级封顶）
+
+== 24) v3.0 拾取入背包 + 槽位 + 属性应用 ==
+pickUpEquip 紫·紫·龙骨爪 → 背包 1（应 1） return true
+PASS 紫装入背包
+equipTo 紫·武器 → 槽位 weapon=已装 · 背包 0（应 0） · atk 60.0->79.0
+PASS 紫装装备到槽位 + 攻击加成生效
+白装装备尝试 → 成功=false（应 false） · 槽位 armor=空
+PASS 白装不可装备（只能放背包）
+卸下 armor：背包 1->2（应 +1）· 槽位 armor=空
+PASS 卸下回背包
+equipBonuses：atk=19 hp=48 crit=0.10 huoMul=1.12 burnMul=1.00 shield=25
+PASS 装备属性汇总正确（atk/hp/crit/huoMul/shield）
+背包满 30/30 后再装白装：return=false（应 false） · gold 8（应 +8）
+PASS 背包满白装自动卖金币
+
+== 22) 灵石精魄：妖王掉落 → 本命三派系择一 ==
+精魄已 v4.0 砍弹窗：state=play 选项=0（老测试期望 3，新版期望 0）
+PASS 精魄弹窗已被 v4.0 砍掉（自动追加最多派系 +3，见 == 9.9）
+妖王掉落：boss,relic,essence,stone,stone,stone,stone,stone,stone,stone,stone,equip,equip,equip,equip,equip
+PASS 妖王必掉精魄 + 法宝匣 + 灵石
+
+== 23) 炼宝台界面与开合 ==
+宝石项 3/3 · 装备卡 3/3 · 灵石格 9/9
+赤锋=2 ⇒ 可凝宝石按钮 1 个（应 1：裂天剑罡）· 禁用 2 · HUD 角标=3（应 3）ready=true
+PASS 炼宝台按灵石实数点亮可凝项 + 装备快览 3 槽位
+HUD 灵石芯片 9（应 9，本角色 3 派系 ×3）· 点亮「最接近凝成」的那一系 1 个（应 1）
+PASS 灵石 HUD 标出进度最快的一系
+openForge→true，closeForge→state=play
+PASS 炼宝台开合正常（开启即暂停战斗）
+PASS 关闭后弹窗已隐藏
+
+== 24) 灵石 / 宝石接线静态检查 ==
+  OK   CHAR_STONES 定义
+  OK   GEMS 定义
+  OK   GEM_TIERS 定义
+  OK   槽位常量 MAX_GEMS
+  OK   通用装备成本
+  OK   killEnemy 掉本角色灵石
+  OK   Boss 掉精魄
+  OK   拾取灵石分支
+  OK   拾取精魄分支
+  OK   applyHit 挂 gemOnHit
+  OK   gemOnHit 定义
+  OK   gemOnCrit 定义
+  OK   玄冰深冻接入
+  OK   龙血狂化接入
+  OK   铁骨碎盾接入
+  OK   磐石震波接入
+  OK   御风提速接入
+  OK   灼烧接入 burnMul
+  OK   update 暂停炼宝台态
+  OK   update 跑持续增益
+  OK   resetRun 重置灵石
+  OK   startRun 同步 HUD
+  OK   弹窗队列含精魄
+  OK   showMenu 关炼宝台
+  OK   绘制灵石/精魄
+  OK   五行相克表
+  OK   敌人带五行
+  OK   applyHit 吃五行倍率
+  OK   五行由宝石决定
+  OK   敌人五行标识
+  OK   HUD 波属性
+  OK   波次横幅带属性
+  OK   炼宝台显示克制
+  OK   经济调参集中
+  OK   灵石淬体
+  OK   淬体行渲染
+  OK   宝石阶数提示
+  OK   槽位上限生效
+PASS 灵石/宝石接线检查通过
+
+== 25) 灵石淬体：宝石与通用皆满后的灵石去处 ==
+未满位时 canMelt=false（应 false）
+满位后 canMelt=true｜攻击 60.0->61.2｜护盾上限 100->108｜护盾 6->14｜已淬 1
+PASS 灵石淬体生效（可重复，收益低于宝石）
+淬体行渲染 1 项，隐藏=false（应 false）
+PASS 满位后炼宝台出现「灵石淬体」
+清空后淬体行隐藏=true（应 true）
+PASS 未满位时不展示淬体行
+
+== 26) 五行相生相克（由流派宝石的灵石属性驱动） ==
+抽查 18 组：全部命中
+PASS 关系表正确（我克1.35 / 被克0.80 / 得生1.15 / 泄力0.90 / 同1.00）
+无宝石 vs 金=1｜火 vs 金=1.35 火 vs 水=0.8｜火+水 vs 水=1
+PASS 宝石的灵石五行决定克制倍率，多颗取最优
+第 1 波妖物属性=jin（应 jin）；第 3 波=shui（应 shui）
+PASS 妖物五行随波轮转
+同为 100 基础伤害：对金(火克金)=135.0，对水(水克火)=80.0，飘字="克 135"
+PASS applyHit 实际吃到五行倍率
+PASS 克制飘字带「克」提示
+仅通用装备（未凝宝石）时 vs 金 = 1（应 1）
+PASS 通用装备不参与五行克制（符合「只有普通效果」）
+
+== 28) 共鸣 · 多颗宝石的协同奖励 ==
+空宝石 共鸣=[本命=false,道途=false,跨阶=false,破壁=undefined] benMul=0
+PASS 空状态：无任一共鸣觉醒
+剑修·1 颗 共鸣=[本命=true,道途=false,跨阶=false,破壁=undefined] benMul=0.12
+PASS 本命归一：宝石 ≥ 1 即觉醒，伤害加成 12%
+剑道·剑罡 vs 金敌：基线 135.00 → 加道途 168.75（比值应 1.25）
+PASS 道途共鸣：宝石 ∈ 转职五行集 即觉醒 · 对所克目标再 +25%
+法修·焚天 + 玄法 共鸣·道途=true [huo]
+PASS 跨角色也能借道途共鸣
+跨阶归一·圆满 vs 同元素：100.00 → 150.00（应 1.5 倍）
+PASS 跨阶归一：圆满宝石整段 ×1.5 已生效
+火 + 水 共鸣·破壁者=true [火⇿水]
+PASS 破壁者：异系宝石相克即激活
+木 + 金 共鸣·破壁者=true [木⇿金]
+PASS 破壁者触发条件可识别（木/金 相克）
+破壁者：vs 水 无 115.00 → 有 132.25（应 1.15 倍）
+PASS 破壁者只对未直接被克目标 +15%
+共鸣卡 4 张 · 已觉醒 2 张 · HUD 芯片 2 个 · 可见=true
+PASS 共鸣面板与 HUD 渲染正常
+
+== 29) 派系核心：9 颗核心 + 5 颗同派系解锁 ==
+核心 9 个｜剑修专属 3 个（应 3）｜派系总数 9（应 9）
+PASS 9 个派系核心，每角色 3 个
+schoolOf("chifeng")=赤锋（应 赤锋）· schoolOf("leiling")=雷灵（应 雷灵）
+赤锋 5=5（应 5）· 疾风 3=3（应 3）
+PASS schoolOf / countSchool
+赤锋=5 → canUnlockCore=true（应 true）
+赤锋=3 → canUnlockCore=false（应 false）
+赤锋=6 → unlockCore=true（应 true）· cores=1（应 1）
+PASS canUnlockCore + unlockCore 自动装备
+赤锋核心 onEquip → G.schoolFx.fentian=true（应 true）
+PASS 核心 onEquip 钩入
+装备 2 席后解第 3 派系 → cores=2（应 2） unlockCore=true（应 true 但未自动装）
+PASS MAX_SCHOOL_CORES=2 上限生效，第 3 个只解锁不装
+手动 equipCore('sc_xuesha') → cores=2（应 3 · 但应被挡在 2）
+当前装备：赤锋 / 疾风（应 2 个）
+PASS 手动装备仍守 MAX_SCHOOL_CORES=2
+卸下赤锋后装备=false（应 false）· 重新装=true（应 true）
+PASS unequipCore + equipCore 正常
+法修尝试解剑修赤锋核心 → false（应 false）
+PASS 跨角色核心无法解锁
+赤锋核心 tick(1) → 剑气数 4->12（应 +8）
+PASS 焚天剑阵每 8 秒放 8 道剑气
+疾风核心 onEquip → 移速 293.15->351.78（应 ×1.20）
+PASS 御风化神永久移速 +20%
+龙血核心 HP=hpMax → damagePlayer 后 hp=500（应回满） · 复活=true
+PASS 浴火重生：HP 归零时满血复活
+朱雀核心 onHit → 邻居灼烧 0->1.5（应 >0）
+PASS 朱雀降世灼烧扩散
+核心面板 3 张 · 已装 1 张 · HUD 芯片 1 个
+PASS 核心面板 + HUD 渲染正常
+
+== 30) v5.0 PM 视角 · 新手教程 ==
+step 1 → 2：tutStep=2 overlay.classList=
+step 2 → 3：tutStep=3
+step 3 → 完成：tutStep=0 hidden=true
+PASS 教程 3 步可手动推进并自动隐藏
+
+== 31) v5.0 PM 视角 · 大字报系统 ==
+大字报 sub="里程碑" text="测试大字报" mode purple=true hidden=false _bigBannerT=2.40
+橙色大字报 mode orange=true
+PASS 大字报：3 种模式 + 计时 + 文本/副标题
+
+== 32) v5.0 PM 视角 · HUD 目标进度条 ==
+空背包：goalText="目标 · 获得首件紫装" detail="0/1 紫装" fill%=undefined
++1 紫装：goalText="目标 · 第 5 波妖王赐紫" detail="1/3 紫装"
+3 件同派系齐套：goalText="目标 · 派系纯度 100%" detail="纯度 130%" purity=1.30
+PASS 进度条按当前状态切换目标（紫装 → 纯度 100%）
+
+== 33) v5.0 PM 视角 · 灵石槽位（第 4 槽）==
+未装灵石槽：huoMul=1.120（应 1.12，即 1 + 0.12）
+setStoneSlot("chifeng") → slot={"stoneKey":"chifeng","school":"赤锋","name":"赤锋石","color":"#fb923c"}
+装赤锋灵石槽：huoMul=1.156（应 1.156 = 1.156）
+卸下灵石槽：huoMul=1.120（应回到 1.120）
+PASS 灵石槽加成正确（×1.30 该派系词条）
+
+== 34) v5.0 PM 视角 · 派系纯度 ==
+混搭（huo/mu/shui）：purity=1.00 huoMul=1.120（应 ≈1）
+2 同派系（huo×2）：purity=1.10 huoMul=1.264（应 ≈1.264 = 1 + 0.12*2*1.10）
+3 同派系（huo×3）：purity=1.30 huoMul=1.468（应 ≈1.36 = 1 + 0.12*1.30）
+PASS 派系纯度按 1/2/3 件同派系递增（×1.0/×1.10/×1.30）
+
+== 35) v5.0 PM 视角 · 技能轮盘 CD 轮转 ==
+装两件带不同主动技能：sk_sword_array(cd=8s),sk_fire_jet(cd=4s)
+triggerEquipSkill(-1) 轮盘：castOK=true 短 CD（4s 火喷射）0->4
+PASS 轮盘自动选 CD 最短的（4s 喷射）
+
+== 36) v5.0 PM 视角 · 妖王必掉本派系紫装 ==
+妖王掉紫装 2 件，派系=赤锋,疾风（应含"赤锋"）
+PASS 妖王必掉本派系（赤锋）紫装
+
+== 37) v5.0 PM 视角 · 橙装掉落特效（慢镜+大字报）==
+拾取橙装 橙·龙骨爪：_orangeT=0.60 _orangeName="橙·龙骨爪" bigBanner.s-orange=true
+PASS 橙装觉醒：慢镜启动 + 大字报变橙色
+
+== 38) v5.0 PM 视角 · 静态接线检查 ==
+  OK   PURITY_BONUS 常量
+  OK   STONE_SLOT_BONUS 常量
+  OK   ui.goalBar 引用
+  OK   ui.bigBanner 引用
+  OK   ui.tutOverlay 引用
+  OK   ui.invSlotStone 引用
+  OK   G.tutStep 字段
+  OK   G._stoneSlot 字段
+  OK   G._purity 字段
+  OK   G._milestone 字段
+  OK   G._orangeT 字段
+  OK   showBigBanner 函数
+  OK   showTutorial 函数
+  OK   advanceTutorial 函数
+  OK   tickTutorial 函数
+  OK   updateGoalBar 函数
+  OK   setStoneSlot 函数
+  OK   triggerEquipSkill 轮盘
+  OK   pickUpEquip 紫装里程碑
+  OK   pickUpEquip 橙装觉醒
+  OK   killEnemy Boss 本派紫装
+  OK   update tick 教程
+  OK   update 进度条
+  OK   startRun 启动教程
+  OK   resetRun 重置 v5 字段
+  OK   equipBonuses 纯度计算
+  OK   equipBonuses 灵石槽加成
+  OK   unlockCore 大字报
+  OK   autoJobFromSet 大字报
+  OK   tutNext 按钮事件
+PASS v5.0 接线检查通过
+
+== 39) v5.0 PM 视角 · DOM id 对齐（goalBar / bigBanner / tutOverlay / invSlotStone） ==
+v5.0 新增 id 17 个，HTML 缺失 0 个 
+PASS v5.0 所有新 id 均存在于 HTML
+
+== 40) v6.0 A · 怪物词缀生成与实例化 ==
+精英(5波)=[bomb] 大妖(12波)=[mirror,swift] 小妖=[]
+PASS 词缀数量符合规则（精英 1 / 大妖 2 / 小妖 0）
+swift 移速倍率均值 = 1.58（应 ≈1.60）
+mirror atk=53.8 基准=28.8（应 +25 = 玩家 atk 100 的 25%）
+ward 护盾 157.3 / hpMax 349.5（应 ≈0.45）
+PASS 词缀实例化生效（swift ×1.6 / mirror +25% / ward 45%）
+
+== 41) v6.0 A · 词缀行为（护盾 / 荆棘 / 分裂 / 自爆 / 冰霜） ==
+护盾怪挨 100：护盾吸收 80.0（应 ≈100）hp=1000（应仍 1000）
+荆棘怪挨 1000：玩家掉血 130.0（应 ≈180，受五行浮动）
+分裂怪死亡后场上敌人 3 只（应 3 = 尸体 1 + 裂出 2）
+自爆怪在脚下死亡：玩家掉血 57.2（应 > 0）
+冰霜怪死亡：地面力场 1 个（应 1，半径 100）
+PASS 五种词缀行为全部生效
+
+== 42) v6.0 B · 词条联动激活 + HUD ==
+空身联动：[]（应 []）
+穿 1 件（huo_dmg + shui_slow）→ 联动 ["syn_forge"]（应含 syn_forge）
+HUD 计数="1/8"（应 n/8）芯片数=1
+再穿 1 件（jin_thunder + crit_pct）→ 联动 ["syn_forge","syn_storm"]（应含 syn_storm）
+PASS 词条联动按需激活 + HUD 同步
+
+== 43) v6.0 B · 联动效果（熔炉 ×3 / 狂血攻速 ×2 / 悟道经验 ×1.5） ==
+同样挨 100：普通 80.0 / 被减速 240.0（熔炉应 ≈3 倍，比值 3.00）
+狂血：击杀前攻速 1.821 → 击杀后 3.643（应 ×2），frenzyT=2
+悟道：同怪经验 5 → 9（应 ≥1.5 倍，实测 1.80 含 xp_bonus 词条自身加成，xpMul 1 → 1.15）
+PASS 联动效果为机制质变而非数值叠加
+
+== 44) v6.0 C · 祭坛赌注（刷出 / 走近触发 / 立契 / 拒绝） ==
+第 5 波：祭坛 1 座（应 1）
+走到祭坛：state=altar 选项=3（应 altar / 3）
+立「血祭」：hpMax 452 → 316（应 ×0.7）atkMul=1.5（应 1.5）state=play
+拒绝立契：state=play 场上祭坛=0（应 play / 0）
+tierUp("white",1) = green（应 green）
+PASS 祭坛刷出 / 走近触发 / 立契生效 / 可拒绝 / 品阶提升
+
+== 45) v6.0 · 静态接线 + DOM id 对齐 ==
+静态接线 26 项，缺失 0 项 
+PASS v6.0 全部接线到位
+v6.0 新增 id 6 个，HTML 缺失 0 个 
+PASS v6.0 所有新 id 均存在于 HTML
+
+== 46) v6.1 · 武器觉醒（修 v4.0 断链：fire/frost/lightning/array 永远 0 级）==
+空装：业火=0 寒冰=0 紫电=0 剑阵=0（应全 0）
+赤锋 1/2/3 件 → 业火 Lv.1/2/3，觉醒=true（应 1/2/3 且 3 件时觉醒）
+1 件霜晶 → 寒冰 Lv.1（应 1）· 业火回落到 0（应 0）
+PASS 武器按装备派系点亮/升级/觉醒，换装即时回落
+
+== 47) v6.1 · 法门自动择定（修 v4.0 断链：9 个法门全是死内容）==
+空装：jobPath=null jobBranches={}（应 null / {}）
+3 件赤锋：jobPath=sword 主派系=赤锋 法门=sword_multi Lv.2
+   飞剑 10->14 环绕半径 84->116（第 0 门「万剑归流」每级 +2 剑 / +16 半径）
+灵石槽放赤锋后：Lv.2->3（应 3，上限 3）飞剑 16（应 16）
+转职 HUD 法门栏：「万剑归流·Lv.3」（不应为空/未择法门）
+v6.1 静态接线 8 项，缺失 0 项 
+PASS 转职后自动择定法门，投入越深境界越高，HUD 实时显示
+
+== 48) v7.0 A · 双兵合击（两把武器 Lv≥2 ⇒ 解锁合击技）==
+混搭配装：业火 Lv3（觉醒 true）· 紫电 Lv2（觉醒 false）
+解锁合击：fl（应含 fl 雷火劫）
+合击释放：爆点 3 个 · 目标 61 → 已斩 · CD 重置 7.0s
+专精配装：业火 Lv3（觉醒 true）· 合击 0 个（应 0，专精走法门不走合击）
+PASS 双修解锁合击并自动释放，专精路线不误触发
+
+== 49) v7.0 B · 尸潮涌（每 7 波灌入一大群低血尸傀）==
+尸潮涌出 55 只（应 55）· 场上存活 55 · 剩余时间 5.0s
+清场后：active=false · 灵玉 0 → 120（应 +120）
+35 波内尸潮波次：7,14,21,28（避开 5 的倍数妖王波）
+PASS 尸潮批量涌出、清完给奖、节奏避开妖王波
+
+== 50) v7.0 B2 · 连锁击杀（尸体引爆向邻近敌人传导）==
+60 次击杀 → 连锁引爆 19 次（连杀 40 时概率约 0.30）
+连锁结算：47 → 已斩 · 连锁计数 20
+PASS 连锁按概率触发并真实结算伤害
+
+== 51) v7.0 C · 瞬步（冲刺留剑影 + 无敌帧延长）==
+瞬步：剑影 1 个 · 无敌 0.60s（应 ≥0.5s，原 0.40s）
+剑影伤害：47 → 已斩（冲过人群即造成伤害）
+冲刺中持续留影：1 → 4（应增加）
+PASS 瞬步无敌延长且沿途剑影造成伤害
+
+== 52) v7.0 C · 濒死狂血（血量 25% 以下五息反杀）==
+血量 20% ⇒ _frenzyT=5s · 伤害 1.25→1.88（×1.5）· 攻速 1.82→3.64（×2）
+狂血结束后再 tick：_frenzyT=0（应 0）· CD 剩余 22.0s（应 >0）
+满血 tick：_frenzyT=0（应 0）
+PASS 濒死触发狂血、内置 CD 防刷、满血不误触发
+
+== 53) v7.0 · 割草密度（同屏怪量是爽点的底座）==
+第 10/20/30 波刷怪量 14/24/36（v7.0 为 18/32/48，v6 为 11/20/28）
+v7.0 静态接线 25 项，缺失 0 项 
+PASS 密度抬升到位，v7.0 各系统接线完整
+
+== 54) v7.1 · 悟道突破（升级三选一，把「决策」还回给玩家）==
+卡池 23 张，本次发出 3 张：狂血诀(form) / 破煞之眼(atk) / 噬血诀(def)
+升级后 pendingLevel=1 · update 一次 → state=level · 卡面 3 张
+点卡后 state=play pendingLevel=0 · 已选卡 {"u_pick":1}
+分化剑影：环绕飞剑 17 → 18（应 +1）
+自动悟道期 wave=1：升级后 state=play · 卡面 0 张 · pendingLevel=0（应 play / 0 / 0）
+PASS 三选一弹窗（第 11 波起）+ 前 10 波自动悟道不打断，两条分支均正确
+
+== 55) v7.1 · 活得下来（受击间隔 + 波间回血）==
+连续两击 50：457 → 457（第二击应被 0.5s 受击间隔吃掉）
+5 只怪贴身 1 秒：掉血 0（v7.1 前约 128，应 < 60）
+波次推进：hp 200 → 260（应 +12% 上限）
+PASS 受击有间隔、围攻不秒杀、波间有喘息
+
+== 56) v7.1 · 黄金 15 秒（开局立刻开打 + 立刻有反馈）==
+0.7s 时场上 12 只（开局试炼潮 8 只，应 ≥6）· waveTimer 起始 0.8s（原 3s）
+15 秒后：击杀 45 · 等级 1 → 12 · 存活=true · 场上 5 只
+PASS 开局 1 秒内开打，15 秒内有击杀/升级反馈且不会死
+
+== 57) v7.1 · 教程不再霸屏 ==
+开局 10 秒：教程遮罩显示=false（应 false，18 秒后才允许弹）
+19 秒弹出=true（应 true）· 10 秒后自动收起=true（应 true）
+PASS 教程延后到 18 秒且超时自动收起，不再霸屏
+
+== 58) v7.2 · 打击感（刀刀到肉）==
+同帧 20 段命中 ⇒ 伤害数字 1 个（节流后应 ≤1，否则割草时糊屏）
+合并后数字 = 350（累计 20×10+100=300，应 ≥250）
+小怪击杀 ⇒ 粒子 15 个 · 屏震 3.5（v7.2 前：0 粒子 / 0 屏震）
+第 20 连杀 ⇒ 剑意爆发=true · 范围内 3 只全部受伤=true · CD=1.20s
+CD 内再达 20 倍数不重复触发：_comboBurstT=1.00（应仍为 1.00）
+PASS 命中/击杀都有反馈且全部走节流，连杀有爆点且不刷屏
+
+== 59) v7.2 · 悬赏令（局内限时挑战）==
+妖王波(5)=false / 尸潮波(7)=false（都应 false，不叠难度尖刺）· 第 6 波=true（应 true）
+斩妖令 3 杀 ⇒ state=done · 灵玉 +72 · 掉落 6 件
+避煞令受伤失败=true · 超时失败=true · 2 秒后自动清场=true
+目标条：悬赏 · 斩妖令 · 限时斩妖 / 4/10只 · 剩 12.3s · 源码含悬赏文案=true
+PASS 悬赏令发牌/达成/失败/清场/目标条全链路正常
+
+== 60) v7.2 · 静态接线 ==
+v7.2 静态接线 12/12
+PASS v7.2 全部接线就位
+
+== 61) v7.3 P0 · 灵石槽入口（点 HUD 灵石条设本命）==
+未拥有拒绝=true · 拥有后入槽=true（赤锋石）· 再点取出=true
+灵石被炼宝台耗尽 ⇒ 槽位自动空置=true
+灵石槽入赤锋：火伤系数 1.120 → 1.156（应 ↑）· 法门 Lv3 → Lv3（应到 3）
+
+== 62) v7.3 P0+ · 升级/悟道卡的成长不会被装备重算回滚 ==
+升级前 401.6 → 8 级后 8375.3 → equipRec 后 8375.3（应不变）
+穿紫装后 8403.8（应 > 8375.3）→ 再升 1 级 9034.1 → equipRec 后 9034.1（应不变）
+
+== 63) v7.3 P1/P2 · 终局压力 + 卡池扩容 + 紫装不再被丢 ==
+小妖 HP 20 波 238 → 40 波 984（×4.14，无终局压力时应 ≈2.9）
+小妖 ATK 20 波 27.2 → 40 波 60.7（×2.23）
+变类卡 15 张 · 总供给 50 次（一局约 35~40 级，v7.3 前仅 32 ⇒ 中期枯竭）
+背包 30/30 满时捡到紫装 ⇒ 入包=true（v7.3 前直接丢弃，紫装永远凑不齐一套）
+v7.3 静态接线 14 项，缺失 0 项 
+PASS 灵石槽可入槽/取出/耗尽失效，且真给词条加成与法门 Lv3
+PASS 升级与悟道卡的成长不再被装备重算回滚
+PASS 后期压力回升、变类卡供给充足、紫装不再被丢弃
+
+== 64) v7.8.6 入口可达性（信息架构 + 触摸滚动 + 折叠接线）==
+「踏入战场」偏移 14152 · 「修行录」偏移 14617 ⇒ 入口在回访壳之前=true
+日课/签到/周常三盒都在 #revisitBody 内=true
+修行录默认收起=true（<div class="revisit-panel" id="revisitPanel">）
+  OK   start-inner 可纵向滚动
+  OK   html,body 放行纵向平移
+  OK   screen 层可纵向拖滚
+  OK   玩法层仍禁手势
+  OK   折叠体默认隐藏
+  OK   展开后显示
+  OK   syncStartLayout 定义
+  OK   setRevisitOpen 定义
+  OK   徽标刷新定义
+  OK   showMenu 回菜单后巡检
+  OK   refreshShellUI 内刷徽标
+  OK   转屏/改窗重新巡检
+  OK   巡检函数已导出
+__XTJ__ 导出巡检函数=true
+PASS 主入口在首屏、回访壳可折叠、触摸可滚兜底齐备
+== 运行状态 ==
+state=play wave=2 kills=71 enemies=12 hp=18971 lv=55
+v5.0 测试结束

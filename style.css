@@ -27,7 +27,12 @@ html, body {
   color: var(--text);
   font-family: var(--font);
   overflow: hidden;
-  touch-action: none;
+  /* v7.8.6 入口修复：这里原本是 touch-action:none。
+     它不只禁掉页面本身的滚动手势，还会顺着祖先链把**子元素**的触摸滚动一起掐掉 ——
+     于是开始页内容一旦超高，里面的滚动容器在真机上照样滑不动，玩家够不到「踏入战场」。
+     改为只放行纵向平移（双击缩放 / 双指缩放仍然禁掉）；
+     「游戏中禁手势」交给 .joy-zone / .skill-btn 这些玩法层各自声明即可。 */
+  touch-action: pan-y;
   user-select: none;
   -webkit-user-select: none;
   -webkit-tap-highlight-color: transparent;
@@ -51,7 +56,8 @@ body {
   width: 100%; height: 100%;
   overflow: hidden;
   background: radial-gradient(ellipse at 50% 20%, #152033 0%, var(--bg) 65%);
-  touch-action: none;
+  /* 同上：整页容器放行纵向平移，否则菜单里的滚动容器滑不动 */
+  touch-action: pan-y;
 }
 
 /* 全屏摇杆感应层：位于 HUD 之下、技能按钮之下 */
@@ -1035,6 +1041,8 @@ canvas#game {
   z-index: 40;
   display: flex; align-items: center; justify-content: center;
   padding: 18px;
+  /* 菜单类界面允许纵向拖动滚动（内容超高时的保命通道） */
+  touch-action: pan-y;
 }
 .start-screen, .over-screen {
   background: #070b12;
@@ -1113,7 +1121,17 @@ canvas#game {
   max-height: 100%;
   text-align: center;
   display: flex; flex-direction: column; align-items: center; gap: 12px;
+  /* v7.8.6 入口修复：内容超高时必须能滚，而不是被 flex 居中「上下同时裁掉」。
+     这一步是兜底 —— 即使将来又往开始页加东西，玩家最多滚一下，不会再有够不到的按钮。 */
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  scrollbar-width: none;
+  padding: 4px 2px calc(14px + env(safe-area-inset-bottom, 0px));
 }
+.start-inner::-webkit-scrollbar { width: 0; height: 0; }
 
 .title-block { margin-top: 8px; animation: fadeUp 0.55s ease-out both; }
 .char-row { animation: fadeUp 0.55s ease-out 0.08s both; }
@@ -1797,6 +1815,43 @@ canvas#game {
 @media (orientation: landscape) and (min-width: 640px) {
   #hud { padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
   .hud-glass { max-width: 430px; }
+}
+
+/* ============ v7.8.6 入口修复：横屏 / 矮屏紧凑两列 ============
+   横屏可视高度只有 400 出头，单列堆叠必然把「踏入战场」顶出屏幕。
+   这里改成两列：左列「标题 + 战绩 + 角色 + 开战」，右列「快捷项 + 修行录 + 版本」，
+   并把标题、按钮、战绩整体压扁 —— 主入口不用滚动就完整可点。 */
+@media (orientation: landscape) and (max-height: 560px) {
+  #startScreen .start-inner {
+    display: grid;
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+    column-gap: 18px;
+    row-gap: 8px;
+    align-content: center;
+    align-items: start;
+    justify-items: center;
+    width: min(880px, 100%);
+    padding: 2px 2px calc(4px + env(safe-area-inset-bottom, 0px));
+  }
+  #startScreen .title-block    { grid-column: 1; grid-row: 1; margin-top: 0; }
+  #startScreen .records        { grid-column: 1; grid-row: 2; margin-top: 0; }
+  #startScreen .char-row       { grid-column: 1; grid-row: 3; width: 100%; margin: 0; }
+  #startScreen .btn-row        { grid-column: 1; grid-row: 4; margin-top: 0; }
+  #startScreen .quick-row      { grid-column: 2; grid-row: 1; }
+  #startScreen .controls-hint  { grid-column: 2; grid-row: 2; display: none; }
+  #startScreen .revisit-panel  { grid-column: 2; grid-row: 3; }
+  #startScreen .ver-hint       { grid-column: 2; grid-row: 4; margin-top: 0; }
+
+  /* 压扁纵向占用 */
+  #startScreen .title-glow   { font-size: 34px; letter-spacing: 6px; }
+  #startScreen .title-kicker { font-size: 10px; letter-spacing: 3px; margin-bottom: 2px; }
+  #startScreen .title-rule   { width: 110px; margin-top: 6px; }
+  #startScreen .mode-chips   { display: none; }
+  #startScreen .rec          { padding: 5px 9px; font-size: 10px; }
+  #startScreen .rec b        { font-size: 13px; }
+  #startScreen .btn-primary  { min-width: 150px; padding: 11px 22px; font-size: 16px; letter-spacing: 3px; }
+  #startScreen .btn-ghost    { padding: 10px 14px; font-size: 12.5px; }
+  #startScreen .mini-btn     { padding: 6px 11px; font-size: 11px; }
 }
 
 /* 低端机省电：关闭毛玻璃与重阴影 */
@@ -3275,3 +3330,56 @@ body.orange-pause #app::after {
   letter-spacing: 0.5px;
 }
 .weekly-box .mini-btn { width: 100%; }
+
+/* ============ v7.8.6 入口修复：修行录（可折叠回访壳） ============
+   日课 / 签到 / 周常 三盒合计约 480px，直接堆在开始页会把「踏入战场」顶出屏幕。
+   收进默认折叠的面板：主入口永远在首屏，回访内容一次点击可达，徽标负责提示"有东西可领"。 */
+.revisit-panel {
+  width: min(420px, 100%);
+  display: flex; flex-direction: column; align-items: stretch;
+  border-radius: 12px;
+  border: 1px solid rgba(240,193,75,0.25);
+  background: rgba(16,14,10,0.5);
+  pointer-events: auto;
+  overflow: hidden;
+}
+.revisit-head {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%;
+  padding: 11px 12px;
+  border: 0;
+  background: transparent;
+  color: #fde68a;
+  font-family: var(--font);
+  font-size: 13px;
+  letter-spacing: 1.5px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.revisit-title { flex: 0 0 auto; }
+.revisit-badge {
+  flex: 1 1 auto;
+  text-align: left;
+  font-size: 11px;
+  letter-spacing: 0.4px;
+  color: rgba(165,243,252,0.75);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.revisit-badge.hot { color: #fca5a5; }
+.revisit-caret {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: rgba(253,230,138,0.6);
+  transition: transform 0.18s ease;
+}
+.revisit-panel.open .revisit-caret { transform: rotate(180deg); }
+.revisit-body { display: none; padding: 0 10px 10px; }
+.revisit-panel.open .revisit-body { display: block; }
+/* 面板内的三盒不再自带外边距 / 限宽（已由面板负责） */
+.revisit-body .daily-box,
+.revisit-body .signin-box,
+.revisit-body .weekly-box {
+  width: 100%;
+  margin: 0 0 8px;
+}
+.revisit-body .weekly-box:last-child { margin-bottom: 0; }

@@ -144,8 +144,30 @@ const nav = {
   vibrate: noop,
 };
 
+// ---- 确定性随机数（v7.8.5 P1 修复：门禁必须可复现）----
+// 线上用例此前完全不控制 Math.random，而 game.js 里有 42 处随机构建（掉率 / 词缀 / 暴击 /
+//   连锁 / 悟道卡池 ……）—— 每次跑都是不同轨迹，导致「濒死狂血 / 词条行为 / 掉率归属 /
+//   applyHit 五行」等断言随机变红，门禁结果不可复现（实测原始用例 20 跑 20 红）。
+// 这里注入固定种子的 mulberry32：默认种子让门禁可复现；XTJ_SEED=<int> 可换种子做模糊测试
+//   （换种子后若某个断言红，说明那是真脆弱点，应当修断言而不是换种子）。
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+const SEED = (() => {
+  const n = parseInt(process.env.XTJ_SEED || "", 10);
+  return Number.isFinite(n) ? n : 20260920;
+})();
+const rng = mulberry32(SEED);
+const MathShim = Object.create(Math);
+MathShim.random = () => rng();
+
 const sandbox = {
-  console, Math, JSON, Date, Object, Array, Set, Map, Number, String, Boolean, Error, RegExp,
+  console, Math: MathShim, JSON, Date, Object, Array, Set, Map, Number, String, Boolean, Error, RegExp,
   isNaN, isFinite, parseInt, parseFloat,
   setTimeout, clearTimeout, setInterval, clearInterval,
   document: doc,
@@ -489,6 +511,11 @@ try {
   G.relics = X.ARTIFACTS.slice(0, X.MAX_RELICS);
   G.hp = Math.max(1, G.hpMax * 0.5);
   const sh0 = G.shield;
+  // v7.8.5 P1 修复：上一步 frames() 里若触发过暴击顿帧（hit-stop），update() 会在
+  //   「if (G.hitStop > 0) { ...; return; }」处直接返回，整段拾取逻辑被跳过 ——
+  //   随机轨迹下就出现「护盾 0->0」（实测此时 G.pickups 仍是 1，证明这一帧根本没跑到拾取）。
+  //   forcePlay() 会清顿帧，这里不是 forcePlay 后的第一次 frames()，必须自己清。
+  G.hitStop = 0; G.enemies = []; G.px = 0; G.py = 0;
   G.pickups = [{ x: 0, y: 0, kind: "relic", r: 14, life: 20, bob: 0 }];
   frames(2);
   // v4.0 满员后直接转换为护盾（无弹窗）
@@ -674,7 +701,13 @@ try {
   G._noChain = false;
   G._noBurst = false;
   G._noBounty = false;
-  say(Math.abs(rate - X.DROP_MOB) < 0.012 && Math.abs(foreignRate - 0.4) < 0.15
+  // v7.8.5 P1 修复：跨派系比例只有 ~60 个样本（灵石掉率 0.8%），固定 ±15pt 相当于 2.4σ，
+  //   随机轨迹下必然偶发误报（实测 21%~55% 都出现过）。改成按实际样本量算的 4σ 置信带
+  //   ——小样本自动放宽、大样本收紧到 15pt 下限；真配置错误（例如跨派系完全不掉）依然会红。
+  const sdForeign = Math.sqrt(0.4 * 0.6 / Math.max(1, stoneDrops));
+  const tolForeign = Math.max(0.15, 4 * sdForeign);
+  say(`跨派系容差 ±${(tolForeign * 100).toFixed(1)}pt（4σ · n=${stoneDrops}）`);
+  say(Math.abs(rate - X.DROP_MOB) < 0.012 && Math.abs(foreignRate - 0.4) < tolForeign
     ? "PASS 掉率符合配置，且跨派系也能掉（≈40%）" : "FAIL 掉率或灵石归属异常");
 
   // 三派系均匀（本角色三派系之间均分 —— 测试只看本派系 9 颗的分布）
@@ -935,7 +968,7 @@ try {
   // 生成 100 件白装，检查词条数 1-2，紫装词条 3-3 且至少 1 稀有
   const samples = { white: [], green: [], blue: [], purple: [], orange: [] };
   for (let i = 0; i < 200; i++) {
-    const tier = ["white", "green", "blue", "purple", "orange"][Math.floor(Math.random() * 5)];
+    const tier = ["white", "green", "blue", "purple", "orange"][Math.floor(rng() * 5)];
     samples[tier].push(X.makeEquip("weapon", tier));
   }
   const whiteAffOk = samples.white.every((e) => e.affixes.length >= 1 && e.affixes.length <= 2);
@@ -1215,6 +1248,11 @@ try {
   say(`第 1 波妖物属性=${eJin.elem}（应 jin）；第 3 波=${eShui.elem}（应 shui）`);
   say(eJin.elem === "jin" && eShui.elem === "shui" ? "PASS 妖物五行随波轮转" : "FAIL 妖物属性异常");
 
+  // v7.8.5 P1 修复：v7.3 变类卡会把「克制再 +15%」等加成累积进这些字段，随机轨迹下若前面
+  //   测试拿过卡，对金的一击会从 135 变成 155.25 —— 本条只校验五行关系本身，
+  //   按游戏自身 resetRun 的归位口径先把随机累积加成清零。
+  G._burstCut = 0; G._afterLifeAdd = 0; G._afterDmgMul = 1; G._afterExtra = 0;
+  G._execLv = 0; G._zoneLv = 0; G._elemBeatAdd = 0; G._stoneBoostAdd = 0;
   G.gems = { gem_jiangang: 1 }; G.gemFx = {}; G.crit = 0; G.floaters = []; G.px = 0; G.py = 0;
   G.jobPath = null; G.resonance = X.recomputeResonance();
   eJin.hp = 1e6; X.applyHit(eJin, 100);
@@ -2159,6 +2197,9 @@ try {
   say("== 52) v7.0 C · 濒死狂血（血量 25% 以下五息反杀）==");
   forcePlay();
   G.hpMax = 1000; G.hp = 200; G._frenzyT = 0; G._frenzyCD = 0;
+  // v7.8.5 P1 修复：狂血诀卡会抬高触发阈值 / 延长时长，随机轨迹下若前面测试拿过该卡，
+  //   这里就会得到 _frenzyT=6s 而非 5s（实测出现）—— 本条校验的是基础机制，先把加成归零。
+  G._frenzyHpAdd = 0; G._frenzyTimeAdd = 0;
   const dm0 = X.playerDamageMult(), as0 = X.atkSpeedNow();
   X.updateFrenzy(0.016);
   const dm1 = X.playerDamageMult(), as1 = X.atkSpeedNow();
@@ -2205,6 +2246,12 @@ try {
   say("");
   say("== 54) v7.1 · 悟道突破（升级三选一，把「决策」还回给玩家）==");
   forcePlay();
+  // v7.8.5 P1 修复：本条断言的是「第 11 波起的手动三选一」，但 forcePlay() 不重置波次 ——
+  //   若落在前 10 波（v7.5 自动悟道期），update() 走 flushAutoUpgrades 分支，
+  //   state 永远不会变 "level"，用例必然误报 FAIL（线上用例里那条确定性红灯）。
+  //   显式把波次推过自动期，确保测的是弹窗分支；自动期的反向断言在本条末尾补上。
+  const waveSave54 = G.wave;   // 用例共享同一份全局状态：临时改波次必须还原，避免污染后续用例
+  G.wave = X.AUTO_UPGRADE_MAX_WAVE + 1;
   G.pendingLevel = 0; G.state = "play"; G._upgradeTaken = {};
   G.enemies = []; G.blasts = [];
   const pool3 = X.buildUpgradePool(3);
@@ -2235,8 +2282,23 @@ try {
   X.takeUpgrade("u_sword");
   say(`分化剑影：环绕飞剑 ${swordBefore} → ${G.swordCount}（应 +1）`);
   const formOK = G.swordCount === swordBefore + 1;
-  say(poolOK && modalOK && takeOK && formOK
-    ? "PASS 升级弹三选一并真实改变战斗形态，点完即恢复战斗" : "FAIL 悟道突破异常");
+
+  // v7.8.5 反向断言：回落前 10 波自动悟道期，升级必须「不弹窗、不打断、自动放发」——
+  //   锁住 v7.5「前 10 波不打断」的设计，也顺手防住「以后又把弹窗加回来」的回归。
+  G.state = "play"; G.pendingLevel = 0;
+  if (els["levelChoices"]) els["levelChoices"].innerHTML = "";
+  G.wave = 1;
+  G.xp = 0; G.xpNeed = 1;
+  X.gainXP(1);
+  X.update(0.016);
+  const autoStt = G.state;
+  const autoBtns = (els["levelChoices"] || {}).children || [];
+  const autoOK = autoStt === "play" && autoBtns.length === 0 && (G.pendingLevel || 0) === 0;
+  say(`自动悟道期 wave=${G.wave}：升级后 state=${autoStt} · 卡面 ${autoBtns.length} 张 · pendingLevel=${G.pendingLevel}（应 play / 0 / 0）`);
+  G.wave = waveSave54;   // 还原波次，保证后续用例拿到与改动前完全相同的状态
+
+  say(poolOK && modalOK && takeOK && formOK && autoOK
+    ? "PASS 三选一弹窗（第 11 波起）+ 前 10 波自动悟道不打断，两条分支均正确" : "FAIL 悟道突破异常");
 
   say("");
   say("== 55) v7.1 · 活得下来（受击间隔 + 波间回血）==");
@@ -2524,6 +2586,65 @@ try {
   say(growWired ? "PASS 升级与悟道卡的成长不再被装备重算回滚" : "FAIL 成长仍被装备重算抹掉");
   say(endgameWired && poolWired && purpleKept && miss73.length === 0
     ? "PASS 后期压力回升、变类卡供给充足、紫装不再被丢弃" : "FAIL v7.3 P1/P2 异常");
+
+  // ============================================================
+  // 64) v7.8.6 入口修复 · 让「主界面只剩签到、点不到开始」不再复发
+  // ============================================================
+  say("");
+  say("== 64) v7.8.6 入口可达性（信息架构 + 触摸滚动 + 折叠接线）==");
+  const htmlE86 = fs.readFileSync(HTML, "utf8");
+  const cssE86 = fs.readFileSync(path.join(SITE, "style.css"), "utf8");
+  const srcE86 = fs.readFileSync(SRC, "utf8");
+
+  // 64.1 架构：主入口必须排在回访壳之前；三个回访盒必须被关进 revisitBody
+  const iStart86 = htmlE86.indexOf('id="btnStart"');
+  const iPanel86 = htmlE86.indexOf('id="revisitPanel"');
+  const iBody86 = htmlE86.indexOf('id="revisitBody"');
+  const iVer86 = htmlE86.indexOf('class="ver-hint"');
+  const orderOK86 = iStart86 > 0 && iPanel86 > 0 && iStart86 < iPanel86;
+  say(`「踏入战场」偏移 ${iStart86} · 「修行录」偏移 ${iPanel86} ⇒ 入口在回访壳之前=${orderOK86}`);
+  const boxesInside86 = ['class="daily-box"', 'id="signinBox"', 'id="weeklyBox"']
+    .every((s) => { const i = htmlE86.indexOf(s); return i > iBody86 && i < iVer86; });
+  say(`日课/签到/周常三盒都在 #revisitBody 内=${boxesInside86}`);
+  const panelTag86 = (htmlE86.match(/<div class="revisit-panel"[^>]*>/) || [])[0] || "";
+  const collapsed86 = panelTag86 !== "" && !/\bopen\b/.test(panelTag86);
+  say(`修行录默认收起=${collapsed86}（${panelTag86 || "未找到面板标签"}）`);
+
+  // 64.2 样式：兜底滚动 + 触摸可滚（否则真机上滚不动，等于没兜底）
+  const cssOK86 = {
+    "start-inner 可纵向滚动": /\.start-inner\s*\{[^}]*overflow-y:\s*auto/.test(cssE86),
+    "html,body 放行纵向平移": /html,\s*body\s*\{[^}]*touch-action:\s*pan-y/.test(cssE86),
+    "screen 层可纵向拖滚": /\.screen\s*\{[^}]*touch-action:\s*pan-y/.test(cssE86),
+    "玩法层仍禁手势": /\.joy-zone\s*\{[^}]*touch-action:\s*none/.test(cssE86),
+    "折叠体默认隐藏": /\.revisit-body\s*\{\s*display:\s*none/.test(cssE86),
+    "展开后显示": /\.revisit-panel\.open\s*\.revisit-body\s*\{\s*display:\s*block/.test(cssE86),
+  };
+  const cssMiss86 = Object.keys(cssOK86).filter((k) => !cssOK86[k]);
+  Object.keys(cssOK86).forEach((k) => say(`  ${cssOK86[k] ? "OK  " : "MISS"} ${k}`));
+
+  // 64.3 逻辑接线
+  const wire86 = {
+    "syncStartLayout 定义": /function syncStartLayout\(\)/,
+    "setRevisitOpen 定义": /function setRevisitOpen\(/,
+    "徽标刷新定义": /function refreshRevisitBadge\(\)/,
+    "showMenu 回菜单后巡检": /requestAnimationFrame\(\(\) => syncStartLayout\(\)\)/,
+    "refreshShellUI 内刷徽标": srcE86.includes("v7.8.6：折叠状态下的「修行录」徽标同步"),
+    "转屏/改窗重新巡检": /addEventListener\("resize", \(\) => setTimeout\(syncStartLayout/,
+    "巡检函数已导出": /syncStartLayout, setRevisitOpen, refreshRevisitBadge,/.test(srcE86),
+  };
+  const wireMiss86 = Object.keys(wire86).filter((k) => !wire86[k]);
+  Object.keys(wire86).forEach((k) => say(`  ${wire86[k] ? "OK  " : "MISS"} ${k}`));
+  const exported86 = X && typeof X.syncStartLayout === "function" && typeof X.setRevisitOpen === "function"
+    && typeof X.refreshRevisitBadge === "function";
+  say(`__XTJ__ 导出巡检函数=${exported86}`);
+
+  const entryOK86 = orderOK86 && boxesInside86 && collapsed86 && cssMiss86.length === 0
+    && wireMiss86.length === 0 && exported86;
+  say(entryOK86
+    ? "PASS 主入口在首屏、回访壳可折叠、触摸可滚兜底齐备"
+    : "FAIL 入口可达性架构异常：" + [orderOK86 ? "" : "顺序", boxesInside86 ? "" : "收纳",
+        collapsed86 ? "" : "默认折叠", cssMiss86.join("/"), wireMiss86.join("/"), exported86 ? "" : "导出"]
+        .filter(Boolean).join(" "));
 
   say("== 运行状态 ==");
   say(`state=${G.state} wave=${G.wave} kills=${G.kills} enemies=${G.enemies.length} hp=${Math.round(G.hp)} lv=${G.level}`);

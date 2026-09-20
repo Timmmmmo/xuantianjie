@@ -1,6 +1,13 @@
-/* 玄天劫 · 刷不完的怪 v1.2 — 对齐 2026 TOP10 幸存者玩法 */
+/* 玄天劫 · 刷不完的怪 v1.2 — 对齐 2026 TOP10 幸存者玩法
+ * 构建版本：v7.8.6-mr（唯一版本源 = 下方 APP_VERSION；sw.js 缓存名 / index.html 版本标签必须与之一致） */
 (() => {
 "use strict";
+
+// v7.8.5 P1 修复 · 版本号单一来源。
+//   此前三处各写各的：sw.js 缓存名 = xuantianjie-v7.8.5-mr、埋点 build = v7.8.2-mbiz、
+//   index.html 版本标签 = v7.8.5 —— 埋点归因和「本地是不是旧缓存」的判断全部不可信。
+//   现在只在这里定义一次，其余位置一律引用它，并由 tools/gate.js 强制校验一致性。
+const APP_VERSION = "v7.8.6-mr";
 
 const $ = (id) => document.getElementById(id);
 const canvas = $("game");
@@ -8065,6 +8072,8 @@ function refreshShellUI() {
       else span.textContent = `灵石×2 · 演示广告（今日${left}次）`;
     }
   } catch (_) {}
+  // v7.8.6：折叠状态下的「修行录」徽标同步（有东西可领时高亮）
+  refreshRevisitBadge();
 }
 
 function showMenu() {
@@ -8085,6 +8094,8 @@ function showMenu() {
   refreshMetaUI();
   renderChars();
   refreshShellUI();
+  // v7.8.6：回菜单后巡检一次入口可达性（等布局稳定再量，避免量到动画中间态）
+  requestAnimationFrame(() => syncStartLayout());
 }
 
 // ---------- 暂停 / 全屏 / 屏幕常亮 / 触感 ----------
@@ -8282,7 +8293,7 @@ ui.btnHome.addEventListener("click", showMenu);
       else toast("分享未完成，可稍后再试");
     });
   }
-  try { if (window.Analytics) Analytics.track("app_open", { build: "v7.8.2-mbiz" }); } catch (_) {}
+  try { if (window.Analytics) Analytics.track("app_open", { build: APP_VERSION }); } catch (_) {}
 
   const btnAdDouble = document.getElementById("btnAdDouble");
   if (btnAdDouble) {
@@ -8366,6 +8377,123 @@ ui.btnHome.addEventListener("click", showMenu);
     });
   }
 })();
+
+// ---------- v7.8.6 入口修复：修行录折叠 + 开始页可达性守卫 ----------
+//   事故：v7.8 把 日课/签到/周常 三盒直接堆在开始页（合计 ~480px），
+//         叠加 body{position:fixed;overflow:hidden}，flex 居中会让超高内容「上下同时裁掉」——
+//         「踏入战场」被顶到视口外且页面不可滚动，玩家看到的就是「主界面只剩签到，进不去游戏」。
+//   对策：① 三盒收进默认折叠的「修行录」，主入口回到首屏；
+//        ② 折叠状态记档（玩家手动展开过，就尊重他的选择保持展开）；
+//        ③ 每次回菜单 / 转屏 / 改窗都跑一次可达性巡检：入口若仍不在可视区，
+//           自动收起面板并把它滚进视野 —— 保证「任何机型都点得到开始」。
+const REVISIT_KEY = "xuantianjie_revisit_open";
+const revisitPanel = document.getElementById("revisitPanel");
+const revisitBody = document.getElementById("revisitBody");
+const revisitBadge = document.getElementById("revisitBadge");
+let _revisitUserOpen = false;
+
+function setRevisitOpen(open, opts) {
+  const o = opts || {};
+  if (!revisitPanel) return;
+  revisitPanel.classList.toggle("open", !!open);
+  const head = document.getElementById("btnRevisitToggle");
+  if (head) head.setAttribute("aria-expanded", open ? "true" : "false");
+  if (o.byUser) _revisitUserOpen = !!open;
+  if (o.persist) { try { localStorage.setItem(REVISIT_KEY, open ? "1" : "0"); } catch (_) {} }
+}
+
+// 徽标：告诉玩家「里面有没有东西可领」，折叠状态下也不丢信息
+function refreshRevisitBadge() {
+  if (!revisitBadge) return;
+  try {
+    const meta = Meta.load();
+    const parts = [];
+    let hot = false;
+    if (window.Daily) {
+      const snap = Daily.snapshot(meta);
+      parts.push(`日课 ${snap.doneCount}/${snap.total}`);
+      if (snap.doneCount < snap.total) hot = true;
+    }
+    if (window.Signin) {
+      const st = Signin.status(meta);
+      parts.push(st.canClaim ? `签到 +${st.reward} 可领` : "签到已领");
+      if (st.canClaim) hot = true;
+    }
+    if (window.Weekly) {
+      const st = Weekly.status(meta);
+      if (st.claimed) parts.push("周常已领");
+      else if (st.canClaim) { parts.push(`周常 +${st.challenge.reward} 可领`); hot = true; }
+      else parts.push(`周常 ${st.progress}/${st.target}`);
+    }
+    revisitBadge.textContent = parts.join(" · ") || "日课 · 签到 · 周常";
+    revisitBadge.classList.toggle("hot", hot);
+  } catch (_) {}
+}
+
+// 可达性巡检：入口按钮必须完整落在开始页可视区内
+function syncStartLayout() {
+  try {
+    if (G.state !== "menu") return;
+    const inner = document.querySelector("#startScreen .start-inner");
+    const btn = document.getElementById("btnStart");
+    if (!inner || !btn) return;
+    const ir = inner.getBoundingClientRect();
+    const br = btn.getBoundingClientRect();
+    const outside = br.top < ir.top - 0.5 || br.bottom > ir.bottom + 0.5;
+    if (outside) {
+      // 面板最占地：玩家没主动展开就先收掉，再把入口滚进视野
+      if (revisitPanel && revisitPanel.classList.contains("open") && !_revisitUserOpen) {
+        setRevisitOpen(false, { persist: true });
+      }
+      inner.scrollTop = Math.max(0, btn.offsetTop - 10);
+    } else if (inner.scrollHeight <= inner.clientHeight + 1) {
+      inner.scrollTop = 0;
+    }
+  } catch (_) {}
+}
+
+(function bindRevisit() {
+  const head = document.getElementById("btnRevisitToggle");
+  if (head) {
+    head.addEventListener("click", () => {
+      const next = !(revisitPanel && revisitPanel.classList.contains("open"));
+      setRevisitOpen(next, { byUser: true, persist: true });
+      AudioSys.init();
+      if (next) toast("修行录已展开 · 再点收起", "cyan");
+    });
+  }
+  let saved = false;
+  try { saved = localStorage.getItem(REVISIT_KEY) === "1"; } catch (_) {}
+  setRevisitOpen(saved, {});
+  refreshRevisitBadge();
+  // 转屏 / 改窗后重新巡检（iOS 地址栏收放也会触发 resize）
+  window.addEventListener("resize", () => setTimeout(syncStartLayout, 120));
+  window.addEventListener("orientationchange", () => setTimeout(syncStartLayout, 260));
+  // 内容尺寸一旦变化就重巡检：中文标题字体晚到、动态数据写入都会把内容顶高，
+  // 只在 showMenu 那一刻量一次是不够的（横屏失守就是这么来的）。
+  try {
+    if (window.ResizeObserver) {
+      const inner = document.querySelector("#startScreen .start-inner");
+      if (inner) {
+        let queued = false;
+        new ResizeObserver(() => {
+          if (queued) return;
+          queued = true;
+          requestAnimationFrame(() => { queued = false; syncStartLayout(); });
+        }).observe(inner);
+      }
+    }
+  } catch (_) {}
+  try {
+    if (document.fonts && document.fonts.ready && document.fonts.ready.then) {
+      document.fonts.ready.then(() => syncStartLayout());
+    }
+  } catch (_) {}
+  // 首屏兜底：启动后两个时间点各再量一次，覆盖「首帧量早了」的情况
+  setTimeout(syncStartLayout, 600);
+  setTimeout(syncStartLayout, 1800);
+})();
+
 ui.btnShop.addEventListener("click", () => {
   G.state = "shop";
   setMenuBg(true);
@@ -8486,6 +8614,10 @@ window.Meta = Meta;
 window.Quality = Quality;
 // 调试/无头测试钩子（无副作用）
 window.__XTJ__ = {
+  // v7.8.5 版本单一来源（供 tools/gate.js 与真机复现台校验）
+  APP_VERSION,
+  // v7.8.6 入口修复（供入口可达性审计 tools/entry-audit.js 与冒烟断言调用）
+  syncStartLayout, setRevisitOpen, refreshRevisitBadge,
   openLevelUp, openJobModal, jobSyncHud, shouldOfferJob, buildUpgradePool, rollUpgrades, gainXP,
   JOB_PATHS, JOB_LEVELS, JOB_STAGES, NODE_HOLD,
   openRelicModal, updateBeasts, spawnBeast, relicHudSync, beastHudSync, renderCodex, showCodex, hideCodex,

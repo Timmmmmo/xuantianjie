@@ -1,0 +1,63 @@
+========================================
+ 玄天劫 · 发布门禁 gate.js
+ 时间：2026-09-20T13:04:16.552Z
+ 模式：full
+========================================
+
+【门禁 1】语法 node --check
+  ok    game.js
+  ok    sw.js
+  ok    js/ads.js
+  ok    js/analytics.js
+  ok    js/daily.js
+  ok    js/meta.js
+  ok    js/modes.js
+  ok    js/sharecard.js
+  ok    js/signin.js
+  ok    js/tutorial.js
+  ok    js/weekly.js
+  ok    tests/logic-smoke.js
+  ok    tools/audit-sim.js
+  ok    tools/balance-sim.js
+  ok    tools/crash-repro.js
+  ok    tools/deploy.js
+  ok    tools/entry-audit.js
+  ok    tools/ftue-sim.js
+  ok    tools/gate.js
+  ok    tools/playability-sim.js
+
+【门禁 2】版本一致性
+  game.js  APP_VERSION : v7.8.6-mr
+  sw.js    缓存名版本  : v7.8.6-mr
+  index.html 版本标签  : v7.8.6
+  docs/README 版本     : v7.8.6
+  版本核心一致（4 处） : PASS
+  sw 缓存名 ＝ APP_VERSION : PASS
+
+【门禁 3】冒烟 tests/logic-smoke.js
+  冒烟退出码=0 · PASS=141 · FAIL=0
+
+【门禁 4】探针仿真
+  ok    audit-sim（退出码 0）
+  ok    balance-sim（退出码 0）
+  ok    ftue-sim（退出码 0）
+  ok    playability-sim（退出码 0）
+
+【门禁 5】入口可达性 tools/entry-audit.js（真机 Edge）
+  [ 视口内 ] 踏入战场(主入口)　　　　　　　 top=  542.6 bottom=  597.6 h=    55  hit=SPAN ✓
+  入口审计退出码=0 · 问题 0 条
+
+========================================
+ 门禁汇总
+========================================
+  [绿] 语法（20 个 js）            · 全部通过
+  [绿] 版本一致性                  · 4 处核心版本一致，缓存名含完整构建号 v7.8.6-mr
+  [绿] 冒烟 logic-smoke         · 141 PASS / 0 FAIL
+  [绿] 探针 audit-sim           · exit=0
+  [绿] 探针 balance-sim         · exit=0
+  [绿] 探针 ftue-sim            · exit=0
+  [绿] 探针 playability-sim     · exit=0
+  [绿] 入口可达性                  · 主入口完整在首屏、可点，开始/暂停/回菜单闭环通
+
+ 结论：门禁全绿 —— 允许部署 ✅
+========================================

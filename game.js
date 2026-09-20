@@ -204,6 +204,9 @@ function normalizeMetaDraft(d) {
     adUsage: src.adUsage && typeof src.adUsage === "object"
       ? { ...src.adUsage }
       : { date: "", settle_double: 0, daily_refresh: 0 },
+    weekly: src.weekly && typeof src.weekly === "object"
+      ? { ...src.weekly, history: (src.weekly.history || []).slice(0, 4) }
+      : null,
     version: 3,
   };
 }
@@ -235,6 +238,9 @@ function readMetaRaw() {
         contract: v3.contract != null ? v3.contract : (v2.contract || null),
         daily: v3.daily || v2.daily,
         signin: v3.signin || v2.signin,
+        weekly: v3.weekly || v2.weekly || null,
+        premium: v3.premium || v2.premium,
+        adUsage: v3.adUsage || v2.adUsage,
         tutorialDone: !!(v3.tutorialDone || v2.tutorialDone),
       };
     }
@@ -5629,6 +5635,19 @@ function endRun() {
     }
   } catch (_) {}
 
+  // M-R 本周挑战
+  try {
+    if (window.Weekly) {
+      const wr = Weekly.applyRun(Meta.load(), { wave: G.wave, kills: G.kills, comboPeak: G.comboPeak });
+      Meta.save(wr.meta);
+      if (wr.newly) {
+        const wch = (window.Weekly && Weekly.CHALLENGES || []).find((c) => c.id === wr.challengeId);
+        toast(`本周挑战达成 · ${wch ? wch.name : wr.challengeId} · 可领取`, "gold");
+        if (window.Analytics) Analytics.track("weekly_progress", { id: wr.challengeId, progress: wr.progress });
+      }
+    }
+  } catch (_) {}
+
   // M-Biz：结算激励位状态（翻倍按钮）
   try {
     const adDouble = document.getElementById("btnAdDouble");
@@ -8006,6 +8025,20 @@ function refreshShellUI() {
     }
   } catch (_) {}
   try {
+    const wName = document.getElementById("weeklyName");
+    const wProg = document.getElementById("weeklyProgress");
+    const wBtn = document.getElementById("btnWeeklyClaim");
+    if (window.Weekly && wName) {
+      const st = Weekly.status(Meta.load());
+      wName.textContent = st.challenge.name;
+      if (wProg) wProg.textContent = `${st.progress}/${st.target} · ${st.challenge.desc}`;
+      if (wBtn) {
+        wBtn.disabled = !st.canClaim;
+        wBtn.textContent = st.claimed ? "本周已领取" : st.completed ? `领取 +${st.challenge.reward}` : "未完成";
+      }
+    }
+  } catch (_) {}
+  try {
     const btnAdDaily = document.getElementById("btnAdDaily");
     if (btnAdDaily && window.Ads) {
       const meta = Meta.load();
@@ -8193,6 +8226,21 @@ ui.btnHome.addEventListener("click", showMenu);
 
 // Sprint B 壳：签到 / 分享
 (function bindShell() {
+  const btnWeekly = document.getElementById("btnWeeklyClaim");
+  if (btnWeekly) {
+    btnWeekly.addEventListener("click", () => {
+      if (!window.Weekly) return;
+      const res = Weekly.claim(Meta.load());
+      if (res.ok) {
+        Meta.save(res.meta);
+        AudioSys.buy();
+        toast(res.msg, "gold");
+        if (window.Analytics) Analytics.track("weekly_claim", { id: res.meta.weekly && res.meta.weekly.challengeId, coins: res.coins });
+      } else toast(res.msg);
+      refreshMetaUI();
+      refreshShellUI();
+    });
+  }
   const btnSignin = document.getElementById("btnSignin");
   if (btnSignin) {
     btnSignin.addEventListener("click", () => {

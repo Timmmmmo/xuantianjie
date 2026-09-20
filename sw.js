@@ -1,11 +1,18 @@
 /* 玄天劫 · 离线缓存 Service Worker */
-const CACHE = "xuantianjie-v7.7";
+const CACHE = "xuantianjie-v2.0.1-sprint-b";
 const ASSETS = [
   "./",
   "./index.html",
   "./style.css",
   "./game.js",
   "./manifest.webmanifest",
+  "./js/analytics.js",
+  "./js/meta.js",
+  "./js/daily.js",
+  "./js/modes.js",
+  "./js/signin.js",
+  "./js/tutorial.js",
+  "./js/sharecard.js",
   "./assets/bg-start.png",
   "./assets/char-sword.png",
   "./assets/char-mage.png",
@@ -48,26 +55,7 @@ self.addEventListener("fetch", (e) => {
     );
     return;
   }
-  // v7.5.1 关键修复：代码类资源「网络优先，离线回退缓存」。
-  //   原来是缓存优先 —— 玩家本地一旦存住旧版 game.js，新版发上去他根本拿不到，
-  //   表现就是「你说明明做了，我这边就是没有」。离线能力不能靠牺牲更新到达率来换。
-  //   图片/图标不会变，继续走缓存优先（省流量、秒开）。
-  const url = new URL(req.url);
-  const isCode = /\.(html|js|css|json|webmanifest)$/.test(url.pathname) || url.pathname.endsWith("/");
-  if (isCode) {
-    e.respondWith(
-      fetch(req)
-        .then((res) => {
-          if (res && res.status === 200) {
-            const copy = res.clone();
-            caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
-          }
-          return res;
-        })
-        .catch(() => caches.match(req).then((hit) => hit || caches.match("./index.html")))
-    );
-    return;
-  }
+  // 其余静态资源：缓存优先
   e.respondWith(
     caches.match(req).then((hit) => {
       if (hit) return hit;

@@ -197,6 +197,13 @@ function normalizeMetaDraft(d) {
     tutorialDone: !!src.tutorialDone,
     modeStats: src.modeStats || { quickWins: 0, endlessBestWave: 0 },
     lastMode: src.lastMode || "endless",
+    premium: {
+      noAds: !!(src.premium && src.premium.noAds),
+      skins: (src.premium && src.premium.skins) || [],
+    },
+    adUsage: src.adUsage && typeof src.adUsage === "object"
+      ? { ...src.adUsage }
+      : { date: "", settle_double: 0, daily_refresh: 0 },
     version: 3,
   };
 }
@@ -2902,6 +2909,7 @@ function resetRun(charId) {
   G.shieldHit = 0;
   G.combo = 0; G.comboTimer = 0; G.comboPeak = 0; G.comboMul = 1;
   G.coinsRun = 0;
+  G._adDoubleUsed = false;
   G.nodeBonus = 0;
   G.nodeHoldBonus = 0;
   G.dmgTakenMul = 1;
@@ -5621,6 +5629,25 @@ function endRun() {
     }
   } catch (_) {}
 
+  // M-Biz：结算激励位状态（翻倍按钮）
+  try {
+    const adDouble = document.getElementById("btnAdDouble");
+    if (adDouble && window.Ads) {
+      const meta = Meta.load();
+      const premium = Ads.isPremium(meta);
+      const left = Ads.remainingToday("settle_double", meta);
+      const usedThisRun = !!G._adDoubleUsed;
+      adDouble.disabled = premium || usedThisRun || left <= 0 || coins <= 0;
+      adDouble.dataset.runCoins = String(coins);
+      const span = adDouble.querySelector("span") || adDouble;
+      if (premium) span.textContent = "已去广告";
+      else if (usedThisRun) span.textContent = "本局已翻倍";
+      else if (left <= 0) span.textContent = "今日翻倍已用完";
+      else if (coins <= 0) span.textContent = "无灵石可翻倍";
+      else span.textContent = `灵石×2 · 演示广告（今日${left}次）`;
+    }
+  } catch (_) {}
+
   ui.hud.classList.add("hidden");
   ui.levelModal.classList.add("hidden");
   ui.comboBadge.classList.add("hidden");
@@ -7978,6 +8005,16 @@ function refreshShellUI() {
       span.textContent = st.canClaim ? `领取签到 +${st.reward}` : `今日已领 · 明日 ${st.nextDay}`;
     }
   } catch (_) {}
+  try {
+    const btnAdDaily = document.getElementById("btnAdDaily");
+    if (btnAdDaily && window.Ads) {
+      const meta = Meta.load();
+      const premium = Ads.isPremium(meta);
+      const left = Ads.remainingToday("daily_refresh", meta);
+      btnAdDaily.disabled = premium || left <= 0;
+      btnAdDaily.textContent = premium ? "已去广告" : (left <= 0 ? "今日补签已用完" : "补全一条日课 · 演示广告");
+    }
+  } catch (_) {}
 }
 
 function showMenu() {
@@ -8180,7 +8217,79 @@ ui.btnHome.addEventListener("click", showMenu);
       else toast("分享未完成，可稍后再试");
     });
   }
-  try { if (window.Analytics) Analytics.track("app_open", { build: "v7.8.0-merge" }); } catch (_) {}
+  try { if (window.Analytics) Analytics.track("app_open", { build: "v7.8.2-mbiz" }); } catch (_) {}
+
+  const btnAdDouble = document.getElementById("btnAdDouble");
+  if (btnAdDouble) {
+    btnAdDouble.addEventListener("click", async () => {
+      if (!window.Ads || btnAdDouble.disabled || Ads.busy()) return;
+      btnAdDouble.disabled = true;
+      const runCoins = Number(btnAdDouble.dataset.runCoins || G.coinsRun || 0);
+      toast("演示广告播放中…");
+      const r = await Ads.offer("settle_double");
+      if (r.ok) {
+        const g = Ads.grantSettleDouble(runCoins, { usedThisRun: !!G._adDoubleUsed });
+        if (g.ok) {
+          toast(g.msg, "gold");
+          const overCoins = document.getElementById("overCoins");
+          if (overCoins) overCoins.textContent = "+" + (runCoins + g.add);
+          G._adDoubleUsed = true;
+          G.coinsRun = runCoins + g.add;
+          btnAdDouble.dataset.runCoins = "0";
+          refreshMetaUI();
+        } else {
+          toast(g.msg);
+        }
+      } else {
+        toast(r.error === "premium" ? "已去广告" : r.error === "busy" ? "广告播放中" : r.error === "daily_limit" ? "今日翻倍已用完" : "广告未完成");
+      }
+      refreshShellUI();
+      const span = btnAdDouble.querySelector("span") || btnAdDouble;
+      if (Ads.isPremium(Meta.load())) span.textContent = "已去广告";
+      else if (G._adDoubleUsed) span.textContent = "本局已翻倍";
+      else if (Ads.remainingToday("settle_double", Meta.load()) <= 0) span.textContent = "今日翻倍已用完";
+      else span.textContent = `灵石×2 · 演示广告（今日${Ads.remainingToday("settle_double", Meta.load())}次）`;
+      btnAdDouble.disabled = Ads.isPremium(Meta.load()) || !!G._adDoubleUsed || Ads.remainingToday("settle_double", Meta.load()) <= 0 || Ads.busy();
+    });
+  }
+
+  const btnAdDaily = document.getElementById("btnAdDaily");
+  if (btnAdDaily) {
+    btnAdDaily.addEventListener("click", async () => {
+      if (!window.Ads || btnAdDaily.disabled || Ads.busy()) return;
+      btnAdDaily.disabled = true;
+      toast("演示广告播放中…");
+      const r = await Ads.offer("daily_refresh");
+      if (r.ok) {
+        const g = Ads.grantDailyRefresh(undefined, { refundOnFail: true });
+        if (g.ok) {
+          toast(g.msg, "gold");
+          for (const gr of g.grants || []) {
+            if (window.Analytics) Analytics.track("daily_complete", { id: gr.id, coins: gr.coins, via: "ad" });
+          }
+        } else toast(g.msg);
+      } else {
+        toast(r.error === "premium" ? "已去广告" : r.error === "busy" ? "广告播放中" : r.error === "daily_limit" ? "今日补签已用完" : "广告未完成");
+      }
+      refreshMetaUI();
+      refreshShellUI();
+      btnAdDaily.disabled = Ads.isPremium(Meta.load()) || Ads.remainingToday("daily_refresh", Meta.load()) <= 0 || Ads.busy();
+    });
+  }
+
+  const btnPremium = document.getElementById("btnPremiumMock");
+  if (btnPremium) {
+    btnPremium.addEventListener("click", () => {
+      const meta = Meta.load();
+      const next = !(meta.premium && meta.premium.noAds);
+      meta.premium = meta.premium || { noAds: false, skins: [] };
+      meta.premium.noAds = next;
+      Meta.save(meta);
+      if (window.Analytics) Analytics.track("premium_toggle", { noAds: next, mock: true });
+      toast(next ? "预研：已开启去广告" : "预研：已关闭去广告", "cyan");
+      refreshShellUI();
+    });
+  }
 })();
 ui.btnShop.addEventListener("click", () => {
   G.state = "shop";

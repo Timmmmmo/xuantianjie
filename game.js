@@ -8015,6 +8015,23 @@ function refreshShellUI() {
       btnAdDaily.textContent = premium ? "已去广告" : (left <= 0 ? "今日补签已用完" : "补全一条日课 · 演示广告");
     }
   } catch (_) {}
+  try {
+    const btnAdDouble = document.getElementById("btnAdDouble");
+    if (btnAdDouble && window.Ads) {
+      const meta = Meta.load();
+      const premium = Ads.isPremium(meta);
+      const left = Ads.remainingToday("settle_double", meta);
+      const used = !!G._adDoubleUsed;
+      const runCoins = Number(btnAdDouble.dataset.runCoins || 0);
+      btnAdDouble.disabled = premium || used || left <= 0 || runCoins <= 0;
+      const span = btnAdDouble.querySelector("span") || btnAdDouble;
+      if (premium) span.textContent = "已去广告";
+      else if (used) span.textContent = "本局已翻倍";
+      else if (left <= 0) span.textContent = "今日翻倍已用完";
+      else if (runCoins <= 0) span.textContent = "无灵石可翻倍";
+      else span.textContent = `灵石×2 · 演示广告（今日${left}次）`;
+    }
+  } catch (_) {}
 }
 
 function showMenu() {
@@ -8288,6 +8305,16 @@ ui.btnHome.addEventListener("click", showMenu);
       if (window.Analytics) Analytics.track("premium_toggle", { noAds: next, mock: true });
       toast(next ? "预研：已开启去广告" : "预研：已关闭去广告", "cyan");
       refreshShellUI();
+      // 结算页翻倍按钮同步 premium 态
+      try {
+        const adD = document.getElementById("btnAdDouble");
+        if (adD && window.Ads) {
+          const left = Ads.remainingToday("settle_double", meta);
+          adD.disabled = next || !!G._adDoubleUsed || left <= 0;
+          const span = adD.querySelector("span") || adD;
+          if (next) span.textContent = "已去广告";
+        }
+      } catch (_) {}
     });
   }
 })();

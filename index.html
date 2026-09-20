@@ -320,6 +320,7 @@
       <div class="daily-box">
         <div class="daily-head"><span>每日修行</span><b id="dailyCount">0/3</b></div>
         <div id="dailyList" class="daily-list"></div>
+        <button id="btnAdDaily" class="mini-btn ad-btn" type="button">补全一条日课 · 演示广告</button>
       </div>
       <div class="signin-box" id="signinBox">
         <div class="daily-head"><span>修行签到</span><b id="signinStatus">今日可领</b></div>
@@ -332,13 +333,14 @@
         <button id="btnCodex" class="btn-ghost btn-codex"><span class="btn-ico">鉴</span>万宝图鉴</button>
         <button id="btnStart" class="btn-primary"><span>踏入战场</span></button>
       </div>
-      <div class="quick-row">
+      <div class="btn-row">
         <button id="btnFullscreen" class="mini-btn" type="button">全屏</button>
         <button id="btnSound" class="mini-btn" type="button">音效 开</button>
+        <button id="btnPremiumMock" class="mini-btn" type="button">预研·去广告</button>
       </div>
       <div class="controls-hint">拖动屏幕任意位置移动 · 飞剑自动索敌 · 剑气 / 御风清场</div>
       <!-- v7.5.1：版本号外显 —— 更新不生效时，一眼就能看出是不是本地还在跑旧缓存 -->
-      <div class="ver-hint">v7.8 · 七修合一 · v7.7玩法 + 签到/分享/日课</div>
+      <div class="ver-hint">v7.8.3 · IAA 预研 · v7.7玩法 + 签到/日课/分享</div>
     </div>
   </div>
 
@@ -389,6 +391,7 @@
       </div>
       <div class="over-msg" id="overMsg"></div>
       <div class="btn-row">
+        <button id="btnAdDouble" class="btn-ghost ad-btn" type="button"><span>灵石×2 · 演示广告</span></button>
         <button id="btnShare" class="btn-ghost" type="button">分享战绩</button>
       </div>
       <div class="btn-row">
@@ -428,6 +431,7 @@
   </div>
 </div>
 <script src="js/analytics.js"></script>
+<script src="js/ads.js"></script>
 <script src="js/signin.js"></script>
 <script src="js/daily.js"></script>
 <script src="js/sharecard.js"></script>

@@ -1,13 +1,6 @@
-/* 玄天劫 · 刷不完的怪 v1.2 — 对齐 2026 TOP10 幸存者玩法
- * 构建版本：v7.8.6-mr（唯一版本源 = 下方 APP_VERSION；sw.js 缓存名 / index.html 版本标签必须与之一致） */
+/* 玄天劫 · 刷不完的怪 v1.2 — 对齐 2026 TOP10 幸存者玩法 */
 (() => {
 "use strict";
-
-// v7.8.5 P1 修复 · 版本号单一来源。
-//   此前三处各写各的：sw.js 缓存名 = xuantianjie-v7.8.5-mr、埋点 build = v7.8.2-mbiz、
-//   index.html 版本标签 = v7.8.5 —— 埋点归因和「本地是不是旧缓存」的判断全部不可信。
-//   现在只在这里定义一次，其余位置一律引用它，并由 tools/gate.js 强制校验一致性。
-const APP_VERSION = "v7.8.6-mr";
 
 const $ = (id) => document.getElementById(id);
 const canvas = $("game");
@@ -4083,21 +4076,54 @@ function openEssenceModal() { /* v4.0 灵魄不再弹窗 */ }
 
 // ---------- Enemies ----------
 const ENEMY_TYPES = {
-  fox: { name: "野狐妖", r: 12, hp: 28, atk: 8, speed: 95, xp: 5, color: "#fb923c", shape: "fox" },
-  wolf: { name: "妖狼", r: 13, hp: 40, atk: 11, speed: 120, xp: 7, color: "#a3e635", shape: "wolf" },
-  golem: { name: "石傀儡", r: 18, hp: 95, atk: 14, speed: 55, xp: 12, color: "#94a3b8", shape: "golem" },
-  ghost: { name: "幽魂", r: 11, hp: 22, atk: 9, speed: 105, xp: 6, color: "#a78bfa", shape: "ghost", splits: true },
-  bat: { name: "血蝠", r: 10, hp: 18, atk: 7, speed: 145, xp: 4, color: "#f87171", shape: "bat" },
-  eliteFox: { name: "赤焰狐将", r: 20, hp: 160, atk: 18, speed: 85, xp: 30, color: "#f472b6", shape: "fox", elite: true },
-  eliteGolem: { name: "玄铁傀儡", r: 24, hp: 280, atk: 22, speed: 50, xp: 40, color: "#c084fc", shape: "golem", elite: true },
-  bossFox: { name: "九尾妖王", r: 32, hp: 900, atk: 28, speed: 70, xp: 120, color: "#fbbf24", shape: "fox", boss: true, summon: true },
-  bossGolem: { name: "山神傀儡", r: 36, hp: 1400, atk: 32, speed: 45, xp: 150, color: "#f59e0b", shape: "golem", boss: true, slam: true },
-  // v7.0 B 尸潮涌：低血高速的炮灰，靠数量制造割草密度，不靠单只强度
-  hordeling: { name: "尸傀", r: 9, hp: 14, atk: 6, speed: 150, xp: 2, color: "#78716c", shape: "ghost" },
-  // v7.4 玄铁试炼桩：伤害测试者 —— 不动、不还手、只挨打。
-  //   血量由 spawnTrial 直接覆写（这里写 100 只是占位），60 秒内打碎即算通过。
-  dummy: { name: "玄铁试炼桩", r: 34, hp: 100, atk: 0, speed: 0, xp: 0, color: "#94a3b8", shape: "dummy" },
+  fox: { name: "野狐妖", r: 12, hp: 28, atk: 8, speed: 95, xp: 5, color: "#fb923c", shape: "fox",
+    vis: { rim: "#7c2d12", hi: "#fdba74", burst: "#fb923c", eyes: "#fef3c7" } },
+  wolf: { name: "妖狼", r: 13, hp: 40, atk: 11, speed: 120, xp: 7, color: "#a3e635", shape: "wolf",
+    vis: { rim: "#365314", hi: "#d9f99d", burst: "#a3e635", eyes: "#ecfccb" } },
+  golem: { name: "石傀儡", r: 18, hp: 95, atk: 14, speed: 55, xp: 12, color: "#94a3b8", shape: "golem",
+    vis: { rim: "#334155", hi: "#e2e8f0", burst: "#94a3b8", eyes: "#fbbf24" } },
+  ghost: { name: "幽魂", r: 11, hp: 22, atk: 9, speed: 105, xp: 6, color: "#a78bfa", shape: "ghost", splits: true,
+    vis: { rim: "#4c1d95", hi: "#e9d5ff", burst: "#c4b5fd", eyes: "#f5f3ff" } },
+  bat: { name: "血蝠", r: 10, hp: 18, atk: 7, speed: 145, xp: 4, color: "#f87171", shape: "bat",
+    vis: { rim: "#7f1d1d", hi: "#fecaca", burst: "#f87171", eyes: "#fee2e2" } },
+  eliteFox: { name: "赤焰狐将", r: 20, hp: 160, atk: 18, speed: 85, xp: 30, color: "#f472b6", shape: "fox", elite: true,
+    vis: { rim: "#831843", hi: "#fbcfe8", burst: "#f472b6", eyes: "#fff1f2" } },
+  eliteGolem: { name: "玄铁傀儡", r: 24, hp: 280, atk: 22, speed: 50, xp: 40, color: "#c084fc", shape: "golem", elite: true,
+    vis: { rim: "#5b21b6", hi: "#e9d5ff", burst: "#c084fc", eyes: "#fde68a" } },
+  bossFox: { name: "九尾妖王", r: 32, hp: 900, atk: 28, speed: 70, xp: 120, color: "#fbbf24", shape: "fox", boss: true, summon: true,
+    vis: { rim: "#78350f", hi: "#fef3c7", burst: "#fbbf24", eyes: "#fffbeb" } },
+  bossGolem: { name: "山神傀儡", r: 36, hp: 1400, atk: 32, speed: 45, xp: 150, color: "#f59e0b", shape: "golem", boss: true, slam: true,
+    vis: { rim: "#7c2d12", hi: "#fde68a", burst: "#f59e0b", eyes: "#fff7ed" } },
+  hordeling: { name: "尸傀", r: 9, hp: 14, atk: 6, speed: 150, xp: 2, color: "#78716c", shape: "ghost",
+    vis: { rim: "#292524", hi: "#d6d3d1", burst: "#a8a29e", eyes: "#e7e5e4" } },
+  dummy: { name: "玄铁试炼桩", r: 34, hp: 100, atk: 0, speed: 0, xp: 0, color: "#94a3b8", shape: "dummy",
+    vis: { rim: "#44403c", hi: "#fbbf24", burst: "#fbbf24", eyes: "#fef3c7" } },
 };
+
+// 角色克制（割草 Build 差异）：type 或 shape 命中则乘区
+const CHAR_MATCH = {
+  sword: { strong: ["fox", "bat", "ghost", "hordeling"], weak: ["golem", "eliteGolem", "bossGolem"], mult: 1.12, weakMult: 0.92 },
+  mage: { strong: ["ghost", "hordeling", "wolf"], weak: ["golem", "eliteGolem", "bossGolem"], mult: 1.15, weakMult: 0.90 },
+  body: { strong: ["golem", "eliteGolem", "bossGolem"], weak: ["bat"], mult: 1.18, weakMult: 0.88 },
+};
+function charVsEnemy(e) {
+  const m = CHAR_MATCH[G.charId];
+  if (!m || !e) return 1;
+  const keys = [];
+  if (e.type) keys.push(e.type);
+  if (e.shape) keys.push(e.shape);
+  for (const k of keys) {
+    if (m.strong.indexOf(k) >= 0) return m.mult;
+  }
+  for (const k of keys) {
+    if (m.weak.indexOf(k) >= 0) return m.weakMult;
+  }
+  return 1;
+}
+const EARLY_MERCY_WAVES = 3;
+function earlyEnemyAtkMul(wave) {
+  return (wave || 0) <= EARLY_MERCY_WAVES ? 0.92 : 1;
+}
 // v6.1 平衡：原指数 1.35 让 40 波血量 ×32 而攻击只 ×4.4，35~40 波必然撞墙
 //      指数降到 1.25（40 波 ×24.7）；经验随波次上涨见 spawnEnemy
 // v7.3 P1 · 终局压力
@@ -4120,7 +4146,9 @@ function endgameAtkMul(wave) {
 function enemyHP(base, wave) {
   return base * (1 + 0.18 * wave) * (1 + 0.02 * Math.pow(wave, 1.25)) * endgameHpMul(wave);
 }
-function enemyATK(base, wave) { return base * (1 + 0.12 * wave) * endgameAtkMul(wave); }
+function enemyATK(base, wave) {
+  return base * (1 + 0.12 * wave) * endgameAtkMul(wave) * earlyEnemyAtkMul(wave);
+}
 
 function spawnEnemy(typeId, x, y, wave, opts) {
   const t = ENEMY_TYPES[typeId];
@@ -4918,7 +4946,8 @@ function killEnemy(e, byPlayer = true) {
       G._thunderChain = (G._thunderChain || 0) - 1;
     }
   }
-  burst(e.x, e.y, e.color, e.boss ? 28 : e.elite ? 16 : 8, e.boss ? 220 : 130, e.boss ? 5 : 3);
+  const visBurst = (ENEMY_TYPES[e.type] && ENEMY_TYPES[e.type].vis && ENEMY_TYPES[e.type].vis.burst) || e.color;
+  burst(e.x, e.y, visBurst, e.boss ? 28 : e.elite ? 16 : 8, e.boss ? 220 : 130, e.boss ? 5 : 3);
   if (e.elite || e.boss) {
     G.particles.push({
       x: e.x, y: e.y, vx: 0, vy: 0,
@@ -5170,7 +5199,7 @@ function gemOnCrit(e, d) {
 
 function applyHit(e, dmg, opts = {}) {
   if (e.dead) return;
-  let d = dmg;
+  let d = dmg * charVsEnemy(e);
   // 五行相生相克：由已凝宝石的五行决定，通用装备不参与
   const rel = bestElemRelation(e.elem);
   if (rel.mul !== 1) d *= rel.mul;
@@ -7029,6 +7058,180 @@ function drawOffscreenIndicators() {
   }
 }
 
+/** Canvas 2.5D 妖物本体：剪影 + 顶光 + rim（调用前 ctx 已 translate 到怪心） */
+function drawEnemyBody(e, r, col) {
+  const shape = e.shape || "fox";
+  const vis = (ENEMY_TYPES[e.type] && ENEMY_TYPES[e.type].vis) || { rim: "#111", hi: "#fff", eyes: "#fff" };
+  const rim = e.boss ? "#78350f" : e.elite ? "#4c1d95" : (vis.rim || "rgba(0,0,0,0.55)");
+  const hi = e.flash > 0 ? "#ffffff" : (vis.hi || "#fff");
+  const eyes = vis.eyes || "#fff";
+  const wob = Math.sin((G.time || 0) * 3 + (e.phase || 0));
+
+  const fillBody = () => {
+    ctx.fillStyle = col;
+    ctx.strokeStyle = rim;
+    ctx.lineWidth = e.boss || e.elite ? 2.6 : 1.6;
+    ctx.shadowColor = e.color;
+    ctx.shadowBlur = e.boss ? 18 : e.elite ? 12 : 6;
+  };
+  const topShade = () => {
+    ctx.save();
+    ctx.shadowBlur = 0;
+    const g = ctx.createLinearGradient(0, -r, 0, r * 0.85);
+    g.addColorStop(0, "rgba(255,255,255,0.32)");
+    g.addColorStop(0.45, "rgba(255,255,255,0.05)");
+    g.addColorStop(1, "rgba(0,0,0,0.25)");
+    ctx.fillStyle = g;
+    ctx.globalCompositeOperation = "source-atop";
+    ctx.fillRect(-r * 1.6, -r * 1.6, r * 3.2, r * 3.2);
+    ctx.globalCompositeOperation = "source-over";
+    ctx.restore();
+  };
+  const eyesDot = (lx, ly, rr) => {
+    ctx.save();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = eyes;
+    ctx.beginPath();
+    ctx.arc(lx, ly, rr, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+  };
+
+  if (shape === "golem") {
+    fillBody();
+    // 躯干
+    ctx.beginPath();
+    const rr = r * 0.92;
+    ctx.moveTo(-rr * 0.95, -rr * 0.55);
+    ctx.lineTo(rr * 0.95, -rr * 0.72);
+    ctx.lineTo(rr * 0.88, rr * 0.72);
+    ctx.lineTo(-rr * 0.92, rr * 0.78);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    ctx.shadowBlur = 0;
+    // 肩甲
+    ctx.fillStyle = hi;
+    ctx.globalAlpha = 0.55;
+    ctx.fillRect(-rr * 1.05, -rr * 0.55, rr * 0.42, rr * 0.38);
+    ctx.fillRect(rr * 0.62, -rr * 0.62, rr * 0.42, rr * 0.38);
+    ctx.globalAlpha = 1;
+    // 腿
+    ctx.fillStyle = col;
+    ctx.strokeStyle = rim;
+    ctx.lineWidth = 1.4;
+    ctx.fillRect(-rr * 0.72, rr * 0.55, rr * 0.38, rr * 0.42);
+    ctx.fillRect(rr * 0.28, rr * 0.55, rr * 0.38, rr * 0.42);
+    ctx.strokeRect(-rr * 0.72, rr * 0.55, rr * 0.38, rr * 0.42);
+    ctx.strokeRect(rr * 0.28, rr * 0.55, rr * 0.38, rr * 0.42);
+    // 眼
+    eyesDot(-r * 0.28, -r * 0.12, Math.max(1.6, r * 0.1));
+    eyesDot(r * 0.28, -r * 0.14, Math.max(1.6, r * 0.1));
+    topShade();
+  } else if (shape === "ghost") {
+    ctx.save();
+    ctx.globalAlpha = e.flash > 0 ? 1 : 0.86;
+    fillBody();
+    ctx.beginPath();
+    ctx.arc(0, -r * 0.12, r * 0.82, 0, TAU);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(-r * 0.7, r * 0.25);
+    ctx.quadraticCurveTo(-r * 0.35, r * (1.05 + 0.08 * wob), 0, r * 0.55);
+    ctx.quadraticCurveTo(r * 0.35, r * (1.05 - 0.08 * wob), r * 0.7, r * 0.25);
+    ctx.closePath();
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    // 眼洞
+    ctx.fillStyle = "rgba(10,12,20,0.75)";
+    ctx.beginPath();
+    ctx.ellipse(-r * 0.28, -r * 0.12, r * 0.14, r * 0.18, 0, 0, TAU);
+    ctx.ellipse(r * 0.28, -r * 0.12, r * 0.14, r * 0.18, 0, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+  } else if (shape === "bat") {
+    fillBody();
+    const flap = 0.12 * Math.sin((G.time || 0) * 8 + (e.phase || 0));
+    ctx.beginPath();
+    ctx.moveTo(0, -r * 0.25);
+    ctx.lineTo(-r * (1.35 + flap), -r * 0.05);
+    ctx.lineTo(-r * 0.45, r * 0.45);
+    ctx.lineTo(0, r * 0.28);
+    ctx.lineTo(r * 0.45, r * 0.45);
+    ctx.lineTo(r * (1.35 + flap), -r * 0.05);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(0, 0, r * 0.48, r * 0.55, 0, 0, TAU);
+    ctx.fill();
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    // 翼膜脉
+    ctx.strokeStyle = "rgba(0,0,0,0.35)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(-r * 0.2, 0); ctx.lineTo(-r * 1.1, -r * 0.05);
+    ctx.moveTo(r * 0.2, 0); ctx.lineTo(r * 1.1, -r * 0.05);
+    ctx.stroke();
+    eyesDot(-r * 0.16, -r * 0.08, Math.max(1.4, r * 0.09));
+    eyesDot(r * 0.16, -r * 0.08, Math.max(1.4, r * 0.09));
+    topShade();
+  } else if (shape === "wolf") {
+    fillBody();
+    ctx.beginPath();
+    ctx.ellipse(0, r * 0.05, r * 0.95, r * 0.72, 0, 0, TAU);
+    ctx.fill(); ctx.stroke();
+    // 吻部
+    ctx.beginPath();
+    ctx.moveTo(-r * 0.35, -r * 0.15);
+    ctx.lineTo(-r * 1.05, -r * 0.05 + wob * 0.5);
+    ctx.lineTo(-r * 0.3, r * 0.25);
+    ctx.closePath();
+    ctx.fill();
+    // 背脊
+    ctx.beginPath();
+    for (let i = 0; i < 4; i++) {
+      const bx = (i - 1.5) * r * 0.28;
+      ctx.moveTo(bx, -r * 0.55);
+      ctx.lineTo(bx + r * 0.12, -r * 0.95 - (i % 2) * 2);
+      ctx.lineTo(bx + r * 0.24, -r * 0.55);
+    }
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    eyesDot(-r * 0.45, -r * 0.08, Math.max(1.5, r * 0.1));
+    eyesDot(-r * 0.18, -r * 0.05, Math.max(1.5, r * 0.1));
+    topShade();
+  } else {
+    // fox / default
+    fillBody();
+    ctx.beginPath();
+    ctx.ellipse(0, r * 0.08, r * 0.92, r * 0.78, 0, 0, TAU);
+    ctx.fill(); ctx.stroke();
+    // 耳
+    ctx.beginPath();
+    ctx.moveTo(-r * 0.55, -r * 0.45);
+    ctx.lineTo(-r * 0.42, -r * 1.25);
+    ctx.lineTo(-r * 0.12, -r * 0.5);
+    ctx.closePath();
+    ctx.moveTo(r * 0.55, -r * 0.45);
+    ctx.lineTo(r * 0.42, -r * 1.25);
+    ctx.lineTo(r * 0.12, -r * 0.5);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    // 尾
+    ctx.beginPath();
+    ctx.moveTo(r * 0.55, r * 0.25);
+    ctx.quadraticCurveTo(r * (1.2 + 0.1 * wob), r * 0.1, r * (1.05 + 0.12 * wob), -r * 0.35);
+    ctx.quadraticCurveTo(r * 0.85, r * 0.05, r * 0.55, r * 0.4);
+    ctx.closePath();
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    eyesDot(-r * 0.28, -r * 0.05, Math.max(1.5, r * 0.09));
+    eyesDot(r * 0.22, -r * 0.02, Math.max(1.5, r * 0.09));
+    topShade();
+  }
+  ctx.shadowBlur = 0;
+}
+
 function drawEnemy(e) {
   const s = w2s(e.x, e.y);
   if (s.x < -80 || s.y < -80 || s.x > view.w + 80 || s.y > view.h + 80) return;
@@ -7039,8 +7242,8 @@ function drawEnemy(e) {
   ctx.beginPath();
   ctx.ellipse(0, r * 0.7, r * 0.9, r * 0.35, 0, 0, TAU);
   ctx.fill();
-  // v7.2 处决标记：残血目标外圈红脉冲 —— 把「该打谁」变成一眼可读的信息
-  if (!e.dead && e.hpMax > 0 && e.hp / e.hpMax < FEEL.executeMark) {
+  // v7.2 处决标记
+  if (!e.dead && e.hpMax > 0 && e.hp / e.hpMax < (typeof FEEL !== "undefined" && FEEL.executeMark != null ? FEEL.executeMark : 0.25)) {
     const pulse = 0.5 + 0.5 * Math.sin(G.time * 9 + (e.r || 8));
     ctx.save();
     ctx.strokeStyle = `rgba(248,113,113,${0.32 + pulse * 0.45})`;
@@ -7050,8 +7253,7 @@ function drawEnemy(e) {
     ctx.stroke();
     ctx.restore();
   }
-  // 五行标识：脚下短弧，颜色即本波属性
-  const ed = ELEM_BY_KEY[e.elem];
+  const ed = (typeof ELEM_BY_KEY !== "undefined") ? ELEM_BY_KEY[e.elem] : null;
   if (ed) {
     ctx.globalAlpha = e.boss || e.elite ? 0.9 : 0.5;
     ctx.strokeStyle = ed.color;
@@ -7063,7 +7265,6 @@ function drawEnemy(e) {
   }
   const col = e.flash > 0 ? "#ffffff" : e.color;
   if (e.boss) {
-    // rotating tick ring
     ctx.save();
     ctx.rotate(G.time * 0.8);
     ctx.strokeStyle = "rgba(251,191,36,0.55)";
@@ -7092,13 +7293,13 @@ function drawEnemy(e) {
     ctx.setLineDash([]);
     ctx.restore();
   }
-  // v6.0 A 词缀徽标：头顶挂牌，一眼看出这只怪该怎么打
-  if (e.mods && e.mods.length) {
+  if (e.mods && e.mods.length && typeof ENEMY_MODS !== "undefined") {
     ctx.save();
     const n = e.mods.length;
     const bw = 24, bh = 17;
     for (let i = 0; i < n; i++) {
       const m = ENEMY_MODS[e.mods[i]];
+      if (!m) continue;
       const ox = (i - (n - 1) / 2) * (bw + 4);
       const oy = -r - 22 - Math.sin(G.time * 2.2 + i * 1.3) * 2;
       ctx.fillStyle = "rgba(6,10,18,0.82)";
@@ -7114,7 +7315,6 @@ function drawEnemy(e) {
     }
     ctx.restore();
   }
-  // v6.0 A 词缀 · 护盾：头顶护盾条
   if (e.wardMax > 0 && e.ward > 0) {
     const ww = r * 2;
     ctx.save();
@@ -7137,15 +7337,13 @@ function drawEnemy(e) {
     ctx.arc(0, 0, r + 2, 0, TAU);
     ctx.stroke();
   }
-  ctx.fillStyle = col;
-  ctx.strokeStyle = e.boss ? "#78350f" : e.elite ? "#4c1d95" : "rgba(0,0,0,0.55)";
-  ctx.lineWidth = e.boss || e.elite ? 2.5 : 1.5;
-  ctx.shadowColor = e.color;
-  ctx.shadowBlur = e.boss ? 16 : e.elite ? 10 : 4;
+
   if (e.shape === "dummy") {
-    // v7.5 光柱 + 呼吸光环：玩家反馈「没看到测试者」。
-    //   场上要是还有一堆怪，一个金色目标一眼就淹了 —— 所以给它一道冲天光柱，
-    //   隔多远、隔几只怪都看得见。这货是这一分钟的唯一主角，视觉上就得是主角。
+    ctx.fillStyle = col;
+    ctx.strokeStyle = e.boss ? "#78350f" : e.elite ? "#4c1d95" : "rgba(0,0,0,0.55)";
+    ctx.lineWidth = e.boss || e.elite ? 2.5 : 1.5;
+    ctx.shadowColor = e.color;
+    ctx.shadowBlur = 10;
     if (G.trial && G.trial.active) {
       const pulse = 0.55 + 0.45 * Math.sin(G.time * 4);
       ctx.save();
@@ -7166,12 +7364,12 @@ function drawEnemy(e) {
       ctx.beginPath(); ctx.arc(0, 0, r * (1.5 + 0.18 * pulse), 0, TAU); ctx.stroke();
       ctx.restore();
     }
-    // v7.4 玄铁试炼桩：一根钉在地里的铁桩 + 三道同心环 + 十字准心。
-    //   视觉语言刻意做成「靶子」：一眼就知道这货不是来打你的，是给你打的。
+    ctx.fillStyle = col;
     ctx.beginPath();
     ctx.moveTo(-r * 0.55, r * 0.95); ctx.lineTo(-r * 0.5, -r * 0.55);
     ctx.lineTo(r * 0.5, -r * 0.55); ctx.lineTo(r * 0.55, r * 0.95);
     ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.shadowBlur = 0;
     for (let i = 1; i <= 3; i++) {
       ctx.globalAlpha = 0.75 - i * 0.16;
       ctx.beginPath(); ctx.arc(0, 0, r * (0.32 + i * 0.2), 0, TAU); ctx.stroke();
@@ -7181,126 +7379,14 @@ function drawEnemy(e) {
     ctx.moveTo(-r * 0.42, 0); ctx.lineTo(r * 0.42, 0);
     ctx.moveTo(0, -r * 0.42); ctx.lineTo(0, r * 0.42);
     ctx.stroke();
-    // v7.6 裂痕可视化：啃掉一个 25% 就多一道裂口 —— 打桩 60 秒，得让玩家看见「它在崩」
-    const TT = G.trial;
-    const cn = TT && TT.active ? (TT.cracks || 0) : 0;
-    if (cn > 0) {
-      ctx.save();
-      const glow = clamp((G._trialCrackT || 0) / 0.9, 0, 1);
-      ctx.strokeStyle = `rgba(251,191,36,${0.45 + glow * 0.5})`;
-      ctx.lineWidth = 1.8;
-      ctx.lineJoin = "miter";
-      const seeds = [-0.64, 0.16, 0.76];
-      for (let i = 0; i < cn; i++) {
-        const a0 = seeds[i] * Math.PI;
-        ctx.beginPath();
-        ctx.moveTo(0, 0);
-        for (let k = 1; k <= 3; k++) {
-          const rr2 = r * (0.28 + k * 0.25);
-          const aa = a0 + Math.sin(i * 2.7 + k * 1.9) * 0.4;
-          ctx.lineTo(Math.cos(aa) * rr2, Math.sin(aa) * rr2);
-        }
-        ctx.stroke();
-      }
-      ctx.restore();
-    }
-    // v7.6 崩解：最后 15 秒桩体泛红脉动，明着告诉玩家「它在自己碎」
-    if (TT && TT.active && TT.collapsing) {
-      ctx.save();
-      const p2 = 0.5 + 0.5 * Math.sin(G.time * 12);
-      ctx.globalAlpha = 0.22 + p2 * 0.28;
-      ctx.fillStyle = "#f43f5e";
-      ctx.beginPath(); ctx.arc(0, 0, r * 1.02, 0, TAU); ctx.fill();
-      ctx.restore();
-    }
-  } else if (e.shape === "golem") {
-    ctx.beginPath();
-    const rr = r * 0.9;
-    ctx.moveTo(-rr, -rr * 0.6); ctx.lineTo(rr, -rr * 0.8);
-    ctx.lineTo(rr * 0.85, rr * 0.7); ctx.lineTo(-rr * 0.9, rr * 0.75);
-    ctx.closePath(); ctx.fill(); ctx.stroke();
-  } else if (e.shape === "ghost") {
-    ctx.globalAlpha = 0.85;
-    ctx.beginPath(); ctx.arc(0, -2, r * 0.85, 0, TAU); ctx.fill();
-    ctx.beginPath(); ctx.moveTo(-r * 0.5, r * 0.4); ctx.quadraticCurveTo(0, r * 1.1, r * 0.5, r * 0.4); ctx.fill();
-    ctx.globalAlpha = 1;
-  } else if (e.shape === "bat") {
-    ctx.beginPath();
-    ctx.moveTo(0, -r * 0.3); ctx.lineTo(-r * 1.3, -r * 0.1); ctx.lineTo(-r * 0.4, r * 0.5);
-    ctx.lineTo(0, r * 0.3); ctx.lineTo(r * 0.4, r * 0.5); ctx.lineTo(r * 1.3, -r * 0.1);
-    ctx.closePath(); ctx.fill();
-    ctx.beginPath(); ctx.arc(0, 0, r * 0.55, 0, TAU); ctx.fill();
   } else {
-    ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU); ctx.fill(); ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(-r * 0.55, -r * 0.7); ctx.lineTo(-r * 0.35, -r * 1.35); ctx.lineTo(-r * 0.1, -r * 0.7);
-    ctx.closePath(); ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(r * 0.55, -r * 0.7); ctx.lineTo(r * 0.35, -r * 1.35); ctx.lineTo(r * 0.1, -r * 0.7);
-    ctx.closePath(); ctx.fill();
+    drawEnemyBody(e, r, col);
   }
-  // top light for 2.5D volume
-  if (e.shape === "ghost") {
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(0, -2, r * 0.85, 0, TAU);
-    ctx.clip();
-    const gh = ctx.createLinearGradient(0, -r, 0, r * 0.4);
-    gh.addColorStop(0, "rgba(255,255,255,0.28)");
-    gh.addColorStop(1, "rgba(255,255,255,0)");
-    ctx.fillStyle = gh;
-    ctx.fillRect(-r, -r, r * 2, r * 2);
-    ctx.restore();
-  } else if (e.shape !== "ghost") {
-    ctx.save();
-    if (e.shape === "golem") {
-      const rr = r * 0.9;
-      ctx.beginPath();
-      ctx.moveTo(-rr, -rr * 0.6); ctx.lineTo(rr, -rr * 0.8);
-      ctx.lineTo(rr * 0.85, rr * 0.7); ctx.lineTo(-rr * 0.9, rr * 0.75);
-      ctx.closePath();
-    } else if (e.shape === "bat") {
-      ctx.beginPath(); ctx.arc(0, 0, r * 0.55, 0, TAU);
-    } else {
-      ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU);
-    }
-    ctx.clip();
-    const hl = ctx.createLinearGradient(0, -r, 0, r * 0.55);
-    hl.addColorStop(0, "rgba(255,255,255,0.22)");
-    hl.addColorStop(0.55, "rgba(255,255,255,0.04)");
-    hl.addColorStop(1, "rgba(255,255,255,0)");
-    ctx.fillStyle = hl;
-    ctx.fillRect(-r * 1.2, -r * 1.2, r * 2.4, r * 2.4);
-    ctx.restore();
-  }
-  ctx.fillStyle = e.boss || e.elite ? "#0a0e14" : "rgba(10,14,20,0.8)";
-  ctx.beginPath();
-  ctx.arc(-r * 0.3, -r * 0.1, r * 0.12, 0, TAU);
-  ctx.arc(r * 0.3, -r * 0.1, r * 0.12, 0, TAU);
-  ctx.fill();
-  // glowing pupils
-  const eyeGlow = e.boss ? "#fbbf24" : e.elite ? "#c084fc" : null;
-  if (eyeGlow) {
-    ctx.shadowColor = eyeGlow;
-    ctx.shadowBlur = 8;
-    ctx.fillStyle = eyeGlow;
-    ctx.beginPath();
-    ctx.arc(-r * 0.3, -r * 0.1, r * 0.06, 0, TAU);
-    ctx.arc(r * 0.3, -r * 0.1, r * 0.06, 0, TAU);
-    ctx.fill();
-    ctx.shadowBlur = 0;
-  } else {
-    ctx.fillStyle = "rgba(251,146,60,0.55)";
-    ctx.beginPath();
-    ctx.arc(-r * 0.3, -r * 0.1, r * 0.05, 0, TAU);
-    ctx.arc(r * 0.3, -r * 0.1, r * 0.05, 0, TAU);
-    ctx.fill();
-  }
-  ctx.shadowBlur = 0;
-  ctx.restore();
+
+  // 血条 + 名牌（2.5D 信息层）
   if (e.hp < e.hpMax) {
     const bw = Math.max(r * 2, 28), bh = e.boss || e.elite ? 6 : 4;
-    const bx = s.x - bw / 2, by = s.y - r - 12;
+    const bx = -bw / 2, by = -r - 12;
     ctx.fillStyle = "rgba(0,0,0,0.65)";
     ctx.beginPath();
     ctx.roundRect(bx - 1, by - 1, bw + 2, bh + 2, 3);
@@ -7314,19 +7400,18 @@ function drawEnemy(e) {
     ctx.roundRect(bx, by, fillW, bh, 2);
     ctx.fill();
     ctx.shadowBlur = 0;
-    // shine strip on boss/elite bars
     if (e.boss || e.elite) {
       ctx.fillStyle = "rgba(255,255,255,0.28)";
       ctx.fillRect(bx + 1, by + 1, Math.max(0, fillW - 2), Math.max(1, bh * 0.35));
     }
   }
   if (e.boss) {
-    drawNameplate(s.x, s.y - r - 30, e.name, "gold");
+    drawNameplate(0, -r - 30, e.name, "gold");
   } else if (e.elite) {
-    drawNameplate(s.x, s.y - r - 26, e.name, "violet");
+    drawNameplate(0, -r - 26, e.name, "violet");
   }
+  ctx.restore();
 }
-
 function drawNameplate(cx, cy, label, kind) {
   ctx.font = "700 11px 'Segoe UI', 'Microsoft YaHei', sans-serif";
   ctx.textAlign = "center";
@@ -8072,8 +8157,6 @@ function refreshShellUI() {
       else span.textContent = `灵石×2 · 演示广告（今日${left}次）`;
     }
   } catch (_) {}
-  // v7.8.6：折叠状态下的「修行录」徽标同步（有东西可领时高亮）
-  refreshRevisitBadge();
 }
 
 function showMenu() {
@@ -8094,8 +8177,6 @@ function showMenu() {
   refreshMetaUI();
   renderChars();
   refreshShellUI();
-  // v7.8.6：回菜单后巡检一次入口可达性（等布局稳定再量，避免量到动画中间态）
-  requestAnimationFrame(() => syncStartLayout());
 }
 
 // ---------- 暂停 / 全屏 / 屏幕常亮 / 触感 ----------
@@ -8293,7 +8374,7 @@ ui.btnHome.addEventListener("click", showMenu);
       else toast("分享未完成，可稍后再试");
     });
   }
-  try { if (window.Analytics) Analytics.track("app_open", { build: APP_VERSION }); } catch (_) {}
+  try { if (window.Analytics) Analytics.track("app_open", { build: "v7.8.2-mbiz" }); } catch (_) {}
 
   const btnAdDouble = document.getElementById("btnAdDouble");
   if (btnAdDouble) {
@@ -8377,123 +8458,6 @@ ui.btnHome.addEventListener("click", showMenu);
     });
   }
 })();
-
-// ---------- v7.8.6 入口修复：修行录折叠 + 开始页可达性守卫 ----------
-//   事故：v7.8 把 日课/签到/周常 三盒直接堆在开始页（合计 ~480px），
-//         叠加 body{position:fixed;overflow:hidden}，flex 居中会让超高内容「上下同时裁掉」——
-//         「踏入战场」被顶到视口外且页面不可滚动，玩家看到的就是「主界面只剩签到，进不去游戏」。
-//   对策：① 三盒收进默认折叠的「修行录」，主入口回到首屏；
-//        ② 折叠状态记档（玩家手动展开过，就尊重他的选择保持展开）；
-//        ③ 每次回菜单 / 转屏 / 改窗都跑一次可达性巡检：入口若仍不在可视区，
-//           自动收起面板并把它滚进视野 —— 保证「任何机型都点得到开始」。
-const REVISIT_KEY = "xuantianjie_revisit_open";
-const revisitPanel = document.getElementById("revisitPanel");
-const revisitBody = document.getElementById("revisitBody");
-const revisitBadge = document.getElementById("revisitBadge");
-let _revisitUserOpen = false;
-
-function setRevisitOpen(open, opts) {
-  const o = opts || {};
-  if (!revisitPanel) return;
-  revisitPanel.classList.toggle("open", !!open);
-  const head = document.getElementById("btnRevisitToggle");
-  if (head) head.setAttribute("aria-expanded", open ? "true" : "false");
-  if (o.byUser) _revisitUserOpen = !!open;
-  if (o.persist) { try { localStorage.setItem(REVISIT_KEY, open ? "1" : "0"); } catch (_) {} }
-}
-
-// 徽标：告诉玩家「里面有没有东西可领」，折叠状态下也不丢信息
-function refreshRevisitBadge() {
-  if (!revisitBadge) return;
-  try {
-    const meta = Meta.load();
-    const parts = [];
-    let hot = false;
-    if (window.Daily) {
-      const snap = Daily.snapshot(meta);
-      parts.push(`日课 ${snap.doneCount}/${snap.total}`);
-      if (snap.doneCount < snap.total) hot = true;
-    }
-    if (window.Signin) {
-      const st = Signin.status(meta);
-      parts.push(st.canClaim ? `签到 +${st.reward} 可领` : "签到已领");
-      if (st.canClaim) hot = true;
-    }
-    if (window.Weekly) {
-      const st = Weekly.status(meta);
-      if (st.claimed) parts.push("周常已领");
-      else if (st.canClaim) { parts.push(`周常 +${st.challenge.reward} 可领`); hot = true; }
-      else parts.push(`周常 ${st.progress}/${st.target}`);
-    }
-    revisitBadge.textContent = parts.join(" · ") || "日课 · 签到 · 周常";
-    revisitBadge.classList.toggle("hot", hot);
-  } catch (_) {}
-}
-
-// 可达性巡检：入口按钮必须完整落在开始页可视区内
-function syncStartLayout() {
-  try {
-    if (G.state !== "menu") return;
-    const inner = document.querySelector("#startScreen .start-inner");
-    const btn = document.getElementById("btnStart");
-    if (!inner || !btn) return;
-    const ir = inner.getBoundingClientRect();
-    const br = btn.getBoundingClientRect();
-    const outside = br.top < ir.top - 0.5 || br.bottom > ir.bottom + 0.5;
-    if (outside) {
-      // 面板最占地：玩家没主动展开就先收掉，再把入口滚进视野
-      if (revisitPanel && revisitPanel.classList.contains("open") && !_revisitUserOpen) {
-        setRevisitOpen(false, { persist: true });
-      }
-      inner.scrollTop = Math.max(0, btn.offsetTop - 10);
-    } else if (inner.scrollHeight <= inner.clientHeight + 1) {
-      inner.scrollTop = 0;
-    }
-  } catch (_) {}
-}
-
-(function bindRevisit() {
-  const head = document.getElementById("btnRevisitToggle");
-  if (head) {
-    head.addEventListener("click", () => {
-      const next = !(revisitPanel && revisitPanel.classList.contains("open"));
-      setRevisitOpen(next, { byUser: true, persist: true });
-      AudioSys.init();
-      if (next) toast("修行录已展开 · 再点收起", "cyan");
-    });
-  }
-  let saved = false;
-  try { saved = localStorage.getItem(REVISIT_KEY) === "1"; } catch (_) {}
-  setRevisitOpen(saved, {});
-  refreshRevisitBadge();
-  // 转屏 / 改窗后重新巡检（iOS 地址栏收放也会触发 resize）
-  window.addEventListener("resize", () => setTimeout(syncStartLayout, 120));
-  window.addEventListener("orientationchange", () => setTimeout(syncStartLayout, 260));
-  // 内容尺寸一旦变化就重巡检：中文标题字体晚到、动态数据写入都会把内容顶高，
-  // 只在 showMenu 那一刻量一次是不够的（横屏失守就是这么来的）。
-  try {
-    if (window.ResizeObserver) {
-      const inner = document.querySelector("#startScreen .start-inner");
-      if (inner) {
-        let queued = false;
-        new ResizeObserver(() => {
-          if (queued) return;
-          queued = true;
-          requestAnimationFrame(() => { queued = false; syncStartLayout(); });
-        }).observe(inner);
-      }
-    }
-  } catch (_) {}
-  try {
-    if (document.fonts && document.fonts.ready && document.fonts.ready.then) {
-      document.fonts.ready.then(() => syncStartLayout());
-    }
-  } catch (_) {}
-  // 首屏兜底：启动后两个时间点各再量一次，覆盖「首帧量早了」的情况
-  setTimeout(syncStartLayout, 600);
-  setTimeout(syncStartLayout, 1800);
-})();
-
 ui.btnShop.addEventListener("click", () => {
   G.state = "shop";
   setMenuBg(true);
@@ -8614,10 +8578,6 @@ window.Meta = Meta;
 window.Quality = Quality;
 // 调试/无头测试钩子（无副作用）
 window.__XTJ__ = {
-  // v7.8.5 版本单一来源（供 tools/gate.js 与真机复现台校验）
-  APP_VERSION,
-  // v7.8.6 入口修复（供入口可达性审计 tools/entry-audit.js 与冒烟断言调用）
-  syncStartLayout, setRevisitOpen, refreshRevisitBadge,
   openLevelUp, openJobModal, jobSyncHud, shouldOfferJob, buildUpgradePool, rollUpgrades, gainXP,
   JOB_PATHS, JOB_LEVELS, JOB_STAGES, NODE_HOLD,
   openRelicModal, updateBeasts, spawnBeast, relicHudSync, beastHudSync, renderCodex, showCodex, hideCodex,
@@ -8651,6 +8611,7 @@ window.__XTJ__ = {
   spawnFloater, burst,
   draw, drawInner, drawEnemy, drawFloater, drawParticle, drawZones, drawBlasts, drawOffscreenIndicators, view, w2s,
   collectPickup, dropPickup, killEnemy, spawnEnemy, damagePlayer, updateHUD, ENEMY_TYPES,
+  charVsEnemy, CHAR_MATCH, enemyHP, enemyATK, earlyEnemyAtkMul, endgameHpMul, endgameAtkMul,
   recomputeResonance, resonanceJust, renderResonance, resHudSync, gemsOfId,
   ATK_BASE: 12,   // 测试用：玩家初始攻击（用于计算升级成长比值）
   // v5.0 PM 视角

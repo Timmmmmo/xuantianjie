@@ -1,8 +1,6 @@
-/* 玄天劫 · 离线缓存 Service Worker — v7.8.6 合并版
-   代码类网络优先（保证热更到达），图片缓存优先（省流量秒开）
-   注意：CACHE 名里的版本必须与 game.js 的 APP_VERSION、index.html 的版本标签一致（tools/gate.js 会校验）
-   v7.8.6 入口修复：缓存名随版本一起升 —— 老玩家必须拿到「首屏能开战」的新壳，而不是旧缓存 */
-const CACHE = "xuantianjie-v7.8.6-mr";
+/* 玄天劫 · 离线缓存 Service Worker — v7.8 合并版
+   代码类网络优先（保证热更到达），图片缓存优先（省流量秒开） */
+const CACHE = "xuantianjie-v7.8.6-balance-art";
 const ASSETS = [
   "./",
   "./index.html",

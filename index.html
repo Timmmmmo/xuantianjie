@@ -317,26 +317,33 @@
         <span class="rec"><em>最高波</em><b id="bestWave">0</b></span>
         <span class="rec"><em>最高连杀</em><b id="bestCombo">0</b></span>
       </div>
-      <div class="daily-box">
-        <div class="daily-head"><span>每日修行</span><b id="dailyCount">0/3</b></div>
-        <div id="dailyList" class="daily-list"></div>
-        <button id="btnAdDaily" class="mini-btn ad-btn" type="button">补全一条日课 · 演示广告</button>
-      </div>
-      <div class="signin-box" id="signinBox">
-        <div class="daily-head"><span>修行签到</span><b id="signinStatus">今日可领</b></div>
-        <div id="signinCycle" class="signin-cycle"></div>
-        <button id="btnSignin" class="btn-primary signin-claim" type="button"><span>领取签到</span></button>
-      </div>
-      <div class="weekly-box" id="weeklyBox">
-        <div class="daily-head"><span>本周挑战</span><b id="weeklyName">—</b></div>
-        <div id="weeklyProgress" class="weekly-progress">—</div>
-        <button id="btnWeeklyClaim" class="mini-btn" type="button" disabled>未完成</button>
-      </div>
       <div class="char-row" id="charRow"></div>
-      <div class="btn-row">
+      <div class="btn-row btn-row-primary">
         <button id="btnShop" class="btn-ghost btn-shop"><span class="btn-ico">灵</span>灵石商店</button>
         <button id="btnCodex" class="btn-ghost btn-codex"><span class="btn-ico">鉴</span>万宝图鉴</button>
         <button id="btnStart" class="btn-primary"><span>踏入战场</span></button>
+      </div>
+      <div class="shell-bar" id="shellBar">
+        <button type="button" class="shell-chip" data-shell="signin" id="shellChipSignin"><span>签到</span><em id="shellDotSignin"></em></button>
+        <button type="button" class="shell-chip" data-shell="daily" id="shellChipDaily"><span>日课</span><em id="shellDotDaily"></em></button>
+        <button type="button" class="shell-chip" data-shell="weekly" id="shellChipWeekly"><span>本周</span><em id="shellDotWeekly"></em></button>
+      </div>
+      <div id="shellPanel" class="shell-panel collapsed">
+        <div class="daily-box">
+          <div class="daily-head"><span>每日修行</span><b id="dailyCount">0/3</b></div>
+          <div id="dailyList" class="daily-list"></div>
+          <button id="btnAdDaily" class="mini-btn ad-btn" type="button">补全一条日课 · 演示广告</button>
+        </div>
+        <div class="signin-box" id="signinBox">
+          <div class="daily-head"><span>修行签到</span><b id="signinStatus">今日可领</b></div>
+          <div id="signinCycle" class="signin-cycle"></div>
+          <button id="btnSignin" class="btn-primary signin-claim" type="button"><span>领取签到</span></button>
+        </div>
+        <div class="weekly-box" id="weeklyBox">
+          <div class="daily-head"><span>本周挑战</span><b id="weeklyName">—</b></div>
+          <div id="weeklyProgress" class="weekly-progress">—</div>
+          <button id="btnWeeklyClaim" class="mini-btn" type="button" disabled>未完成</button>
+        </div>
       </div>
       <div class="quick-row">
         <button id="btnFullscreen" class="mini-btn" type="button">全屏</button>
@@ -344,8 +351,7 @@
         <button id="btnPremiumMock" class="mini-btn" type="button">预研·去广告</button>
       </div>
       <div class="controls-hint">拖动屏幕任意位置移动 · 飞剑自动索敌 · 剑气 / 御风清场</div>
-      <!-- v7.5.1：版本号外显 —— 更新不生效时，一眼就能看出是不是本地还在跑旧缓存 -->
-      <div class="ver-hint">v7.8.6 · 数值克制 + 妖物重塑 · v7.7玩法</div>
+      <div class="ver-hint">v7.8.7 · 主界面置顶 + 冥蝶 · v7.7玩法</div>
     </div>
   </div>
 

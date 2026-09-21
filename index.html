@@ -317,10 +317,22 @@
         <span class="rec"><em>最高波</em><b id="bestWave">0</b></span>
         <span class="rec"><em>最高连杀</em><b id="bestCombo">0</b></span>
       </div>
+      <div class="daily-box">
+        <div class="daily-head"><span>每日修行</span><b id="dailyCount">0/3</b></div>
+        <div id="dailyList" class="daily-list"></div>
+        <button id="btnAdDaily" class="mini-btn ad-btn" type="button">补全一条日课 · 演示广告</button>
+      </div>
+      <div class="signin-box" id="signinBox">
+        <div class="daily-head"><span>修行签到</span><b id="signinStatus">今日可领</b></div>
+        <div id="signinCycle" class="signin-cycle"></div>
+        <button id="btnSignin" class="btn-primary signin-claim" type="button"><span>领取签到</span></button>
+      </div>
+      <div class="weekly-box" id="weeklyBox">
+        <div class="daily-head"><span>本周挑战</span><b id="weeklyName">—</b></div>
+        <div id="weeklyProgress" class="weekly-progress">—</div>
+        <button id="btnWeeklyClaim" class="mini-btn" type="button" disabled>未完成</button>
+      </div>
       <div class="char-row" id="charRow"></div>
-      <!-- v7.8.6 入口修复：主入口「踏入战场」提到首屏；
-           回访壳（日课 / 签到 / 周常）下移进可折叠「修行录」，
-           不再把开始按钮挤出屏幕 —— 详见 docs/ENTRY_FIX_REPORT_v7.8.6.md -->
       <div class="btn-row">
         <button id="btnShop" class="btn-ghost btn-shop"><span class="btn-ico">灵</span>灵石商店</button>
         <button id="btnCodex" class="btn-ghost btn-codex"><span class="btn-ico">鉴</span>万宝图鉴</button>
@@ -332,32 +344,8 @@
         <button id="btnPremiumMock" class="mini-btn" type="button">预研·去广告</button>
       </div>
       <div class="controls-hint">拖动屏幕任意位置移动 · 飞剑自动索敌 · 剑气 / 御风清场</div>
-      <div class="revisit-panel" id="revisitPanel">
-        <button id="btnRevisitToggle" class="revisit-head" type="button" aria-expanded="false" aria-controls="revisitBody">
-          <span class="revisit-title">修行录</span>
-          <span class="revisit-badge" id="revisitBadge">日课 · 签到 · 周常</span>
-          <span class="revisit-caret" aria-hidden="true">▾</span>
-        </button>
-        <div class="revisit-body" id="revisitBody">
-          <div class="daily-box">
-            <div class="daily-head"><span>每日修行</span><b id="dailyCount">0/3</b></div>
-            <div id="dailyList" class="daily-list"></div>
-            <button id="btnAdDaily" class="mini-btn ad-btn" type="button">补全一条日课 · 演示广告</button>
-          </div>
-          <div class="signin-box" id="signinBox">
-            <div class="daily-head"><span>修行签到</span><b id="signinStatus">今日可领</b></div>
-            <div id="signinCycle" class="signin-cycle"></div>
-            <button id="btnSignin" class="btn-primary signin-claim" type="button"><span>领取签到</span></button>
-          </div>
-          <div class="weekly-box" id="weeklyBox">
-            <div class="daily-head"><span>本周挑战</span><b id="weeklyName">—</b></div>
-            <div id="weeklyProgress" class="weekly-progress">—</div>
-            <button id="btnWeeklyClaim" class="mini-btn" type="button" disabled>未完成</button>
-          </div>
-        </div>
-      </div>
       <!-- v7.5.1：版本号外显 —— 更新不生效时，一眼就能看出是不是本地还在跑旧缓存 -->
-      <div class="ver-hint">v7.8.6 · 入口修复 · 首屏直达战场</div>
+      <div class="ver-hint">v7.8.6 · 数值克制 + 妖物重塑 · v7.7玩法</div>
     </div>
   </div>
 

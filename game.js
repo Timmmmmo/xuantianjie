@@ -8182,7 +8182,6 @@ function refreshShellUI() {
       if (dotsWeekly) dotsWeekly.classList.toggle("on", !!st.canClaim);
     }
   } catch (_) {}
-  void panel;
   try {
     const btnAdDaily = document.getElementById("btnAdDaily");
     if (btnAdDaily && window.Ads) {

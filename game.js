@@ -4098,12 +4098,16 @@ const ENEMY_TYPES = {
     vis: { rim: "#292524", hi: "#d6d3d1", burst: "#a8a29e", eyes: "#e7e5e4" } },
   dummy: { name: "玄铁试炼桩", r: 34, hp: 100, atk: 0, speed: 0, xp: 0, color: "#94a3b8", shape: "dummy",
     vis: { rim: "#44403c", hi: "#fbbf24", burst: "#fbbf24", eyes: "#fef3c7" } },
+  moth: { name: "冥蝶", r: 11, hp: 26, atk: 8, speed: 128, xp: 5, color: "#c084fc", shape: "moth",
+    vis: { rim: "#4c1d95", hi: "#e9d5ff", burst: "#d8b4fe", eyes: "#f5f3ff" } },
+  dustling: { name: "冥粉", r: 7, hp: 10, atk: 5, speed: 155, xp: 2, color: "#a78bfa", shape: "dust",
+    vis: { rim: "#5b21b6", hi: "#ddd6fe", burst: "#c4b5fd", eyes: "#ede9fe" } },
 };
 
 // 角色克制（割草 Build 差异）：type 或 shape 命中则乘区
 const CHAR_MATCH = {
   sword: { strong: ["fox", "bat", "ghost", "hordeling"], weak: ["golem", "eliteGolem", "bossGolem"], mult: 1.12, weakMult: 0.92 },
-  mage: { strong: ["ghost", "hordeling", "wolf"], weak: ["golem", "eliteGolem", "bossGolem"], mult: 1.15, weakMult: 0.90 },
+  mage: { strong: ["ghost", "hordeling", "wolf", "moth", "dustling"], weak: ["golem", "eliteGolem", "bossGolem"], mult: 1.15, weakMult: 0.90 },
   body: { strong: ["golem", "eliteGolem", "bossGolem"], weak: ["bat"], mult: 1.18, weakMult: 0.88 },
 };
 function charVsEnemy(e) {
@@ -4200,7 +4204,9 @@ function buildWave(wave) {
   const pool = ["fox", "fox", "wolf"];
   if (wave >= 2) pool.push("bat", "bat");
   if (wave >= 3) pool.push("golem", "ghost");
+  if (wave >= 4) pool.push("moth", "moth");
   if (wave >= 5) pool.push("wolf", "ghost", "golem");
+  if (wave >= 7) pool.push("moth", "ghost", "bat");
   for (let i = 0; i < count; i++) q.push({ type: pick(pool), delay: i * 0.12 + rand(0, 0.3) });
   if (wave >= 3 && wave % 3 === 0) {
     const n = 1 + Math.floor(wave / 12);
@@ -4979,6 +4985,14 @@ function killEnemy(e, byPlayer = true) {
       child.xp = Math.round(e.xp * 0.3);
       child.splits = false;
     }
+  }
+  // v7.8.7 冥蝶裂变（仅一处）：死亡 35% 甩出 2 只冥粉
+  if (e.type === "moth" && !e.horde && Math.random() < 0.35 && G.enemies.filter((x) => !x.dead).length < 80) {
+    for (let i = 0; i < 2; i++) {
+      const ang = rand(0, TAU);
+      spawnEnemy("dustling", e.x + Math.cos(ang) * 8, e.y + Math.sin(ang) * 8, G.wave);
+    }
+    spawnFloater(e.x, e.y - 16, "冥粉飞散", "#d8b4fe", 11);
   }
   // v6.0 A 词缀 · 分裂：裂成 2 只小妖（与幽魂自带分裂叠加，但各自只裂一次）
   if (e.mods && e.mods.indexOf("split") >= 0 && G.enemies.filter((x) => !x.dead).length < 85) {
@@ -7175,6 +7189,32 @@ function drawEnemyBody(e, r, col) {
     eyesDot(-r * 0.16, -r * 0.08, Math.max(1.4, r * 0.09));
     eyesDot(r * 0.16, -r * 0.08, Math.max(1.4, r * 0.09));
     topShade();
+  } else if (shape === "moth") {
+    fillBody();
+    const flap = 1 + 0.18 * Math.sin((G.time || 0) * 7 + (e.phase || 0));
+    ctx.beginPath();
+    ctx.ellipse(-r * 0.55 * flap, -r * 0.05, r * 0.72, r * 0.48, -0.35, 0, TAU);
+    ctx.ellipse(r * 0.55 * flap, -r * 0.05, r * 0.72, r * 0.48, 0.35, 0, TAU);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(0, r * 0.05, r * 0.28, r * 0.42, 0, 0, TAU);
+    ctx.fill(); ctx.stroke();
+    ctx.shadowBlur = 0;
+    eyesDot(-r * 0.1, -r * 0.08, Math.max(1.2, r * 0.08));
+    eyesDot(r * 0.1, -r * 0.08, Math.max(1.2, r * 0.08));
+    topShade();
+  } else if (shape === "dust") {
+    fillBody();
+    const pulse = 1 + 0.2 * Math.sin((G.time || 0) * 9 + (e.phase || 0));
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 0.85 * pulse, 0, TAU);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = "rgba(255,255,255,0.5)";
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 0.28, 0, TAU);
+    ctx.fill();
+    topShade();
   } else if (shape === "wolf") {
     fillBody();
     ctx.beginPath();
@@ -8081,6 +8121,13 @@ function setMenuBg(on) {
 
 function refreshShellUI() {
   try {
+    const panel = document.getElementById("shellPanel");
+    const dots = {
+      signin: document.getElementById("shellDotSignin"),
+      daily: document.getElementById("shellDotDaily"),
+      weekly: document.getElementById("shellDotWeekly"),
+    };
+    const setDot = (el, on) => { if (el) el.classList.toggle("on", !!on); };
     const dailyList = document.getElementById("dailyList");
     const dailyCount = document.getElementById("dailyCount");
     if (window.Daily && dailyList) {
@@ -8096,12 +8143,14 @@ function refreshShellUI() {
           <span class="daily-reward">+${item.reward}</span>`;
         dailyList.appendChild(row);
       }
+      setDot(dots.daily, snap.doneCount < snap.total);
     }
   } catch (_) {}
   try {
     const btnSignin = document.getElementById("btnSignin");
     const signinCycle = document.getElementById("signinCycle");
     const signinStatus = document.getElementById("signinStatus");
+    const dotsSignin = document.getElementById("shellDotSignin");
     if (window.Signin && btnSignin) {
       const st = Signin.status(Meta.load());
       if (signinStatus) signinStatus.textContent = st.canClaim ? `可领 +${st.reward}` : `今日已领 · 明日 ${st.nextDay}`;
@@ -8114,12 +8163,14 @@ function refreshShellUI() {
       btnSignin.disabled = !st.canClaim;
       const span = btnSignin.querySelector("span") || btnSignin;
       span.textContent = st.canClaim ? `领取签到 +${st.reward}` : `今日已领 · 明日 ${st.nextDay}`;
+      if (dotsSignin) dotsSignin.classList.toggle("on", !!st.canClaim);
     }
   } catch (_) {}
   try {
     const wName = document.getElementById("weeklyName");
     const wProg = document.getElementById("weeklyProgress");
     const wBtn = document.getElementById("btnWeeklyClaim");
+    const dotsWeekly = document.getElementById("shellDotWeekly");
     if (window.Weekly && wName) {
       const st = Weekly.status(Meta.load());
       wName.textContent = st.challenge.name;
@@ -8128,8 +8179,10 @@ function refreshShellUI() {
         wBtn.disabled = !st.canClaim;
         wBtn.textContent = st.claimed ? "本周已领取" : st.completed ? `领取 +${st.challenge.reward}` : "未完成";
       }
+      if (dotsWeekly) dotsWeekly.classList.toggle("on", !!st.canClaim);
     }
   } catch (_) {}
+  void panel;
   try {
     const btnAdDaily = document.getElementById("btnAdDaily");
     if (btnAdDaily && window.Ads) {
@@ -8318,6 +8371,16 @@ ui.btnHome.addEventListener("click", showMenu);
 
 // Sprint B 壳：签到 / 分享
 (function bindShell() {
+  const shellPanel = document.getElementById("shellPanel");
+  if (shellPanel) {
+    document.querySelectorAll(".shell-chip").forEach((chip) => {
+      chip.addEventListener("click", () => {
+        const open = shellPanel.classList.contains("collapsed");
+        shellPanel.classList.toggle("collapsed", !open);
+        if (window.Analytics) Analytics.track("shell_toggle", { open });
+      });
+    });
+  }
   const btnWeekly = document.getElementById("btnWeeklyClaim");
   if (btnWeekly) {
     btnWeekly.addEventListener("click", () => {

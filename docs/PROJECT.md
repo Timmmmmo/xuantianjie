@@ -25,7 +25,7 @@
 | M-S | v7.7 玩法 × Sprint B 壳合并 v7.8（签到/日课/分享/双键存档） | 已上线 |
 | M-R | 本周挑战最小包（combo25/wave10/kill80 轮换 + 领取） | 已上线 v7.8.5 |
 | M-Soc | 排行榜 + 好友幽灵 + 裂变 | 待启动 |
-| M-Biz | IAA mock + premium 骨架 + PM 统筹手册（docs/PM_OPERATING.md） | 已上线 v7.8.4 |
+| M-Balance | 割草数值克制 + Canvas 妖物重塑（v7.8.6） | 已上线 |
 
 ## 四、技术选型
 - 纯 HTML5 Canvas + 原生 JS，零外部依赖

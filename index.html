@@ -329,6 +329,7 @@
       <div class="char-row" id="charRow"></div>
       <div class="btn-row btn-row-primary">
         <button id="btnShop" class="btn-ghost btn-shop"><span class="btn-ico">灵</span>灵石商店</button>
+        <button id="btnTreasure" class="btn-ghost"><span class="btn-ico">宝</span>宝囊</button>
         <button id="btnCodex" class="btn-ghost btn-codex"><span class="btn-ico">鉴</span>万宝图鉴</button>
         <button id="btnStart" class="btn-primary"><span>踏入战场</span></button>
       </div>
@@ -360,7 +361,7 @@
         <button id="btnPremiumMock" class="mini-btn" type="button">预研·去广告</button>
       </div>
       <div class="controls-hint">拖动屏幕任意位置移动 · 飞剑自动索敌 · 剑气 / 御风清场</div>
-      <div class="ver-hint">v7.8.16 · 敌强×3 · 试炼×10</div>
+      <div class="ver-hint">v7.8.17 · 宝物四阶</div>
     </div>
   </div>
 
@@ -389,6 +390,19 @@
         <div id="codexBeasts" class="codex-grid"></div>
       </div>
       <button id="btnCodexBack" class="btn-primary"><span>返回山门</span></button>
+    </div>
+  </div>
+
+  <div id="treasureScreen" class="screen shop-screen hidden">
+    <div class="start-inner shop-inner">
+      <div class="subtitle shop-title">宝囊 · 生锈 / 普通 / 精英 / 史诗</div>
+      <div class="records"><span class="rec"><em>持有灵石</em><b id="treasureCoins">0</b></span>
+        <span class="rec"><em>格子</em><b id="treasureCount">0/12</b></span></div>
+      <div id="treasureList" class="shop-list"></div>
+      <div class="btn-row">
+        <button id="btnScrapLow" class="btn-ghost" type="button">化去生锈/普通</button>
+        <button id="btnTreasureBack" class="btn-primary"><span>返回山门</span></button>
+      </div>
     </div>
   </div>
 
@@ -453,6 +467,7 @@
 <script src="js/analytics.js"></script>
 <script src="js/ads.js"></script>
 <script src="js/weekly.js"></script>
+<script src="js/treasure.js"></script>
 <script src="js/signin.js"></script>
 <script src="js/daily.js"></script>
 <script src="js/sharecard.js"></script>

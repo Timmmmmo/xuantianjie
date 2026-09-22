@@ -4465,13 +4465,30 @@ function feelHit(e, dmg, isCrit) {
   if (now - gLast < FEEL.numGate) return;                   // 全局节流
   if (eLast >= 0 && now - eLast < FEEL.numMerge) return;    // 等合并窗口
   const total = Math.round(e._numBuf);
-  if (total <= 0) { e._numBuf = 0; return; }
+  if (!Number.isFinite(total) || total <= 0) { e._numBuf = 0; return; }
   G._dmgNumT = now; e._numT = now; e._numBuf = 0;
   const crit = !!e._numCrit; e._numCrit = false;
   spawnFloater(e.x + rand(-5, 5), e.y - e.r - 8,
     crit ? `${total}!` : String(total),
     crit ? "#fde047" : "#e2e8f0", crit ? 17 : 12, crit);
-  if (crit) G.shake = Math.max(G.shake, 3.5);
+  if (crit) {
+    G.shake = Math.max(G.shake, 3.5);
+    // 暴击星芒
+    const cx = e.x, cy = e.y;
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2 + (G.time || 0) * 2;
+      feelPart({
+        x: cx, y: cy, vx: Math.cos(a) * 90, vy: Math.sin(a) * 90,
+        life: 0.22, max: 0.22, color: "#fde047", size: 2.2,
+        line: { x: cx + Math.cos(a) * 18, y: cy + Math.sin(a) * 18 },
+      });
+    }
+  } else if (Math.random() < 0.35) {
+    feelPart({
+      x: e.x, y: e.y, vx: rand(-40, 40), vy: rand(-50, 10),
+      life: 0.18, max: 0.18, color: "#fff7ed", size: 1.6,
+    });
+  }
 }
 
 // 击杀爆破：冲击环 + 血雾 + 屏震。小怪也要有——这是割草的本体
@@ -4961,6 +4978,16 @@ function killEnemy(e, byPlayer = true) {
       color: e.boss ? "#fbbf24" : "#c084fc",
       size: 4, ring: { r0: e.r, r1: e.r + (e.boss ? 70 : 40) },
     });
+    if (e.elite) {
+      // 金边碎光
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * TAU;
+        feelPart({
+          x: e.x, y: e.y, vx: Math.cos(a) * 65, vy: Math.sin(a) * 65,
+          life: 0.25, max: 0.25, color: "#fde68a", size: 1.6,
+        });
+      }
+    }
     if (e.boss) {
       G.particles.push({
         x: e.x, y: e.y, vx: 0, vy: 0,
@@ -5373,7 +5400,21 @@ function castSkill(idx) {
     const dmg = G.atk * G.aoeDamageMul * playerDamageMult() * 1.5;
     const range = G.aoeRange;
     const half = G.aoeAngle / 2;
-    G.slash = { x: G.px, y: G.py, ang: face, range, half, life: 0.28, max: 0.28, color: "#c4f1ff" };
+    G.slash = { x: G.px, y: G.py, ang: face, range, half, life: 0.32, max: 0.32, color: "#c4f1ff" };
+    // 起手风压环
+    G.particles.push({
+      x: G.px, y: G.py, vx: 0, vy: 0, life: 0.2, max: 0.2,
+      color: "#a5f3fc", size: 4, ring: { r0: 20, r1: 70 },
+    });
+    for (let i = 0; i < 8; i++) {
+      const a = face - half + (half * 2 * (i + 0.5)) / 8;
+      const x0 = G.px + Math.cos(a) * 28, y0 = G.py + Math.sin(a) * 28;
+      feelPart({
+        x: x0, y: y0, vx: Math.cos(a) * 50, vy: Math.sin(a) * 50,
+        life: 0.16, max: 0.16, color: "#bae6fd", size: 2,
+        line: { x: x0 + Math.cos(a) * 24, y: y0 + Math.sin(a) * 24 },
+      });
+    }
     for (const e of G.enemies) {
       if (e.dead) continue;
       const d = dist(G.px, G.py, e.x, e.y);
@@ -5394,6 +5435,10 @@ function castSkill(idx) {
     G._blinkT = 0;
     spawnAfterimage();
     spawnFloater(G.px, G.py - G.pr - 14, "瞬步", "#5ce1e6", 12);
+    G.particles.push({
+      x: G.px, y: G.py, vx: 0, vy: 0, life: 0.18, max: 0.18,
+      color: "#5ce1e6", size: 3, ring: { r0: 10, r1: 46 },
+    });
     if (G.gemFx.dashHaste) { G.hasteT = 3; spawnFloater(G.px, G.py - G.pr - 12, "御风 · 攻速涨", "#86efac", 12); }
     AudioSys.skill();
     burst(G.px, G.py, "#5ce1e6", 12, 100, 3);
@@ -6753,14 +6798,25 @@ function drawPlayer() {
   ctx.ellipse(s.x, s.y + G.pr * 0.85, G.pr * 1.05, G.pr * 0.38, 0, 0, TAU);
   ctx.fill();
 
-  // aura (class-tinted)
-  const grd = ctx.createRadialGradient(s.x, s.y, 6, s.x, s.y, 52);
-  grd.addColorStop(0, G.charId === "mage" ? "rgba(167,139,250,0.28)" : G.charId === "body" ? "rgba(251,191,36,0.25)" : "rgba(92,225,230,0.28)");
+  // aura (class-tinted) — 双层灵晕
+  const grd = ctx.createRadialGradient(s.x, s.y, 6, s.x, s.y, 58);
+  grd.addColorStop(0, G.charId === "mage" ? "rgba(167,139,250,0.34)" : G.charId === "body" ? "rgba(251,191,36,0.3)" : "rgba(92,225,230,0.34)");
+  grd.addColorStop(0.55, G.charId === "mage" ? "rgba(167,139,250,0.12)" : G.charId === "body" ? "rgba(251,191,36,0.1)" : "rgba(92,225,230,0.12)");
   grd.addColorStop(1, "rgba(0,0,0,0)");
   ctx.fillStyle = grd;
   ctx.beginPath();
-  ctx.arc(s.x, s.y, 52, 0, TAU);
+  ctx.arc(s.x, s.y, 58, 0, TAU);
   ctx.fill();
+  // 外环脉冲
+  const auraPulse = 0.5 + 0.5 * Math.sin((G.time || 0) * 2.4);
+  ctx.save();
+  ctx.globalAlpha = 0.12 + auraPulse * 0.1;
+  ctx.strokeStyle = rim;
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.arc(s.x, s.y, G.pr + 14 + auraPulse * 3, 0, TAU);
+  ctx.stroke();
+  ctx.restore();
 
   if (G.shield > 0) {
     const pulse = G.shieldHit > 0 ? 1 : 0;
@@ -6786,6 +6842,22 @@ function drawPlayer() {
   if (G.trail) {
     for (const t of G.trail) t.life -= 1 / 60;
     G.trail = G.trail.filter((t) => t.life > 0);
+    // 拖尾连线
+    if (G.trail.length > 1) {
+      ctx.save();
+      ctx.lineCap = "round";
+      for (let i = 1; i < G.trail.length; i++) {
+        const a = G.trail[i].life / 0.28;
+        ctx.globalAlpha = a * 0.22;
+        ctx.strokeStyle = body;
+        ctx.lineWidth = 2 + a * 3;
+        ctx.beginPath();
+        ctx.moveTo(G.trail[i - 1].x - G.px + s.x, G.trail[i - 1].y - G.py + s.y);
+        ctx.lineTo(G.trail[i].x - G.px + s.x, G.trail[i].y - G.py + s.y);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
     for (const t of G.trail) {
       const a = t.life / 0.28;
       ctx.globalAlpha = a * 0.35;
@@ -6830,7 +6902,7 @@ function drawPlayer() {
     ctx.translate(s.x, s.y);
     ctx.fillStyle = "rgba(255,255,255,0.55)";
     ctx.shadowColor = "#7dd3fc";
-    ctx.shadowBlur = 8;
+    ctx.shadowBlur = 10;
     ctx.beginPath();
     ctx.moveTo(0, -G.pr * 0.72);
     ctx.lineTo(G.pr * 0.22, 0);
@@ -6838,6 +6910,13 @@ function drawPlayer() {
     ctx.lineTo(-G.pr * 0.22, 0);
     ctx.closePath();
     ctx.fill();
+    // 刃光
+    ctx.strokeStyle = "rgba(196,241,255,0.75)";
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(0, -G.pr * 0.78);
+    ctx.lineTo(0, G.pr * 0.58);
+    ctx.stroke();
     ctx.restore();
     ctx.shadowBlur = 0;
   } else if (G.charId === "mage") {
@@ -6856,6 +6935,12 @@ function drawPlayer() {
     }
     ctx.closePath();
     ctx.stroke();
+    ctx.rotate(-G.time * 2.4);
+    ctx.strokeStyle = "rgba(196,181,253,0.45)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(0, 0, G.pr * 0.42, 0, TAU);
+    ctx.stroke();
     ctx.restore();
     ctx.fillStyle = "rgba(255,255,255,0.7)";
     ctx.beginPath();
@@ -6871,6 +6956,11 @@ function drawPlayer() {
     ctx.stroke();
     ctx.beginPath();
     ctx.arc(s.x, s.y, G.pr * 0.78, Math.PI * 1.45, Math.PI * 1.85);
+    ctx.stroke();
+    ctx.lineWidth = 1.2;
+    ctx.strokeStyle = "rgba(253,230,138,0.55)";
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, G.pr * 0.95, Math.PI * 1.1, Math.PI * 1.9);
     ctx.stroke();
     ctx.fillStyle = "rgba(255,255,255,0.35)";
     ctx.beginPath();
@@ -6909,15 +6999,18 @@ function drawProjectile(p) {
   const ang = Math.atan2(p.vy, p.vx);
   if (p.kind === "fire") {
     const fl = 1 + 0.12 * Math.sin((G.time || 0) * 22 + p.x * 0.1);
-    // trail
-    const tg = ctx.createLinearGradient(s.x - Math.cos(ang) * 26, s.y - Math.sin(ang) * 26, s.x, s.y);
-    tg.addColorStop(0, "rgba(251,146,60,0)");
-    tg.addColorStop(1, "rgba(251,191,36,0.55)");
-    ctx.strokeStyle = tg;
-    ctx.lineWidth = p.r * 1.35;
+    // 尾焰分层实线（避免热路径 createLinearGradient）
     ctx.lineCap = "round";
+    ctx.strokeStyle = "rgba(251,146,60,0.28)";
+    ctx.lineWidth = p.r * 1.3;
     ctx.beginPath();
     ctx.moveTo(s.x - Math.cos(ang) * 26, s.y - Math.sin(ang) * 26);
+    ctx.lineTo(s.x, s.y);
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(251,191,36,0.55)";
+    ctx.lineWidth = p.r * 0.85;
+    ctx.beginPath();
+    ctx.moveTo(s.x - Math.cos(ang) * 16, s.y - Math.sin(ang) * 16);
     ctx.lineTo(s.x, s.y);
     ctx.stroke();
     // outer flame
@@ -6937,14 +7030,17 @@ function drawProjectile(p) {
     ctx.arc(s.x, s.y, p.r * 0.42, 0, TAU);
     ctx.fill();
   } else if (p.kind === "frost") {
-    const tg = ctx.createLinearGradient(s.x - Math.cos(ang) * 20, s.y - Math.sin(ang) * 20, s.x, s.y);
-    tg.addColorStop(0, "rgba(186,230,253,0)");
-    tg.addColorStop(1, "rgba(125,211,252,0.5)");
-    ctx.strokeStyle = tg;
-    ctx.lineWidth = p.r * 1.1;
     ctx.lineCap = "round";
+    ctx.strokeStyle = "rgba(186,230,253,0.35)";
+    ctx.lineWidth = p.r * 1.05;
     ctx.beginPath();
     ctx.moveTo(s.x - Math.cos(ang) * 20, s.y - Math.sin(ang) * 20);
+    ctx.lineTo(s.x, s.y);
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(125,211,252,0.55)";
+    ctx.lineWidth = p.r * 0.55;
+    ctx.beginPath();
+    ctx.moveTo(s.x - Math.cos(ang) * 12, s.y - Math.sin(ang) * 12);
     ctx.lineTo(s.x, s.y);
     ctx.stroke();
     ctx.fillStyle = "#bae6fd";
@@ -7091,14 +7187,29 @@ function drawEnemyBody(e, r, col) {
   const topShade = () => {
     ctx.save();
     ctx.shadowBlur = 0;
-    const g = ctx.createLinearGradient(0, -r, 0, r * 0.85);
-    g.addColorStop(0, "rgba(255,255,255,0.32)");
-    g.addColorStop(0.45, "rgba(255,255,255,0.05)");
-    g.addColorStop(1, "rgba(0,0,0,0.25)");
-    ctx.fillStyle = g;
-    ctx.globalCompositeOperation = "source-atop";
-    ctx.fillRect(-r * 1.6, -r * 1.6, r * 3.2, r * 3.2);
-    ctx.globalCompositeOperation = "source-over";
+    // 顶光：白→透明条，避免每帧建渐变
+    ctx.globalAlpha = 0.32;
+    ctx.fillStyle = "#ffffff";
+    ctx.beginPath();
+    ctx.ellipse(0, -r * 0.35, r * 0.75, r * 0.35, 0, 0, TAU);
+    ctx.fill();
+    ctx.globalAlpha = 0.12;
+    ctx.fillStyle = "#000000";
+    ctx.beginPath();
+    ctx.ellipse(0, r * 0.45, r * 0.8, r * 0.3, 0, 0, TAU);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  };
+  const flashOutline = () => {
+    if (!(e.flash > 0)) return;
+    ctx.save();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = "rgba(255,255,255,0.85)";
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(0, 0, r + 1, 0, TAU);
+    ctx.stroke();
     ctx.restore();
   };
   const eyesDot = (lx, ly, rr) => {
@@ -7269,6 +7380,7 @@ function drawEnemyBody(e, r, col) {
     eyesDot(r * 0.22, -r * 0.02, Math.max(1.5, r * 0.09));
     topShade();
   }
+  flashOutline();
   ctx.shadowBlur = 0;
 }
 
@@ -7782,30 +7894,50 @@ function drawSlash(slash) {
   ctx.translate(s.x, s.y);
   ctx.rotate(slash.ang);
   ctx.globalAlpha = 0.9 * (1 - t);
+  // 扇形余晖
+  ctx.fillStyle = slash.color;
+  ctx.globalAlpha = 0.12 * (1 - t);
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.arc(0, 0, slash.range * expand * 1.05, -slash.half, slash.half);
+  ctx.closePath();
+  ctx.fill();
+  ctx.globalAlpha = 0.9 * (1 - t);
   // outer cyan arc
   ctx.strokeStyle = slash.color;
-  ctx.lineWidth = 16 * (1 - t * 0.55);
+  ctx.lineWidth = 18 * (1 - t * 0.55);
   ctx.shadowColor = slash.color;
-  ctx.shadowBlur = 22;
+  ctx.shadowBlur = 26;
   ctx.lineCap = "round";
   ctx.beginPath();
   ctx.arc(0, 0, slash.range * expand, -slash.half, slash.half);
   ctx.stroke();
-  // inner gold blade edge
-  ctx.strokeStyle = "rgba(253,230,138,0.85)";
-  ctx.lineWidth = 4 * (1 - t * 0.5);
-  ctx.shadowColor = "#fbbf24";
-  ctx.shadowBlur = 10;
+  // mid blade
+  ctx.strokeStyle = "rgba(125,211,252,0.75)";
+  ctx.lineWidth = 8 * (1 - t * 0.5);
+  ctx.shadowBlur = 14;
   ctx.beginPath();
-  ctx.arc(0, 0, slash.range * expand * 0.92, -slash.half * 0.9, slash.half * 0.9);
+  ctx.arc(0, 0, slash.range * expand * 0.96, -slash.half * 0.95, slash.half * 0.95);
   ctx.stroke();
-  // shockwave ring
-  ctx.globalAlpha = 0.35 * (1 - t);
-  ctx.strokeStyle = "rgba(255,255,255,0.6)";
-  ctx.lineWidth = 2;
+  // inner gold blade edge
+  ctx.strokeStyle = "rgba(253,230,138,0.9)";
+  ctx.lineWidth = 3.5 * (1 - t * 0.5);
+  ctx.shadowColor = "#fbbf24";
+  ctx.shadowBlur = 12;
+  ctx.beginPath();
+  ctx.arc(0, 0, slash.range * expand * 0.9, -slash.half * 0.85, slash.half * 0.85);
+  ctx.stroke();
+  // 冲击环 + 外圈白光
+  ctx.globalAlpha = 0.4 * (1 - t);
+  ctx.strokeStyle = "rgba(255,255,255,0.7)";
+  ctx.lineWidth = 2.2;
   ctx.shadowBlur = 0;
   ctx.beginPath();
-  ctx.arc(0, 0, slash.range * expand * 1.15, 0, TAU);
+  ctx.arc(0, 0, slash.range * expand * 1.18, 0, TAU);
+  ctx.stroke();
+  ctx.globalAlpha = 0.2 * (1 - t);
+  ctx.beginPath();
+  ctx.arc(0, 0, slash.range * expand * 1.32, 0, TAU);
   ctx.stroke();
   ctx.restore();
   ctx.globalAlpha = 1;

@@ -1,6 +1,6 @@
 /* 玄天劫 · 离线缓存 Service Worker — v7.8 合并版
    代码类网络优先（保证热更到达），图片缓存优先（省流量秒开） */
-const CACHE = "xuantianjie-v7.8.17-treasures";
+const CACHE = "xuantianjie-v7.8.18-stance-loop";
 const ASSETS = [
   "./",
   "./index.html",
@@ -11,6 +11,7 @@ const ASSETS = [
   "./js/ads.js",
   "./js/weekly.js",
   "./js/treasure.js",
+  "./js/squareloop.js",
   "./js/signin.js",
   "./js/daily.js",
   "./js/sharecard.js",
@@ -31,6 +32,12 @@ const ASSETS = [
   "./assets/char-sword.png",
   "./assets/char-mage.png",
   "./assets/char-body.png",
+  "./assets/eternaut_idle.png",
+  "./assets/eternaut_crack1.png",
+  "./assets/eternaut_shatter.png",
+  "./assets/neutral_toad.png",
+  "./assets/neutral_wood.png",
+  "./assets/neutral_box.png",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
   "./icons/apple-touch-icon.png",

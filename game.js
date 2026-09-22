@@ -118,12 +118,18 @@ const ArtSprites = {
   draw(id, x, y, size, flipX) {
     const im = this.img[id];
     if (!im || !im.complete || im.naturalWidth <= 0) return false;
-    ctx.save();
-    ctx.translate(x, y);
-    if (flipX) ctx.scale(-1, 1);
-    ctx.drawImage(im, -size / 2, -size / 2, size, size);
-    ctx.restore();
-    return true;
+    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(size) || size <= 0) return false;
+    try {
+      ctx.save();
+      ctx.translate(x, y);
+      if (flipX) ctx.scale(-1, 1);
+      ctx.drawImage(im, -size / 2, -size / 2, size, size);
+      ctx.restore();
+      return true;
+    } catch (_) {
+      try { ctx.restore(); } catch (_) {}
+      return false;
+    }
   },
 };
 try { ArtSprites.load(); } catch (_) {}
@@ -6217,8 +6223,10 @@ function update(dt) {
       if (e.isChaser) {
         const ca = angleTo(e.x, e.y, G.px, G.py);
         const cs = (e.speed || TRIAL_CHASE_SPEED) * (e.slowMul || 1);
-        e.x += Math.cos(ca) * cs * dt;
-        e.y += Math.sin(ca) * cs * dt;
+        e.vx = Math.cos(ca) * cs;
+        e.vy = Math.sin(ca) * cs;
+        e.x += e.vx * dt;
+        e.y += e.vy * dt;
       }
       continue;
     }
@@ -6448,27 +6456,24 @@ function renderCapNow() {
 }
 
 function draw() {
-  // v7.4 渲染兜底：任何一处绘制抛异常都会让这一帧只画一半（clearRect 之后中断），
-  //   玩家看到的就是「花屏 + 画面被截断」。这里兜住异常，强制复位画布状态并整帧清屏，
-  //   保证下一帧一定是完整的 —— 宁可少画一层，也不能把画面留在半张。
+  // 绘制异常只复位画笔状态，保留上一帧，避免「角色敌人突然消失」
   try {
     drawInner();
   } catch (err) {
     if (!draw._reported) {
       draw._reported = true;
-      try { console.warn("[玄天劫] 绘制异常已兜住（画面已复位）：", err); } catch (_) {}
+      try { console.warn("[玄天劫] 绘制异常已兜住（保留画面）：", err); } catch (_) {}
     }
     try {
       ctx.setTransform(view.dpr || 1, 0, 0, view.dpr || 1, 0, 0);
       ctx.globalAlpha = 1;
       ctx.shadowBlur = 0;
       ctx.setLineDash([]);
-      ctx.clearRect(0, 0, view.w, view.h);
     } catch (_) {}
   }
 }
 function drawInner() {
-  if (G._ctxLost) return;          // v7.7：上下文丢了就别画，等 contextrestored 回来再画
+  if (G._ctxLost) return;
   const w = view.w, h = view.h;
   trimRenderBudget();
   ctx.clearRect(0, 0, w, h);
@@ -6482,10 +6487,10 @@ function drawInner() {
     drawMenuAmbient();
   } else {
     drawNodes(camX, camY);
-    drawZones();      // v6.0 A 冰霜力场（地面）
-    drawAfterimages(); // v7.0 C 瞬步剑影
-    drawBlasts();     // v7.0 A/B 爆点预警圈
-    drawAltars();     // v6.0 C 祭坛
+    drawZones();
+    drawAfterimages();
+    drawBlasts();
+    drawAltars();
     for (const p of G.pickups) drawPickup(p);
     // magnet tether when close
     for (const p of G.pickups) {
@@ -6508,11 +6513,16 @@ function drawInner() {
         ctx.setLineDash([]);
       }
     }
-    for (const e of G.enemies) drawEnemy(e);
+    // 单只怪绘制失败不影响整帧（试炼血条等）
+    for (const e of G.enemies) {
+      try { drawEnemy(e); } catch (_) { try { ctx.restore(); } catch (_) {} ctx.save(); ctx.translate(ox, oy); }
+    }
     drawOffscreenIndicators();
-    for (const p of G.projectiles) drawProjectile(p);
+    for (const p of G.projectiles) {
+      try { drawProjectile(p); } catch (_) {}
+    }
     drawBeasts(camX, camY);
-    drawPlayer();
+    try { drawPlayer(); } catch (_) {}
     // near arena edge: gold warning ring pulse
     const distEdge = Math.hypot(G.px, G.py);
     if (distEdge > G.arenaR * 0.88) {
@@ -6846,7 +6856,8 @@ function drawPlayer() {
 
   // 位图优先（失败走几何）
   const sprSize = G.pr * 2.55;
-  const drewSpr = ArtSprites.draw(spriteId, s.x, s.y - G.pr * 0.15, sprSize, flipP);
+  let drewSpr = false;
+  try { drewSpr = ArtSprites.draw(spriteId, s.x, s.y - G.pr * 0.15, sprSize, flipP); } catch (_) { drewSpr = false; }
   if (drewSpr) {
     if (G.playerHurt > 0) {
       ctx.save();
@@ -7277,7 +7288,8 @@ function drawEnemyBody(e, r, col) {
     if (pref && ArtSprites.ok(pref)) sid = pref;
     const sprSize = r * (e.boss ? 3.2 : e.elite ? 2.7 : 2.5);
     const flipX = (e.vx || 0) < -1;
-    const okSpr = ArtSprites.draw(sid, 0, -r * 0.1, sprSize, flipX);
+    let okSpr = false;
+    try { okSpr = ArtSprites.draw(sid, 0, -r * 0.1, sprSize, flipX); } catch (_) { okSpr = false; }
     if (okSpr) {
       if (e.flash > 0) {
         ctx.save();
@@ -7654,22 +7666,24 @@ function drawEnemy(e) {
   if (e.hp < e.hpMax) {
     const bw = Math.max(r * 2, 28), bh = e.boss || e.elite ? 6 : 4;
     const bx = -bw / 2, by = -r - 12;
-    ctx.fillStyle = "rgba(0,0,0,0.65)";
-    ctx.beginPath();
-    ctx.roundRect(bx - 1, by - 1, bw + 2, bh + 2, 3);
-    ctx.fill();
-    const hpCol = e.boss ? "#fbbf24" : e.elite ? "#c084fc" : "#f43f5e";
-    ctx.fillStyle = hpCol;
-    ctx.shadowColor = hpCol;
-    ctx.shadowBlur = 6;
-    const fillW = bw * clamp(e.hp / e.hpMax, 0, 1);
-    ctx.beginPath();
-    ctx.roundRect(bx, by, fillW, bh, 2);
-    ctx.fill();
-    ctx.shadowBlur = 0;
-    if (e.boss || e.elite) {
-      ctx.fillStyle = "rgba(255,255,255,0.28)";
-      ctx.fillRect(bx + 1, by + 1, Math.max(0, fillW - 2), Math.max(1, bh * 0.35));
+    const fillW = e.hpMax > 0 ? bw * clamp(e.hp / e.hpMax, 0, 1) : 0;
+    if (Number.isFinite(fillW) && fillW > 0) {
+      ctx.fillStyle = "rgba(0,0,0,0.65)";
+      ctx.beginPath();
+      ctx.roundRect(bx - 1, by - 1, bw + 2, bh + 2, 3);
+      ctx.fill();
+      const hpCol = e.boss ? "#fbbf24" : e.elite ? "#c084fc" : "#f43f5e";
+      ctx.fillStyle = hpCol;
+      ctx.shadowColor = hpCol;
+      ctx.shadowBlur = 6;
+      ctx.beginPath();
+      ctx.roundRect(bx, by, fillW, bh, 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      if (e.boss || e.elite) {
+        ctx.fillStyle = "rgba(255,255,255,0.28)";
+        ctx.fillRect(bx + 1, by + 1, Math.max(0, fillW - 2), Math.max(1, bh * 0.35));
+      }
     }
   }
   if (e.boss) {
@@ -8585,20 +8599,18 @@ function salvageFrame(err) {
   try {
     ctx.setTransform(view.dpr || 1, 0, 0, view.dpr || 1, 0, 0);
     ctx.globalAlpha = 1; ctx.shadowBlur = 0; ctx.setLineDash([]);
-    ctx.clearRect(0, 0, view.w, view.h);
+    // 不 clearRect：避免角色/敌人瞬间消失
   } catch (_) {}
   try {
     G.particles.length = 0; G.floaters.length = 0;
     G.shake = 0; G.hitStop = 0; G.goldFlash = 0;
   } catch (_) {}
   if (_frameErrN === 3) {
-    // 连着三帧都炸 = 这台机器扛不住当前规格：直接打到流畅档再试
     Quality.level = "low"; Quality.apply();
     try { resize(); } catch (_) {}
     try { toast("画面异常已自动修复 · 已切到流畅模式", "cyan"); } catch (_) {}
   }
   if (_frameErrN >= 60) {
-    // 还是不行：收掉会持续制造状态的循环源（试炼 / 弹窗），别让玩家困在死循环里
     try { if (G.trial && G.trial.active) endTrial(false, "异常保护"); } catch (_) {}
     try { if (G.state === "level") closeLevelUp(); } catch (_) {}
     _frameErrN = 0;
@@ -8683,7 +8695,7 @@ ui.btnHome.addEventListener("click", showMenu);
       else toast("分享未完成，可稍后再试");
     });
   }
-  try { if (window.Analytics) Analytics.track("app_open", { build: "v7.8.2-mbiz" }); } catch (_) {}
+  try { if (window.Analytics) Analytics.track("app_open", { build: "v7.8.10-trial-fix" }); } catch (_) {}
 
   const btnAdDouble = document.getElementById("btnAdDouble");
   if (btnAdDouble) {
@@ -8845,6 +8857,19 @@ document.addEventListener("touchend", (e) => {
 }, { passive: false });
 
 // ---------- Boot ----------
+try {
+  if (typeof CanvasRenderingContext2D !== "undefined" && !CanvasRenderingContext2D.prototype.roundRect) {
+    CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
+      const rr = Math.min(Math.abs(r) || 0, Math.abs(w) / 2, Math.abs(h) / 2);
+      this.moveTo(x + rr, y);
+      this.arcTo(x + w, y, x + w, y + h, rr);
+      this.arcTo(x + w, y + h, x, y + h, rr);
+      this.arcTo(x, y + h, x, y, rr);
+      this.arcTo(x, y, x + w, y, rr);
+      this.closePath();
+    };
+  }
+} catch (_) {}
 Quality.detect();
 bindJoystick();
 syncFullscreenBtn();

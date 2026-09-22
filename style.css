@@ -3313,3 +3313,18 @@ body.orange-pause #app::after {
 .shell-panel .signin-box,
 .shell-panel .weekly-box { width: 100%; margin: 0; }
 .start-screen .char-row { margin-top: 2px; }
+
+.ult-hud {
+  position: absolute; top: 84px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border-radius: 999px;
+  background: rgba(20,14,6,0.75);
+  border: 1px solid rgba(240,193,75,0.45);
+  z-index: 8; pointer-events: none;
+}
+.ult-hud.hidden { display: none; }
+.ult-hud span { color: #fde68a; font-weight: 700; font-size: 13px; }
+.ult-hud b { color: #f0c14b; font-size: 11px; }
+.ult-track { width: 72px; height: 8px; border-radius: 99px; background: rgba(0,0,0,0.55); overflow: hidden; }
+.ult-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #fbbf24, #fde68a); }
+.ult-hud.ready { box-shadow: 0 0 14px rgba(251,191,36,0.55); border-color: #fbbf24; }

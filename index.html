@@ -152,6 +152,25 @@
       <div class="tc-tip" id="tcTip"></div>
     </div>
 
+    <!-- 方环试炼：妖压条 + 四站桩 + 大招 -->
+    <div id="squareHud" class="square-hud hidden">
+      <div class="pressure-wrap">
+        <div class="pressure-track"><i id="pressureBar" class="pressure-bar"></i></div>
+        <span id="pressureText" class="pressure-text">妖压 0/188</span>
+      </div>
+      <div class="stance-row">
+        <button type="button" id="stanceWind" class="stance-btn s-wind active" data-stance="wind"><i>风</i><span>听风</span></button>
+        <button type="button" id="stanceRain" class="stance-btn s-rain" data-stance="rain"><i>雨</i><span>润物</span></button>
+        <button type="button" id="stanceThunder" class="stance-btn s-thunder" data-stance="thunder"><i>雷</i><span>惊蛰</span></button>
+        <button type="button" id="stanceBolt" class="stance-btn s-bolt" data-stance="bolt"><i>电</i><span>裂空</span></button>
+      </div>
+      <button type="button" id="btnSquareUlt" class="square-ult" disabled>
+        <span class="sq-ult-ico">绝</span>
+        <span class="sq-ult-name" id="squareUltName">罡风裂天</span>
+        <em id="squareUltPct">0%</em>
+      </button>
+    </div>
+
     <!-- v7.6 悟道便签：前 10 波自动领悟的卡从这里滑出来，不挡摇杆、不拦操作 -->
     <div id="autoNote" class="auto-note-box"></div>
 
@@ -321,6 +340,14 @@
           <span class="mode-chip violet">三系择二</span>
         </div>
       </div>
+      <div class="mode-cards" id="modeCards">
+        <button type="button" class="mode-card on" data-mode="endless" id="btnModeEndless">
+          <b>无尽妖潮</b><span>摇杆割草 · 波次无尽</span>
+        </button>
+        <button type="button" class="mode-card" data-mode="square_loop" id="btnModeSquare">
+          <b>方环试炼</b><span>风雨雷电 · 点柱破壳</span>
+        </button>
+      </div>
       <div class="records records-coin">
         <span class="rec"><em>灵石</em><b id="metaCoins">0</b></span>
         <span class="rec"><em>最高波</em><b id="bestWave">0</b></span>
@@ -361,7 +388,7 @@
         <button id="btnPremiumMock" class="mini-btn" type="button">预研·去广告</button>
       </div>
       <div class="controls-hint">拖动屏幕任意位置移动 · 飞剑自动索敌 · 剑气 / 御风清场</div>
-      <div class="ver-hint">v7.8.17 · 宝物四阶</div>
+      <div class="ver-hint">v7.8.18 · 方环站桩</div>
     </div>
   </div>
 
@@ -471,6 +498,7 @@
 <script src="js/signin.js"></script>
 <script src="js/daily.js"></script>
 <script src="js/sharecard.js"></script>
+<script src="js/squareloop.js"></script>
 <script src="game.js"></script>
 </body>
 </html>

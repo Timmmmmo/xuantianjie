@@ -1,6 +1,6 @@
 /* 玄天劫 · 离线缓存 Service Worker — v7.8 合并版
    代码类网络优先（保证热更到达），图片缓存优先（省流量秒开） */
-const CACHE = "xuantianjie-v7.8.10-trial-fix";
+const CACHE = "xuantianjie-v7.8.11-premium-art";
 const ASSETS = [
   "./",
   "./index.html",
@@ -13,6 +13,7 @@ const ASSETS = [
   "./js/signin.js",
   "./js/daily.js",
   "./js/sharecard.js",
+  "./assets/bg-arena.png",
   "./assets/sprites/player-sword.png",
   "./assets/sprites/player-mage.png",
   "./assets/sprites/player-body.png",
@@ -23,6 +24,8 @@ const ASSETS = [
   "./assets/sprites/enemy-bat.png",
   "./assets/sprites/enemy-moth.png",
   "./assets/sprites/enemy-dust.png",
+  "./assets/sprites/prop-spring.png",
+  "./assets/sprites/prop-swordtomb.png",
   "./assets/bg-start.png",
   "./assets/char-sword.png",
   "./assets/char-mage.png",

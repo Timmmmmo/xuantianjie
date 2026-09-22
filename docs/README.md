@@ -1,9 +1,8 @@
 # 玄天劫 · 刷不完的怪
 
 单人玄幻风格手游（H5），灵感来自魔兽争霸 RPG 地图「刷不完的怪」。  
-**v7.8.6（已上线）**：角色克制数值 + Canvas 2.5D 妖物重塑 + 回访壳（签到/日课/周挑战/IAA mock）。  
-**PM 统筹**：[`docs/PM_OPERATING.md`](docs/PM_OPERATING.md)。  
-**美术契约**：[`docs/ART_UI.md`](docs/ART_UI.md)。
+**v7.8.7（已上线）**：打开即主界面（CTA 置顶、签到壳折叠）+ 新敌人冥蝶/冥粉 + 克制/回访壳。  
+**PM 统筹**：[`docs/PM_OPERATING.md`](docs/PM_OPERATING.md)。
 
 ## 立即游玩（线上）
 

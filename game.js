@@ -2924,13 +2924,18 @@ const G = {
   _frenzyCD: 0,                     // C：狂血内置 CD
   _blinkT: 0,                       // C：瞬步残影生成计时
   _chainDepth: 0, _chainKills: 0,   // B2：连锁击杀
+  act: 0, ultCharge: 0, ultStock: 2, ultCasting: 0,
 };
 
 function resetRun(charId) {
   const shop = Meta.statsFromShop();
   G.charId = charId || Meta.load().selectedChar || "sword";
   G.hitStop = 0;
-  G.time = 0; G.wave = 0; G.kills = 0; G.waveTimer = 0.8;   // v7.1：开局 3s 空场 → 0.8s 就开打
+  G.time = 0; G.wave = 0; G.kills = 0; G.waveTimer = 0.8;
+  G.act = 0; // tickActs 在 wave>=1 时进入第一幕（避免 wave=0 误判幕三）
+  G.ultCharge = 0;
+  G.ultStock = ULT.stockInit;
+  G.ultCasting = 0;
   G.spawnQueue = []; G._trickle = 0;
   // v7.4 玄铁试炼桩状态复位（否则上一局的试炼进度会带进新一局）
   G.trial = null; G.trialResult = null; G._trialWave = 0; G._trialCardT = 0;
@@ -4453,6 +4458,117 @@ function closeAltar() {
   G.state = "play";
 }
 
+// ================= v7.8.12 自动必杀 + 三幕天劫 =================
+const ACTS = [
+  { id: 1, from: 1, to: 8, name: "潮起", sub: "蓄势寻机 · 稳扎稳打" },
+  { id: 2, from: 9, to: 17, name: "狂澜", sub: "大妖伺伏 · 火力全开" },
+  { id: 3, from: 18, to: 9999, name: "傀神·无尽", sub: "劫火焚天 · 生死自负" },
+];
+const ULT = {
+  name: "天劫灭世",
+  chargeMax: 100,
+  stockMax: 3,
+  stockInit: 2,
+  windup: 0.8,
+  dmgMul: 8,
+  gain: { mob: 2, horde: 4, elite: 15, boss: 40 },
+};
+function actForWave(w) {
+  const n = w || 0;
+  if (n < 1) return ACTS[0];
+  for (const a of ACTS) if (n >= a.from && n <= a.to) return a;
+  return ACTS[ACTS.length - 1];
+}
+function ultHudSync() {
+  try {
+    const el = document.getElementById("ultHud");
+    if (!el) return;
+    el.classList.toggle("hidden", G.state !== "play");
+    const fill = document.getElementById("ultFill");
+    const stock = document.getElementById("ultStock");
+    if (fill) fill.style.width = `${clamp(((G.ultCharge || 0) / ULT.chargeMax) * 100, 0, 100)}%`;
+    if (stock) stock.textContent = `×${G.ultStock || 0}`;
+    el.classList.toggle("ready", (G.ultCharge || 0) >= ULT.chargeMax && (G.ultStock || 0) > 0);
+  } catch (_) {}
+}
+function enterAct(act) {
+  G.act = act.id;
+  const cn = ["一", "二", "三"][act.id - 1] || String(act.id);
+  showBigBanner(`第${cn}幕 · ${act.name}`, act.sub + " · 回血 15%" + (act.id === 2 ? " · 十五波将有试炼" : act.id === 3 ? " · 三十波试炼候教" : ""), "gold");
+  toast(`天劫第${cn}幕 · ${act.name}`, "gold");
+  G.hp = Math.min(G.hpMax, G.hp + G.hpMax * 0.15);
+  G.ultStock = Math.min(ULT.stockMax, (G.ultStock || 0) + 1);
+  if (window.Analytics) Analytics.track("act_enter", { act: act.id, wave: G.wave });
+  ultHudSync();
+}
+function tickActs() {
+  if (G.wave < 1) return; // 开局空场不算入幕
+  const a = actForWave(G.wave);
+  if (G.act !== a.id) enterAct(a);
+}
+function addUltCharge(kind) {
+  const g = ULT.gain[kind] || 0;
+  if (g <= 0) return;
+  G.ultCharge = Math.min(ULT.chargeMax, (G.ultCharge || 0) + g);
+  if (G.ultCharge >= ULT.chargeMax && (G.ultStock || 0) > 0 && !G.ultCasting) {
+    toast(`${ULT.name} · 蓄满待发`, "gold");
+  }
+  ultHudSync();
+}
+function castUlt() {
+  if (G.state !== "play" || G.ultCasting > 0) return false;
+  if (G.trial && G.trial.active) return false;
+  if ((G.ultCharge || 0) < ULT.chargeMax || (G.ultStock || 0) <= 0) return false;
+  G.ultCasting = ULT.windup;
+  G.ultCharge = 0;
+  toast(`${ULT.name} · 天劫蓄势`, "gold");
+  showBigBanner("天劫蓄势", ULT.name + " 0.8s 后湮灭全场", "orange");
+  ultHudSync();
+  return true;
+}
+function fireUlt() {
+  G.ultCasting = 0;
+  // 试炼中/试炼桩：不结算全屏伤害，避免作弊打桩
+  if (G.trial && G.trial.active) {
+    toast("试炼中 · 天劫暂缓", "cyan");
+    G.ultCharge = 0;
+    ultHudSync();
+    return;
+  }
+  G.ultStock = Math.max(0, (G.ultStock || 1) - 1);
+  const dmg = G.atk * ULT.dmgMul * playerDamageMult();
+  const dmgSafe = Number.isFinite(dmg) ? dmg : 0;
+  let killed = 0;
+  G.goldFlash = 0.55;
+  G.shake = 14;
+  G.particles.push({
+    x: G.px, y: G.py, vx: 0, vy: 0, life: 0.55, max: 0.55,
+    color: "#fde68a", size: 6, ring: { r0: 40, r1: Math.max(view.w, view.h) },
+  });
+  burst(G.px, G.py, "#fbbf24", 36, 320, 6);
+  for (const e of G.enemies) {
+    if (e.dead || e.isDummy) continue;
+    applyHit(e, dmgSafe);
+    if (e.dead) killed++;
+  }
+  if (window.Analytics) Analytics.track("ult_cast", { wave: G.wave, stock: G.ultStock });
+  if (window.Analytics) Analytics.track("ult_wipe_kills", { kills: killed, dmg: Math.round(dmgSafe) });
+  toast(`${ULT.name} · 湮灭 ${killed} 妖`, "gold");
+  AudioSys.boss();
+  ultHudSync();
+}
+function tickUlt(dt) {
+  if (G.ultCasting > 0) {
+    G.ultCasting -= dt;
+    if (G.ultCasting <= 0) {
+      G.ultCasting = 0;
+      fireUlt();
+    }
+    return;
+  }
+  if ((G.ultCharge || 0) >= ULT.chargeMax && (G.ultStock || 0) > 0) castUlt();
+}
+
 // ---------- Combat ----------
 function comboMul() {
   return 1 + Math.min(G.combo, 40) * 0.03;
@@ -4875,6 +4991,9 @@ function killEnemy(e, byPlayer = true) {
   // v7.2 悬赏令 · 斩妖令计数
   if (G.bounty && G.bounty.id === "kill" && G.bounty.state === "active") bountyAdd(1);
   onKillCombo();
+  if (byPlayer) {
+    addUltCharge(e.boss ? "boss" : e.elite ? "elite" : e.horde ? "horde" : "mob");
+  }
   // v7.0 B2 连锁击杀：尸体引爆，向最近敌人传导（尸潮/高连杀时概率更高）
   tryChainKill(e);
   // v7.3 变类卡「破军令」：斩精英/妖王原地爆一圈剑罡（层级越高圈越大越痛）
@@ -6030,7 +6149,9 @@ function toast(msg, kind) {
 function update(dt) {
   if (G.state === "menu" || G.state === "over" || G.state === "shop" || G.state === "pause" || G.state === "codex") return;
   if (G.state === "level" || G.state === "job" || G.state === "forge") return;
-  if (G.state === "altar") { updateHUD(); return; }   // v6.0 C 祭坛：暂停世界等玩家抉择
+  if (G.state === "altar") { updateHUD(); return; }
+  tickActs();
+  tickUlt(dt);
   // v7.5：前 10 波自动悟道（不弹卡、不停帧），第 11 波起才弹三选一交给玩家决策
   if ((G.pendingLevel || 0) > 0 && G.state === "play") {
     if (autoUpgradePhase()) flushAutoUpgrades();
@@ -8734,7 +8855,7 @@ ui.btnHome.addEventListener("click", showMenu);
       else toast("分享未完成，可稍后再试");
     });
   }
-  try { if (window.Analytics) Analytics.track("app_open", { build: "v7.8.11-premium-art" }); } catch (_) {}
+  try { if (window.Analytics) Analytics.track("app_open", { build: "v7.8.12-ult-acts" }); } catch (_) {}
 
   const btnAdDouble = document.getElementById("btnAdDouble");
   if (btnAdDouble) {
@@ -9019,7 +9140,7 @@ window.__XTJ__ = {
   TRIAL_WAVES, TRIAL_TIME, TRIAL_HP, TRIAL_CHASE, trialHPFor, trialIsWave, trialTitle,
   spawnTrial, updateTrial, endTrial, trialHudSync,
   // v7.5 健壮性探针（无副作用，仅供无头体检 tools/robustness-suite.js 调用）
-  resetRun, resize, spawnAtEdge, equipRec,
+  resetRun, resize, spawnAtEdge, equipRec, ULT, ACTS, actForWave, castUlt, fireUlt, addUltCharge,
   TRIAL_GRADES, TRIAL_GRADE_TIME, TRIAL_GRADE_RATIO, trialGrade, showTrialResult, hideTrialCard,
   // v7.6 好玩性改造：试炼 2.0 / 深度系统触达 / 悟道便签
   TRIAL_COLLAPSE_AT, TRIAL_COLLAPSE_RATE, TRIAL_CRACKS, trialCrack,

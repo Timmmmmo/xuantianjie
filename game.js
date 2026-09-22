@@ -265,6 +265,7 @@ function normalizeMetaDraft(d) {
     weekly: src.weekly && typeof src.weekly === "object"
       ? { ...src.weekly, history: (src.weekly.history || []).slice(0, 4) }
       : null,
+    treasures: Array.isArray(src.treasures) ? src.treasures.slice(0, 40) : [],
     version: 3,
   };
 }
@@ -5056,6 +5057,13 @@ function playerDamageMult() {
   // 剑阵：站在阵上吃阵法增益，升级「阵心通明」再叠一层
   m *= (G.nodeAtkMul || 1);
   if (G.nodeActive) m *= (1 + (G.nodeBonus || 0));
+  // 宝物：按词缀与品质提供攻击加成
+  try {
+    if (window.Treasure) {
+      const tb = Treasure.combatBonus((Meta.load().treasures) || []);
+      m *= 1 + (tb.atk || 0);
+    }
+  } catch (_) {}
   return m;
 }
 
@@ -5090,6 +5098,25 @@ function killEnemy(e, byPlayer = true) {
     burst(e.x, e.y, "#f0c14b", 36, 320, 6);
     G.shake = Math.max(G.shake, 10);
     G.goldFlash = Math.max(G.goldFlash || 0, 0.26);
+    if (window.Treasure && G.trial && G.trial.killed) {
+      const meta = Meta.load();
+      const t = Treasure.trialReward(meta.treasures);
+      const add = Treasure.addTreasure(meta.treasures, t);
+      meta.treasures = add.list;
+      Meta.save(meta);
+      if (add.ok) {
+        const ri = add.item || t;
+        const ti = Treasure.TIER[ri.tier] || Treasure.TIER[0];
+        const label = `${ti.name}·${Treasure.SLOT_NAME[ri.slot]}`;
+        if (add.merged) toast(`试炼合宝 · ${label}`, "gold");
+        else toast(`试炼赐宝 · ${label}`, "gold");
+        showBigBanner(add.merged ? "试炼合宝" : "试炼赐宝", label, "gold");
+        if (ri.tier >= 3) G.goldFlash = Math.max(G.goldFlash || 0, 0.35);
+        if (window.Analytics) Analytics.track("treasure_drop", { tier: ri.tier, slot: ri.slot, source: "trial", merged: !!add.merged });
+      } else {
+        toast("宝囊已满 · 请化去或合成", "red");
+      }
+    }
     feelKill(e);
     AudioSys.kill();
     return;
@@ -5097,6 +5124,31 @@ function killEnemy(e, byPlayer = true) {
   // v7.2 悬赏令 · 斩妖令计数
   if (G.bounty && G.bounty.id === "kill" && G.bounty.state === "active") bountyAdd(1);
   onKillCombo();
+  if (byPlayer && window.Treasure && !e.isDummy) {
+    const rate = e.boss ? 1 : e.elite ? 0.03 : Treasure.DROP_MOB;
+    if (Math.random() < rate) {
+      const t = e.boss
+        ? Treasure.makeTreasure(Treasure.rollSlot(), Math.min(3, Treasure.rollTier(G.wave) + 1))
+        : Treasure.rollMobDrop(G.wave);
+      if (t) {
+        const meta = Meta.load();
+        const add = Treasure.addTreasure(meta.treasures, t);
+        meta.treasures = add.list;
+        Meta.save(meta);
+        if (add.ok) {
+          const ri = add.item || t;
+          const ti = Treasure.TIER[ri.tier] || Treasure.TIER[0];
+          const label = `${ti.name}·${Treasure.SLOT_NAME[ri.slot]}`;
+          if (add.merged) toast(`宝物合成 · ${label}`, "gold");
+          else toast(`拾得${ti.name}宝物 · ${Treasure.SLOT_NAME[ri.slot]}`, "cyan");
+          if (ri.tier >= 3) G.goldFlash = Math.max(G.goldFlash || 0, 0.3);
+          if (window.Analytics) Analytics.track("treasure_drop", { tier: ri.tier, slot: ri.slot, wave: G.wave, merged: !!add.merged });
+        } else {
+          toast("宝囊已满 · 请化去或合成", "red");
+        }
+      }
+    }
+  }
   if (byPlayer) {
     addUltCharge(e.boss ? "boss" : e.elite ? "elite" : e.horde ? "horde" : "mob");
   }
@@ -8807,6 +8859,75 @@ function hideCodex() {
   showMenu();
 }
 
+function renderTreasures() {
+  const screen = document.getElementById("treasureScreen");
+  if (!screen || !window.Treasure) return;
+  const meta = Meta.load();
+  const list = meta.treasures || [];
+  const coins = document.getElementById("treasureCoins");
+  const cnt = document.getElementById("treasureCount");
+  const box = document.getElementById("treasureList");
+  if (coins) coins.textContent = meta.coins;
+  if (cnt) cnt.textContent = `${list.length}/${Treasure.MAX}`;
+  if (!box) return;
+  box.innerHTML = "";
+  if (!list.length) {
+    box.innerHTML = `<div class="shop-item"><div class="s-desc">囊中空空 · 小妖 1% 掉落，试炼击碎必赐</div></div>`;
+    return;
+  }
+  list.forEach((t) => {
+    const ti = Treasure.TIER[t.tier] || Treasure.TIER[0];
+    const row = document.createElement("div");
+    row.className = "shop-item";
+    row.innerHTML = `
+      <div class="shop-ico">${ti.name[0]}</div>
+      <div><span class="s-name" style="color:${ti.color}">${ti.name}·${Treasure.SLOT_NAME[t.slot]}</span>
+        <span class="s-lv">威 ${t.power}</span>
+        <div class="s-desc">${(t.affixes || []).map((a) => (Treasure.AFFIX[a] ? Treasure.AFFIX[a].name : a)).join(" · ") || "无词缀"} · ${Treasure.canUpgrade(t) ? `淬炼 ◆${Treasure.upgradeCost(t.tier)}` : "已至史诗"}</div>
+      </div>
+      <button class="shop-buy" data-up="${t.uid}" ${Treasure.canUpgrade(t) ? "" : "disabled"}>淬炼</button>
+      <button class="shop-buy" data-scrap="${t.uid}">化去 ◆${Treasure.scrapValue(t)}</button>`;
+    box.appendChild(row);
+  });
+  box.querySelectorAll("[data-up]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const uid = btn.getAttribute("data-up");
+      const meta2 = Meta.load();
+      const item = (meta2.treasures || []).find((x) => x.uid === uid);
+      if (!item || !Treasure.canUpgrade(item)) return;
+      const cost = Treasure.upgradeCost(item.tier);
+      if (meta2.coins < cost) { toast("灵石不足"); return; }
+      const up = Treasure.upgrade(item);
+      if (!up) return;
+      meta2.coins -= cost;
+      meta2.treasures = Treasure.removeByUid(meta2.treasures, uid);
+      const add = Treasure.addTreasure(meta2.treasures, up);
+      meta2.treasures = add.list;
+      Meta.save(meta2);
+      toast(`淬炼成功 · ${Treasure.TIER[up.tier].name}`, "gold");
+      if (window.Analytics) Analytics.track("treasure_up", { tier: up.tier });
+      renderTreasures();
+      refreshMetaUI();
+    });
+  });
+  box.querySelectorAll("[data-scrap]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const uid = btn.getAttribute("data-scrap");
+      const meta2 = Meta.load();
+      const item = (meta2.treasures || []).find((x) => x.uid === uid);
+      if (!item) return;
+      const val = Treasure.scrapValue(item);
+      meta2.treasures = Treasure.removeByUid(meta2.treasures, uid);
+      meta2.coins += val;
+      Meta.save(meta2);
+      toast(`化去宝物 · +${val} 灵石`);
+      if (window.Analytics) Analytics.track("treasure_scrap", { tier: item.tier, coins: val });
+      renderTreasures();
+      refreshMetaUI();
+    });
+  });
+}
+
 function refreshMetaUI() {
   const m = Meta.load();
   G._metaCoinsCached = m.coins;
@@ -9076,6 +9197,38 @@ ui.btnHome.addEventListener("click", showMenu);
       if ((G.ultReady || 0) > 0 || ((G.ultCharge || 0) >= ULT.chargeMax && (G.ultStock || 0) > 0)) castUlt();
     });
   }
+  const btnTreasure = document.getElementById("btnTreasure");
+  const treasureScreen = document.getElementById("treasureScreen");
+  if (btnTreasure && treasureScreen) {
+    btnTreasure.addEventListener("click", () => {
+      ui.startScreen.classList.add("hidden");
+      treasureScreen.classList.remove("hidden");
+      renderTreasures();
+    });
+    const back = document.getElementById("btnTreasureBack");
+    if (back) back.addEventListener("click", () => {
+      treasureScreen.classList.add("hidden");
+      showMenu();
+    });
+    const scrapLow = document.getElementById("btnScrapLow");
+    if (scrapLow) scrapLow.addEventListener("click", () => {
+      const meta = Meta.load();
+      let gain = 0;
+      const keep = [];
+      for (const t of meta.treasures || []) {
+        if (t && t.tier <= 1) { gain += Treasure.scrapValue(t); continue; }
+        keep.push(t);
+      }
+      if (!gain) { toast("没有生锈/普通可化去"); return; }
+      meta.treasures = keep;
+      meta.coins += gain;
+      Meta.save(meta);
+      toast(`批量化去 · +${gain} 灵石`);
+      if (window.Analytics) Analytics.track("treasure_scrap", { bulk: true, coins: gain });
+      renderTreasures();
+      refreshMetaUI();
+    });
+  }
   const shellPanel = document.getElementById("shellPanel");
   if (shellPanel) {
     document.querySelectorAll(".shell-chip").forEach((chip) => {
@@ -9142,7 +9295,7 @@ ui.btnHome.addEventListener("click", showMenu);
       else toast("分享未完成，可稍后再试");
     });
   }
-  try { if (window.Analytics) Analytics.track("app_open", { build: "v7.8.16-balance-x3" }); } catch (_) {}
+  try { if (window.Analytics) Analytics.track("app_open", { build: "v7.8.17-treasures" }); } catch (_) {}
 
   const btnAdDouble = document.getElementById("btnAdDouble");
   if (btnAdDouble) {

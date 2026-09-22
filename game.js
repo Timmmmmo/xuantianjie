@@ -122,14 +122,16 @@ const ArtSprites = {
     const im = this.img[id];
     return !!(im && im.complete && im.naturalWidth > 0);
   },
-  draw(id, x, y, size, flipX) {
+  draw(id, x, y, size, flipX, scaleX, scaleY) {
     const im = this.img[id];
     if (!im || !im.complete || im.naturalWidth <= 0) return false;
     if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(size) || size <= 0) return false;
+    const sx = Number.isFinite(scaleX) && scaleX > 0 ? scaleX : 1;
+    const sy = Number.isFinite(scaleY) && scaleY > 0 ? scaleY : 1;
     try {
       ctx.save();
       ctx.translate(x, y);
-      if (flipX) ctx.scale(-1, 1);
+      ctx.scale(flipX ? -sx : sx, sy);
       ctx.drawImage(im, -size / 2, -size / 2, size, size);
       ctx.restore();
       return true;
@@ -2968,6 +2970,7 @@ function resetRun(charId) {
   G.lowHpBonus = 0; G.chain = 0; G.thorns = 0;
   G.aoeCD = 4; G.aoeCDLeft = 0;
   G.swordTimer = 0; G.swordPhase = 0; G.invuln = 0; G.flash = 0; G.shake = 0; G.goldFlash = 0;
+  G.anim = { movePhase: 0, atkT: 0, dashT: 0 };
   G.enemies = []; G.projectiles = []; G.particles = []; G.floaters = []; G.pickups = [];
   G.bossBanner = 0; G.arenaR = 1400; G.slash = null; G.pendingLevel = 0;
   G.waveBanner = 0; G.waveBannerText = "";
@@ -5416,6 +5419,7 @@ function gemOnCrit(e, d) {
 function applyHit(e, dmg, opts = {}) {
   if (e.dead) return;
   let d = dmg * charVsEnemy(e);
+  e.hitT = 0.08;
   // 五行相生相克：由已凝宝石的五行决定，通用装备不参与
   const rel = bestElemRelation(e.elem);
   if (rel.mul !== 1) d *= rel.mul;
@@ -5530,6 +5534,8 @@ function fireSwordBolt() {
     const d = dist(G.px, G.py, e.x, e.y);
     if (d < best) { best = d; target = e; }
   }
+  G.anim = G.anim || { movePhase: 0, atkT: 0, dashT: 0 };
+  G.anim.atkT = Math.max(G.anim.atkT || 0, 0.12);
   const lv = G.weapons.sword.lv;
   const evo = G.weapons.sword.evo;
   const dmg = G.atk * playerDamageMult() * (evo ? 1.6 : 1) * (0.85 + lv * 0.08);
@@ -5575,6 +5581,8 @@ function castSkill(idx) {
     const dmg = G.atk * G.aoeDamageMul * playerDamageMult() * 1.5;
     const range = G.aoeRange;
     const half = G.aoeAngle / 2;
+    G.anim = G.anim || { movePhase: 0, atkT: 0, dashT: 0 };
+    G.anim.atkT = 0.12;
     G.slash = { x: G.px, y: G.py, ang: face, range, half, life: 0.32, max: 0.32, color: "#c4f1ff" };
     // 起手风压环
     G.particles.push({
@@ -5605,6 +5613,8 @@ function castSkill(idx) {
     G.mp -= 15;
     G.dashCDLeft = G.dashCD;
     G.dashTimer = G.dashTime;
+    G.anim = G.anim || { movePhase: 0, atkT: 0, dashT: 0 };
+    G.anim.dashT = 0.25;
     // v7.0 C 瞬步：无敌帧从 0.4s 拉到 0.6s，让「冲进去」成为可用战术而不是送死
     G.dashIFrame = G.dashTime + 0.25 + (G._blinkIFrameAdd || 0);   // v7.1 瞬步诀可再延长
     G._blinkT = 0;
@@ -6152,6 +6162,10 @@ function update(dt) {
   if (G.state === "altar") { updateHUD(); return; }
   tickActs();
   tickUlt(dt);
+  if (G.anim) {
+    if (G.anim.atkT > 0) G.anim.atkT = Math.max(0, G.anim.atkT - dt);
+    if (G.anim.dashT > 0) G.anim.dashT = Math.max(0, G.anim.dashT - dt);
+  }
   // v7.5：前 10 波自动悟道（不弹卡、不停帧），第 11 波起才弹三选一交给玩家决策
   if ((G.pendingLevel || 0) > 0 && G.state === "play") {
     if (autoUpgradePhase()) flushAutoUpgrades();
@@ -6342,9 +6356,11 @@ function update(dt) {
       if (e.slow <= 0) e.slowMul = 1;
     }
 
-    // v7.4 玄铁试炼桩：钉死在场上 —— 不移动、不被拉扯，否则玩家要追着桩跑，测的就不是输出了
+    // v7.4 玄铁试炼桩：钉死在场上
     if (e.isDummy) {
       e.flash = Math.max(0, e.flash - dt);
+      if (e.hitT > 0) e.hitT = Math.max(0, e.hitT - dt);
+      if (e.atkT > 0) e.atkT = Math.max(0, e.atkT - dt);
       // v7.5 第 3 波的「伤害测试者」是活的：一路追着玩家跑，但 atk=0 永不还手。
       //   追的意义是「贴脸逼你打」——站着不动的桩在前期会被玩家遗忘在角落，
       //   60 秒到了才发现自己一直在打小怪，测出来的是站位不是输出。
@@ -6361,6 +6377,12 @@ function update(dt) {
 
     const ang = angleTo(e.x, e.y, G.px, G.py);
     let mx = Math.cos(ang), my = Math.sin(ang);
+    if (e.hitT > 0) e.hitT = Math.max(0, e.hitT - dt);
+    if (e.atkT > 0) e.atkT = Math.max(0, e.atkT - dt);
+    // 接敌攻击预备：抬手拉伸
+    if (dist(e.x, e.y, G.px, G.py) < e.r + G.pr + 10 && (e.atkT || 0) <= 0) {
+      e.atkT = 0.2;
+    }
     if (e.shape === "bat") {
       const swirl = Math.sin(G.time * 3 + e.phase) * 0.55;
       const px = -Math.sin(ang), py = Math.cos(ang);
@@ -7000,6 +7022,16 @@ function drawSwordShape(x, y, rot, size, color) {
   ctx.restore();
 }
 
+function walkBob(phase, amp) {
+  return Math.sin(phase) * (amp || 2.2);
+}
+function attackPunch(t, max) {
+  if (!t || t <= 0) return 0;
+  const m = max || 0.12;
+  const k = 1 - Math.max(0, t) / m;
+  return Math.sin(k * Math.PI);
+}
+
 function drawPlayer() {
   const s = { x: view.w / 2, y: view.h / 2 };
   const body = G.charId === "mage" ? "#a78bfa" : G.charId === "body" ? "#fbbf24" : "#5ce1e6";
@@ -7007,17 +7039,52 @@ function drawPlayer() {
   const mv0 = readMove();
   const flipP = (mv0.x || 0) < -0.05;
   const spriteId = "player-" + (G.charId || "sword");
+  const moving = Math.hypot(mv0.x || 0, mv0.y || 0) > 0.15;
+  G.anim = G.anim || { movePhase: 0, atkT: 0, dashT: 0 };
+  if (moving) G.anim.movePhase += 0.35;
+  const bob = moving ? walkBob(G.anim.movePhase, 2.6) : Math.sin((G.time || 0) * 2.2) * 0.8;
+  const punch = attackPunch(G.anim.atkT, 0.12);
+  const breath = 1 + (moving ? 0 : Math.sin((G.time || 0) * 2.2) * 0.02);
+  const dashY = G.anim.dashT > 0 ? 0.88 : 1;
+  const tilt = moving ? (mv0.x || 0) * 0.14 : 0;
+  const swing = punch * (flipP ? -0.12 : 0.12);
 
   // ground shadow
   ctx.fillStyle = "rgba(0,0,0,0.35)";
   ctx.beginPath();
   ctx.ellipse(s.x, s.y + G.pr * 0.85, G.pr * 1.05, G.pr * 0.38, 0, 0, TAU);
   ctx.fill();
+  if (moving) {
+    ctx.globalAlpha = 0.25;
+    ctx.fillStyle = "#c4b5fd";
+    ctx.beginPath();
+    ctx.arc(s.x - (mv0.x || 0) * 12, s.y + 10 + Math.random() * 4, 1.5, 0, TAU);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
 
-  // 位图优先（失败走几何）
-  const sprSize = G.pr * 2.55;
+  const sprSize = G.pr * 2.55 * breath * (1 + punch * 0.08);
   let drewSpr = false;
-  try { drewSpr = ArtSprites.draw(spriteId, s.x, s.y - G.pr * 0.15, sprSize, flipP); } catch (_) { drewSpr = false; }
+  try {
+    ctx.save();
+    ctx.translate(s.x, s.y - G.pr * 0.15 + bob);
+    ctx.rotate(tilt + swing);
+    drewSpr = ArtSprites.draw(spriteId, 0, 0, sprSize, flipP, 1, dashY);
+    ctx.restore();
+  } catch (_) {
+    try { ctx.restore(); } catch (_) {}
+    drewSpr = false;
+  }
+  if (punch > 0) {
+    ctx.save();
+    ctx.globalAlpha = 0.35 * punch;
+    ctx.strokeStyle = rim;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, G.pr * (1.4 + punch * 0.5), 0, TAU);
+    ctx.stroke();
+    ctx.restore();
+  }
   if (drewSpr) {
     if (G.playerHurt > 0) {
       ctx.save();
@@ -7091,9 +7158,9 @@ function drawPlayer() {
   }
 
   // dash afterimage / move trail
-  const mv = readMove();
-  const moving = Math.hypot(mv.x, mv.y) > 0.15;
-  if (G.dashTimer > 0 || moving) {
+  const mv2 = readMove();
+  const moving2 = Math.hypot(mv2.x, mv2.y) > 0.15;
+  if (G.dashTimer > 0 || moving2) {
     G.trail = G.trail || [];
     G.trail.push({ x: G.px, y: G.py, life: 0.28, r: G.pr * (G.dashTimer > 0 ? 0.85 : 0.55), color: body });
     if (G.trail.length > 12) G.trail.shift();
@@ -7446,11 +7513,27 @@ function drawEnemyBody(e, r, col) {
     // 精英/Boss 若有专用贴图则优先，否则用基础形 + 外层光环
     const pref = e.boss ? ("boss-" + sid) : e.elite ? ("elite-" + sid) : null;
     if (pref && ArtSprites.ok(pref)) sid = pref;
-    const sprSize = r * (e.boss ? 3.2 : e.elite ? 2.7 : 2.5);
+    const windup = (e.atkT || 0) > 0 ? attackPunch(e.atkT, 0.2) : 0;
+    const hitK = (e.hitT || 0) > 0 ? 1 + Math.sin((e.hitT || 0) * 50) * 0.08 : 1;
+    const bob = walkBob((G.time || 0) * 5 + (e.phase || 0), e.boss ? 3.2 : 2);
+    const flap = (e.shape === "bat" || e.shape === "moth") ? (1 + 0.12 * Math.sin((G.time || 0) * 8 + (e.phase || 0))) : 1;
+    const breathB = e.boss ? 1 + Math.sin((G.time || 0) * 1.5) * 0.03 : 1;
+    const sprSize = r * (e.boss ? 3.2 : e.elite ? 2.7 : 2.5) * (1 + windup * 0.06) * breathB;
     const flipX = (e.vx || 0) < -1;
     let okSpr = false;
-    try { okSpr = ArtSprites.draw(sid, 0, -r * 0.1, sprSize, flipX); } catch (_) { okSpr = false; }
+    try {
+      okSpr = ArtSprites.draw(sid, 0, -r * 0.1 + bob + windup * 2, sprSize, flipX, flap * hitK, hitK);
+    } catch (_) { okSpr = false; }
     if (okSpr) {
+      if (windup > 0) {
+        ctx.save();
+        ctx.globalAlpha = 0.25 * windup;
+        ctx.strokeStyle = "#fecaca";
+        ctx.beginPath();
+        ctx.arc(0, 0, r * (1.3 + windup * 0.3), 0, TAU);
+        ctx.stroke();
+        ctx.restore();
+      }
       if (e.flash > 0) {
         ctx.save();
         ctx.globalAlpha = 0.4;
@@ -8855,7 +8938,7 @@ ui.btnHome.addEventListener("click", showMenu);
       else toast("分享未完成，可稍后再试");
     });
   }
-  try { if (window.Analytics) Analytics.track("app_open", { build: "v7.8.12-ult-acts" }); } catch (_) {}
+  try { if (window.Analytics) Analytics.track("app_open", { build: "v7.8.13-unit-anim" }); } catch (_) {}
 
   const btnAdDouble = document.getElementById("btnAdDouble");
   if (btnAdDouble) {

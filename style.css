@@ -3343,3 +3343,209 @@ body.orange-pause #app::after {
   color: #a5f3fc; font-size: 11px;
 }
 .build-hud.hidden { display: none; }
+
+/* ========== 方环试炼：模式卡 / 妖压 / 四站桩 ========== */
+.mode-cards {
+  display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;
+  margin: 10px 0 4px;
+  pointer-events: auto;
+}
+.mode-card {
+  flex: 1 1 140px;
+  max-width: 200px;
+  min-height: 64px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(148,163,184,0.28);
+  background: linear-gradient(160deg, rgba(16,24,38,0.78), rgba(10,14,22,0.62));
+  color: var(--muted);
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.mode-card b {
+  display: block;
+  font-size: 15px;
+  letter-spacing: 2px;
+  color: var(--cyan-hi);
+  margin-bottom: 4px;
+}
+.mode-card span {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 1px;
+  line-height: 1.35;
+  color: var(--muted);
+}
+.mode-card.on {
+  border-color: rgba(240,193,75,0.55);
+  box-shadow: 0 0 16px rgba(240,193,75,0.18), 0 0 0 1px rgba(240,193,75,0.15) inset;
+}
+.mode-card.on b { color: var(--gold-hi); }
+.mode-card[data-mode="square_loop"].on {
+  border-color: rgba(92,225,230,0.55);
+  box-shadow: 0 0 16px rgba(92,225,230,0.2), 0 0 0 1px rgba(92,225,230,0.15) inset;
+}
+.mode-card[data-mode="square_loop"].on b { color: var(--cyan-hi); }
+
+.square-hud {
+  position: absolute;
+  left: 50%;
+  bottom: calc(118px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  z-index: 8;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(420px, calc(100% - 24px));
+  pointer-events: none;
+}
+.square-hud.hidden { display: none !important; }
+
+.pressure-wrap {
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: stretch;
+}
+.pressure-track {
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(7,11,18,0.72);
+  border: 1px solid rgba(148,163,184,0.28);
+  overflow: hidden;
+}
+.pressure-bar {
+  display: block;
+  height: 100%;
+  width: 0%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #5ce1e6, #7dd3fc);
+  box-shadow: 0 0 10px rgba(92,225,230,0.45);
+  transition: width 0.15s linear;
+}
+.pressure-wrap.warn1 .pressure-bar {
+  background: linear-gradient(90deg, #fbbf24, #f59e0b);
+  box-shadow: 0 0 12px rgba(251,191,36,0.55);
+}
+.pressure-wrap.warn2 .pressure-bar {
+  background: linear-gradient(90deg, #f43f5e, #fb7185);
+  box-shadow: 0 0 14px rgba(244,63,94,0.65);
+  animation: pressureFlash 0.55s ease-in-out infinite;
+}
+@keyframes pressureFlash {
+  0%, 100% { filter: brightness(1); opacity: 1; }
+  50% { filter: brightness(1.35); opacity: 0.75; }
+}
+.pressure-text {
+  text-align: center;
+  font-size: 12px;
+  letter-spacing: 2px;
+  color: var(--cyan-hi);
+  text-shadow: 0 0 10px rgba(92,225,230,0.35);
+}
+.pressure-wrap.warn1 .pressure-text { color: var(--gold-hi); }
+.pressure-wrap.warn2 .pressure-text { color: #fda4af; }
+
+.stance-row {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  pointer-events: auto;
+}
+.stance-btn {
+  flex: 1 1 0;
+  min-width: 56px;
+  min-height: 56px;
+  border-radius: 14px;
+  border: 1px solid rgba(148,163,184,0.3);
+  background: rgba(10,14,22,0.72);
+  color: var(--muted);
+  cursor: pointer;
+  touch-action: manipulation;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 6px 4px;
+}
+.stance-btn i {
+  font-style: normal;
+  font-size: 18px;
+  line-height: 1;
+  letter-spacing: 0;
+}
+.stance-btn span {
+  font-size: 10px;
+  letter-spacing: 1px;
+}
+.stance-btn.s-wind { --sc: #7dd3fc; }
+.stance-btn.s-rain { --sc: #67e8f9; }
+.stance-btn.s-thunder { --sc: #c084fc; }
+.stance-btn.s-bolt { --sc: #fbbf24; }
+.stance-btn.active {
+  border-color: var(--sc);
+  color: var(--sc);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--sc) 45%, transparent),
+              0 0 0 1px color-mix(in srgb, var(--sc) 35%, transparent) inset;
+  background: rgba(10,14,22,0.88);
+}
+.stance-btn.active i {
+  text-shadow: 0 0 12px var(--sc);
+  filter: brightness(1.15);
+}
+.stance-btn:active { transform: scale(0.96); }
+
+.square-ult {
+  pointer-events: auto;
+  align-self: center;
+  min-width: 180px;
+  min-height: 44px;
+  padding: 8px 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(240,193,75,0.35);
+  background: rgba(48,36,10,0.72);
+  color: var(--gold-hi);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.square-ult:disabled {
+  opacity: 0.45;
+  cursor: default;
+  filter: grayscale(0.35);
+}
+.square-ult.ready {
+  opacity: 1;
+  border-color: var(--gold-hi);
+  box-shadow: 0 0 16px rgba(240,193,75,0.4);
+  animation: pressureFlash 0.7s ease-in-out infinite;
+}
+.sq-ult-ico {
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  display: grid; place-items: center;
+  background: rgba(240,193,75,0.18);
+  border: 1px solid rgba(240,193,75,0.4);
+  font-size: 12px;
+}
+.sq-ult-name { font-size: 13px; letter-spacing: 2px; }
+.square-ult em {
+  font-style: normal;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--gold-hi);
+}
+
+/* 站桩热区命中反馈 */
+.pillar-hit {
+  animation: pillarHit 0.28s ease-out;
+}
+@keyframes pillarHit {
+  from { filter: brightness(1.6); transform: scale(1.08); }
+  to { filter: brightness(1); transform: scale(1); }
+}

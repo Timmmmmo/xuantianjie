@@ -754,6 +754,7 @@ const SCHOOL_WEAPON = {
   雷灵: "lightning", 血煞: "lightning",               // 雷金 → 紫电
   玄铁: "array", 磐石: "array",                       // 土金 → 剑阵
 };
+const SCHOOL_WEAPON_MAP = SCHOOL_WEAPON;
 const WEAPON_NAME = { fire: "业火", frost: "寒冰", lightning: "紫电", array: "剑阵" };
 const WEAPON_EVO_NAME = { fire: "业火觉醒", frost: "冰封觉醒", lightning: "雷法觉醒", array: "万剑归宗" };
 const WEAPON_MAX_LV = 5;      // 3 槽位 + 同件多词条，上限 5 级
@@ -811,6 +812,7 @@ function syncWeaponsFromSet() {
   }
   refreshWeaponHint();
   syncFusions();
+  buildHudSync();
 }
 
 // v7.6 本命灵石自动入槽：探针实测「灵石槽入槽」整局只发生 1 次（有的局干脆 0 次），
@@ -880,8 +882,14 @@ function blastNow(b) {
   G.shake = Math.max(G.shake, b.kind === "chain" ? 3 : 7);
   for (const e of G.enemies) {
     if (e.dead) continue;
+    if (b.kind === "eliteSlam") continue; // 敌方砸地：只伤玩家
     if (dist(e.x, e.y, b.x, b.y) > b.r + e.r) continue;
     applyHit(e, b.dmg, b.opts || {});
+  }
+  // P1-A 精英砸地：范围内玩家受伤
+  if (b.kind === "eliteSlam" && dist(G.px, G.py, b.x, b.y) < b.r) {
+    G._pendingCause = "shock";
+    damagePlayer(b.dmg);
   }
   if (b.kind !== "chain") AudioSys.skill();
 }
@@ -1140,7 +1148,7 @@ function rewardHorde(timeout) {
 //   build 好坏能差 15 倍。取中位数（15 波 ≈6k、30 波 ≈20k）× 40 秒，
 //   即「打得好的 25~35 秒打碎，打得一般的差一口气」—— 过与不过都给得出信息。
 const TRIAL_WAVES = [3, 15, 30];
-const TRIAL_TIME = 60;                 // 试炼时长（秒）
+const TRIAL_TIME = 45;                 // 试炼时长（秒）P1-C
 // v7.6 重标定：原第 3 波 5000 血是按「后期 build」拍的，实测第 3 波对桩只有 ~47 DPS，
 //   60 秒只能啃掉 56% —— 玩家第一次接触这个卖点就吃到「D·凡品」，第一印象直接砸掉。
 //   血量按「实测 DPS × 目标用时」重标定，让「打碎」成为大概率事件：过了是应该，过了多久才是评级。
@@ -2973,6 +2981,11 @@ function resetRun(charId) {
   G.swordTimer = 0; G.swordPhase = 0; G.invuln = 0; G.flash = 0; G.shake = 0; G.goldFlash = 0;
   G.anim = { movePhase: 0, atkT: 0, dashT: 0 };
   G.kbX = 0; G.kbY = 0;
+  G.deathCause = "";
+  G._lastDmgCause = "";
+  G._pendingCause = "";
+  G._waveMod = null;
+  G.ultReady = 0;
   G.enemies = []; G.projectiles = []; G.particles = []; G.floaters = []; G.pickups = [];
   G.bossBanner = 0; G.arenaR = 1400; G.slash = null; G.pendingLevel = 0;
   G.waveBanner = 0; G.waveBannerText = "";
@@ -4223,13 +4236,17 @@ function enemyATK(base, wave) {
 function spawnEnemy(typeId, x, y, wave, opts) {
   const t = ENEMY_TYPES[typeId];
   const o = opts || {};
-  const hp = enemyHP(t.hp, wave) * (o.hpMul || 1);
+  const wm = G._waveMod || null;
+  const isTrash = !t.boss && !t.elite && typeId !== "dummy";
+  const hpMod = (isTrash && wm) ? (wm.hpMul || 1) : 1;
+  const spdMod = wm ? (wm.spdMul || 1) : 1;
+  const hp = enemyHP(t.hp, wave) * (o.hpMul || 1) * hpMod;
   const e = {
     id: Math.random().toString(36).slice(2),
     type: typeId, name: t.name, x, y, r: t.r,
     hp, hpMax: hp, atk: enemyATK(t.atk, wave),
     // v6.1 平衡：经验随波次小幅上涨（原固定值 ⇒ 后期三波才升一级）
-    speed: t.speed * rand(0.9, 1.1), xp: Math.round(t.xp * (1 + (wave || 0) * 0.07)), color: t.color, shape: t.shape,
+    speed: t.speed * rand(0.9, 1.1) * spdMod, xp: Math.round(t.xp * (1 + (wave || 0) * 0.07)), color: t.color, shape: t.shape,
     elite: !!t.elite, boss: !!t.boss, splits: !!t.splits, summon: !!t.summon, slam: !!t.slam,
     flash: 0, hitCD: 0, specialCD: rand(2, 4), phase: rand(0, TAU),
     burn: 0, burnDmg: 0, slow: 0, slowMul: 1, dead: false,
@@ -4266,7 +4283,7 @@ function buildWave(wave) {
   const q = [];
   // v7.0：割草的底座是密度。原 3 + wave*0.85（20 波才 20 只）撑不起"割"的体感，
   //       提到 4 + wave*1.35；v7.1：前 3 波仍要温和，别一上来就淹没新手
-  const count = wave <= 3 ? 2 + wave : 4 + Math.floor(wave * 0.95);
+  const count = (wave <= 3 ? 2 + wave : 4 + Math.floor(wave * 0.95)) * ((G._waveMod && G._waveMod.spawnMul) || 1);
   const pool = ["fox", "fox", "wolf"];
   if (wave >= 2) pool.push("bat", "bat");
   if (wave >= 3) pool.push("golem", "ghost");
@@ -4317,7 +4334,7 @@ function updateWaves(dt) {
   // v7.1 节奏控制器：目标同屏数 —— 场上太空就加速灌（原第 1 波 8 秒清完、空场 18 秒），
   //   太挤就放缓给玩家喘息。割草要的是「一直有东西割」，不是「要么淹死要么发呆」
   const aliveN = G.enemies.reduce((s, e) => s + (e.dead ? 0 : 1), 0);
-  const targetAlive = G.wave <= 3 ? 7 : Math.min(48, 6 + G.wave * 0.9);
+  const targetAlive = (G.wave <= 3 ? 7 : Math.min(48, 6 + G.wave * 0.9)) * ((G._waveMod && G._waveMod.id === "tide") ? 1.35 : 1);
   let trickleInterval = G.wave <= 3 ? 1.6 : Math.max(0.55, 1.7 - G.wave * 0.035);
   if (aliveN < targetAlive * 0.55) trickleInterval *= 0.35;
   else if (aliveN > targetAlive * 1.35) trickleInterval *= 2.0;
@@ -4338,6 +4355,7 @@ function updateWaves(dt) {
   G.waveTimer -= dt;
   if (G.waveTimer <= 0) {
     G.wave += 1;
+    enterWaveMod(G.wave);
     // v7.1：前 3 波 16 秒一波（25 秒太长，第 1 波 8 秒就清完了，剩下 17 秒在发呆）
     G.waveTimer = G.wave <= 3 ? 16 : G.waveInterval;
     // v7.1：波间喘息 —— 每波结束回 12% 最大气血。
@@ -4494,6 +4512,7 @@ function ultHudSync() {
     if (fill) fill.style.width = `${clamp(((G.ultCharge || 0) / ULT.chargeMax) * 100, 0, 100)}%`;
     if (stock) stock.textContent = `×${G.ultStock || 0}`;
     el.classList.toggle("ready", (G.ultCharge || 0) >= ULT.chargeMax && (G.ultStock || 0) > 0);
+    el.classList.toggle("armed", (G.ultReady || 0) > 0);
   } catch (_) {}
 }
 function enterAct(act) {
@@ -4526,6 +4545,7 @@ function castUlt() {
   if ((G.ultCharge || 0) < ULT.chargeMax || (G.ultStock || 0) <= 0) return false;
   G.ultCasting = ULT.windup;
   G.ultCharge = 0;
+  G.ultReady = 0;
   toast(`${ULT.name} · 天劫蓄势`, "gold");
   showBigBanner("天劫蓄势", ULT.name + " 0.8s 后湮灭全场", "orange");
   ultHudSync();
@@ -4571,7 +4591,16 @@ function tickUlt(dt) {
     }
     return;
   }
-  if ((G.ultCharge || 0) >= ULT.chargeMax && (G.ultStock || 0) > 0) castUlt();
+  // P0-C 存弹：蓄满先等 3s，可点 HUD 立即释放
+  if ((G.ultCharge || 0) >= ULT.chargeMax && (G.ultStock || 0) > 0) {
+    if (!G.ultReady) {
+      G.ultReady = 3;
+      toast(`${ULT.name} · 可释放（点劫印）`, "gold");
+    }
+    G.ultReady -= dt;
+    if (G.ultReady <= 0) castUlt();
+    ultHudSync();
+  }
 }
 
 // ---------- Combat ----------
@@ -4896,6 +4925,8 @@ function knockEnemies(cx, cy, radius, force) {
 
 function damagePlayer(amount) {
   if (G.dashIFrame > 0 || G.invuln > 0) return;
+  if (G._hurtCD > 0) return;
+  G._lastDmgCause = G._pendingCause || G._lastDmgCause;
   // v7.1 黄金 15 秒 · P0-1：没有受击间隔 ⇒ 被 3~5 只围住时 N 份伤害同帧叠加，
   //   实测开局 9 秒暴毙（探针 ftue-sim），玩家还没搞懂就死了。
   //   加 0.5s 受击间隔：围攻变成「一下一下挨打」，玩家有时间走位脱身。
@@ -4950,6 +4981,7 @@ function damagePlayer(amount) {
   }
   if (amount <= 0) return;
   G.hp -= amount;
+  G.deathCause = G._lastDmgCause || G.deathCause || "swarm";
   // v7.2 悬赏令 · 避煞令：受伤即失败（逼玩家为了悬赏改变打法）
   if (G.bounty && G.bounty.id === "nohurt" && G.bounty.state === "active") failBounty("hurt");
   G.playerHurt = 0.18;
@@ -5130,8 +5162,9 @@ function killEnemy(e, byPlayer = true) {
     }
   } else {
     // v7.1：回血珠掉率 4% → 10%（新手需要「打一只有回报」，也缓解只掉不回的必死局）
-    if (Math.random() < 0.10) dropPickup(e.x, e.y, "orb");
-    if (Math.random() < DROP_MOB) dropPickup(e.x, e.y, "stone", { stone: randStone() });
+    const dropMul = (G._waveMod && G._waveMod.dropMul) ? G._waveMod.dropMul : 1;
+    if (Math.random() < 0.10 * Math.min(1.5, dropMul)) dropPickup(e.x, e.y, "orb");
+    if (Math.random() < DROP_MOB * dropMul) dropPickup(e.x, e.y, "stone", { stone: randStone() });
     // v3.0 小妖掉装备
     if (Math.random() < DROP_EQ_MOB) {
       const slots = ["weapon", "armor", "accessory"];
@@ -5866,6 +5899,63 @@ function onProjectileHitEnemy(p, e) {
   return true;
 }
 
+function buildHudSync() {
+  try {
+    const el = document.getElementById("buildHud");
+    if (!el) return;
+    const cnt = {};
+    for (const slot in G.equipped) {
+      const eq = G.equipped[slot];
+      if (!eq) continue;
+      const seen = new Set();
+      for (const ax of (eq.affixes || [])) {
+        const def = AFFIX_POOL[ax];
+        if (!def || !def.school) continue;
+        const wk = SCHOOL_WEAPON_MAP[def.school];
+        if (!wk || seen.has(wk)) continue;
+        seen.add(wk);
+        cnt[wk] = (cnt[wk] || 0) + 1;
+      }
+    }
+    const names = { fire: "赤锋·业火", frost: "霜晶·寒冰", lightning: "雷灵·紫电", array: "玄铁·剑阵" };
+    for (const k in cnt) {
+      if (cnt[k] > bestN) { bestN = cnt[k]; bestName = names[k] || k; }
+    }
+    if (G._stoneSlot && G._stoneSlot.school) {
+      const wk = SCHOOL_WEAPON_MAP[G._stoneSlot.school];
+      if (wk) {
+        cnt[wk] = (cnt[wk] || 0) + 1;
+        if (cnt[wk] > bestN) { bestN = cnt[wk]; bestName = names[wk] || wk; }
+      }
+    }
+    const el2 = document.getElementById("buildHudText");
+    if (el2) el2.textContent = `${bestName} ${Math.min(bestN, 5)}/5`;
+    el.classList.toggle("hidden", G.state !== "play");
+  } catch (_) {}
+}
+
+// ================= P0-B 波次变体 =================
+const WAVE_MODS = [
+  { id: "tide", name: "妖潮涌", desc: "妖潮密度提升", hpMul: 1, spdMul: 1, dropMul: 1, spawnMul: 1.35 },
+  { id: "iron", name: "妖甲", desc: "小妖身披铁甲 · 更肉", hpMul: 1.25, spdMul: 1, dropMul: 1, spawnMul: 1 },
+  { id: "swift", name: "疾风", desc: "妖物疾行", hpMul: 1, spdMul: 1.2, dropMul: 1, spawnMul: 1 },
+  { id: "hoard", name: "宝箱雨", desc: "灵物掉率提升", hpMul: 1, spdMul: 1, dropMul: 1.5, spawnMul: 1 },
+];
+function waveModFor(wave) {
+  if (!wave || wave < 5 || wave % 5 !== 0) return G._waveMod || null;
+  return WAVE_MODS[Math.floor(wave / 5 - 1) % WAVE_MODS.length];
+}
+function enterWaveMod(wave) {
+  if (!wave || wave < 5 || wave % 5 !== 0) return;
+  const m = WAVE_MODS[Math.floor(wave / 5 - 1) % WAVE_MODS.length];
+  if (!m || (G._waveMod && G._waveMod.id === m.id && G._waveModWave === wave)) return;
+  G._waveMod = m;
+  G._waveModWave = wave;
+  showBigBanner("天时有变", `${m.name} · ${m.desc}`, "violet");
+  toast(`波次变体 · ${m.name}`, "violet");
+  if (window.Analytics) Analytics.track("wave_mod", { id: m.id, wave });
+}
+
 function refreshWeaponHint() {
   const w = G.weapons;
   const names = [];
@@ -5942,6 +6032,7 @@ function endRun() {
   releaseWakeLock();
   const base = G.wave * 3 + G.kills * 0.4 + G.comboPeak * 1.5;
   const coins = Math.max(0, Math.floor(base * (1 + (G._shopCoin || 0))));
+  const prevBest = best.bestWave;
   const best = Meta.endRun(G.wave, G.kills, G.time, G.comboPeak, coins);
   G.coinsRun = coins;
   G._metaCoinsCached = best.coins;
@@ -6024,9 +6115,15 @@ function endRun() {
   ui.overLevel.textContent = G.level;
   ui.overCoins.textContent = "+" + coins;
   ui.overTitle.textContent = `${RealmTitle(G.level)}境 · ${CHARS[G.charId]?.name || ""}`;
-  ui.overMsg.textContent = G.wave >= best.bestWave
-    ? "刷新波次纪录，灵石已入库。"
-    : `最高波次 ${best.bestWave}，灵石可强化后再战。`;
+  ui.overMsg.textContent = (() => {
+    const causeMap = { swarm: "妖潮围杀", slam: "大妖砸击", shock: "精英震地", unknown: "力竭" };
+    const cause = causeMap[G.deathCause] || causeMap.unknown;
+    const oldBest = Number.isFinite(prevBest) ? prevBest : best.bestWave;
+    const vs = G.wave >= oldBest
+      ? `刷新波次纪录${oldBest > 0 ? `（原 ${oldBest}）` : ""}`
+      : `距纪录 ${Math.max(0, oldBest - G.wave)} 波`;
+    return `第 ${G.wave} 波 · 死于${cause}。${vs}，灵石可强化后再战。`;
+  })();
   ui.overScreen.classList.remove("hidden");
   setMenuBg(true);
   refreshShellUI();
@@ -6479,6 +6576,7 @@ function update(dt) {
       }
       if (e.slam) {
         if (dist(e.x, e.y, G.px, G.py) < 120) {
+          G._pendingCause = "slam";
           damagePlayer(e.atk * 1.4);
           G.shake = 12;
           burst(G.px, G.py, "#f59e0b", 20, 180, 5);
@@ -6489,10 +6587,21 @@ function update(dt) {
         });
       }
     }
+    // P1-A 精英砸地前摇
+    if (e.elite && !e.isDummy && (e.slamCD == null || e.slamCD <= 0) && dist(e.x, e.y, G.px, G.py) < 160) {
+      e.slamCD = rand(5, 8);
+      G.blasts = G.blasts || [];
+      G.blasts.push({
+        x: e.x, y: e.y, r: 70, dmg: e.atk * 1.2, t: 0.7, max: 0.7,
+        color: "#f9a8d4", opts: { kind: "eliteSlam", src: e.id }, kind: "eliteSlam",
+      });
+    }
+    if (e.elite && e.slamCD > 0) e.slamCD = Math.max(0, e.slamCD - dt);
 
     if (dist(e.x, e.y, G.px, G.py) < e.r + G.pr) {
       // 接触伤害 + 碰撞反馈（_colT 内只结算一次冲击）
       damagePlayer(e.atk * 0.28);
+      G._pendingCause = "swarm";
       const firstHit = (e._colT || 0) <= 0;
       e._colT = 0.2;
       if (firstHit) {
@@ -8955,6 +9064,14 @@ ui.btnHome.addEventListener("click", showMenu);
 
 // Sprint B 壳：签到 / 分享
 (function bindShell() {
+  const ultHud = document.getElementById("ultHud");
+  if (ultHud) {
+    ultHud.style.pointerEvents = "auto";
+    ultHud.style.cursor = "pointer";
+    ultHud.addEventListener("click", () => {
+      if ((G.ultReady || 0) > 0 || ((G.ultCharge || 0) >= ULT.chargeMax && (G.ultStock || 0) > 0)) castUlt();
+    });
+  }
   const shellPanel = document.getElementById("shellPanel");
   if (shellPanel) {
     document.querySelectorAll(".shell-chip").forEach((chip) => {
@@ -9021,7 +9138,7 @@ ui.btnHome.addEventListener("click", showMenu);
       else toast("分享未完成，可稍后再试");
     });
   }
-  try { if (window.Analytics) Analytics.track("app_open", { build: "v7.8.14-collision" }); } catch (_) {}
+  try { if (window.Analytics) Analytics.track("app_open", { build: "v7.8.15-fun-p0p1" }); } catch (_) {}
 
   const btnAdDouble = document.getElementById("btnAdDouble");
   if (btnAdDouble) {

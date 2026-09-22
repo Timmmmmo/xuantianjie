@@ -1,6 +1,6 @@
 /* 玄天劫 · 离线缓存 Service Worker — v7.8 合并版
    代码类网络优先（保证热更到达），图片缓存优先（省流量秒开） */
-const CACHE = "xuantianjie-v7.8.16-balance-x3";
+const CACHE = "xuantianjie-v7.8.17-treasures";
 const ASSETS = [
   "./",
   "./index.html",
@@ -10,6 +10,7 @@ const ASSETS = [
   "./js/analytics.js",
   "./js/ads.js",
   "./js/weekly.js",
+  "./js/treasure.js",
   "./js/signin.js",
   "./js/daily.js",
   "./js/sharecard.js",

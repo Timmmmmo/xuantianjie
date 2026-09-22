@@ -85,6 +85,49 @@ const ui = {
   tcComment: $("tcComment"), tcTip: $("tcTip"),
 };
 
+// ---------- 局内精灵图（位图，失败回退几何） ----------
+const ArtSprites = {
+  ready: false,
+  img: {},
+  load() {
+    const map = {
+      "player-sword": "assets/sprites/player-sword.png",
+      "player-mage": "assets/sprites/player-mage.png",
+      "player-body": "assets/sprites/player-body.png",
+      fox: "assets/sprites/enemy-fox.png",
+      wolf: "assets/sprites/enemy-wolf.png",
+      golem: "assets/sprites/enemy-golem.png",
+      ghost: "assets/sprites/enemy-ghost.png",
+      bat: "assets/sprites/enemy-bat.png",
+      moth: "assets/sprites/enemy-moth.png",
+      dust: "assets/sprites/enemy-dust.png",
+    };
+    for (const k in map) {
+      try {
+        const im = new Image();
+        im.src = map[k];
+        this.img[k] = im;
+      } catch (_) {}
+    }
+    this.ready = true;
+  },
+  ok(id) {
+    const im = this.img[id];
+    return !!(im && im.complete && im.naturalWidth > 0);
+  },
+  draw(id, x, y, size, flipX) {
+    const im = this.img[id];
+    if (!im || !im.complete || im.naturalWidth <= 0) return false;
+    ctx.save();
+    ctx.translate(x, y);
+    if (flipX) ctx.scale(-1, 1);
+    ctx.drawImage(im, -size / 2, -size / 2, size, size);
+    ctx.restore();
+    return true;
+  },
+};
+try { ArtSprites.load(); } catch (_) {}
+
 // ---------- Audio ----------
 const AudioSys = {
   ctx: null,
@@ -6791,12 +6834,57 @@ function drawPlayer() {
   const s = { x: view.w / 2, y: view.h / 2 };
   const body = G.charId === "mage" ? "#a78bfa" : G.charId === "body" ? "#fbbf24" : "#5ce1e6";
   const rim = G.charId === "mage" ? "#e9d5ff" : G.charId === "body" ? "#ffe9a8" : "#c4f1ff";
+  const mv0 = readMove();
+  const flipP = (mv0.x || 0) < -0.05;
+  const spriteId = "player-" + (G.charId || "sword");
 
   // ground shadow
   ctx.fillStyle = "rgba(0,0,0,0.35)";
   ctx.beginPath();
   ctx.ellipse(s.x, s.y + G.pr * 0.85, G.pr * 1.05, G.pr * 0.38, 0, 0, TAU);
   ctx.fill();
+
+  // 位图优先（失败走几何）
+  const sprSize = G.pr * 2.55;
+  const drewSpr = ArtSprites.draw(spriteId, s.x, s.y - G.pr * 0.15, sprSize, flipP);
+  if (drewSpr) {
+    if (G.playerHurt > 0) {
+      ctx.save();
+      ctx.globalAlpha = 0.35;
+      ctx.fillStyle = "#fff";
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, G.pr * 1.1, 0, TAU);
+      ctx.fill();
+      ctx.restore();
+      G.playerHurt = Math.max(0, G.playerHurt - 0.016);
+    }
+    if (G.shield > 0) {
+      const pulse = G.shieldHit > 0 ? 1 : 0;
+      if (G.shieldHit > 0) G.shieldHit = Math.max(0, G.shieldHit - 0.016);
+      ctx.strokeStyle = pulse ? "rgba(236,252,203,0.95)" : "rgba(163,230,53,0.65)";
+      ctx.lineWidth = pulse ? 3.5 : 2.5;
+      ctx.shadowColor = "#a3e635";
+      ctx.shadowBlur = pulse ? 20 : 12;
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, G.pr + 10 + Math.sin(G.time * 4) * 1.5, 0, TAU);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+    // 环绕飞剑保留
+    const n = G.swordCount;
+    for (let i = 0; i < n; i++) {
+      const a = G.swordPhase + (i / n) * TAU;
+      const sx = s.x + Math.cos(a) * G.swordOrbit;
+      const sy = s.y + Math.sin(a) * G.swordOrbit;
+      ctx.strokeStyle = "rgba(125,211,252,0.18)";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, G.swordOrbit, a - 0.35, a);
+      ctx.stroke();
+      drawSwordShape(sx, sy, a + Math.PI / 2, G.swordSize, "#7dd3fc");
+    }
+    return;
+  }
 
   // aura (class-tinted) — 双层灵晕
   const grd = ctx.createRadialGradient(s.x, s.y, 6, s.x, s.y, 58);
@@ -7176,6 +7264,33 @@ function drawEnemyBody(e, r, col) {
   const hi = e.flash > 0 ? "#ffffff" : (vis.hi || "#fff");
   const eyes = vis.eyes || "#fff";
   const wob = Math.sin((G.time || 0) * 3 + (e.phase || 0));
+
+  // 位图精灵优先
+  let sid = shape;
+  if (shape === "dust" || e.type === "dustling") sid = "dust";
+  else if (shape === "dummy") sid = null;
+  else if (shape === "moth" || e.type === "moth") sid = "moth";
+  else sid = shape;
+  if (sid) {
+    // 精英/Boss 若有专用贴图则优先，否则用基础形 + 外层光环
+    const pref = e.boss ? ("boss-" + sid) : e.elite ? ("elite-" + sid) : null;
+    if (pref && ArtSprites.ok(pref)) sid = pref;
+    const sprSize = r * (e.boss ? 3.2 : e.elite ? 2.7 : 2.5);
+    const flipX = (e.vx || 0) < -1;
+    const okSpr = ArtSprites.draw(sid, 0, -r * 0.1, sprSize, flipX);
+    if (okSpr) {
+      if (e.flash > 0) {
+        ctx.save();
+        ctx.globalAlpha = 0.4;
+        ctx.fillStyle = "#fff";
+        ctx.beginPath();
+        ctx.arc(0, 0, r, 0, TAU);
+        ctx.fill();
+        ctx.restore();
+      }
+      return;
+    }
+  }
 
   const fillBody = () => {
     ctx.fillStyle = col;
@@ -8770,6 +8885,7 @@ try {
 window.G = G;
 window.Meta = Meta;
 window.Quality = Quality;
+window.ArtSprites = ArtSprites;
 // 调试/无头测试钩子（无副作用）
 window.__XTJ__ = {
   openLevelUp, openJobModal, jobSyncHud, shouldOfferJob, buildUpgradePool, rollUpgrades, gainXP,

@@ -83,6 +83,12 @@ const ui = {
   trialCard: $("trialCard"), tcSub: $("tcSub"), tcRank: $("tcRank"), tcRankName: $("tcRankName"),
   tcDps: $("tcDps"), tcDealt: $("tcDealt"), tcTime: $("tcTime"), tcPct: $("tcPct"),
   tcComment: $("tcComment"), tcTip: $("tcTip"),
+  // 方环试炼
+  btnModeSquare: $("btnModeSquare"), btnModeEndless: $("btnModeEndless"),
+  squareHud: $("squareHud"), pressureBar: $("pressureBar"), pressureText: $("pressureText"),
+  stanceWind: $("stanceWind"), stanceRain: $("stanceRain"),
+  stanceThunder: $("stanceThunder"), stanceBolt: $("stanceBolt"),
+  btnSquareUlt: $("btnSquareUlt"), squareUltName: $("squareUltName"), squareUltPct: $("squareUltPct"),
 };
 
 // ---------- 局内精灵图（位图，失败回退几何） ----------
@@ -255,6 +261,11 @@ function normalizeMetaDraft(d) {
     tutorialDone: !!src.tutorialDone,
     modeStats: src.modeStats || { quickWins: 0, endlessBestWave: 0 },
     lastMode: src.lastMode || "endless",
+    squareLoop: {
+      bestClearSec: (src.squareLoop && Number(src.squareLoop.bestClearSec)) || 0,
+      pressurePeak: (src.squareLoop && Number(src.squareLoop.pressurePeak)) || 0,
+      bestClears: (src.squareLoop && Number(src.squareLoop.bestClears)) || 0,
+    },
     premium: {
       noAds: !!(src.premium && src.premium.noAds),
       skins: (src.premium && src.premium.skins) || [],
@@ -2891,6 +2902,9 @@ const G = {
   },
   charId: "sword",
   coinsRun: 0,
+  // 方环试炼（square_loop）：独立状态，不与 endless 共用 enemies
+  modeId: "endless",
+  square: null,
   // 剑阵
   nodes: [], nodeInside: null, nodeActive: false, nodeHoldT: 0, nodeBonus: 0,
   nodeAtkMul: 1, nodeXpMul: 1, nodeDmgTakenMul: 1, nodeMoveMul: 1,
@@ -2996,6 +3010,11 @@ function resetRun(charId) {
   G.shieldHit = 0;
   G.combo = 0; G.comboTimer = 0; G.comboPeak = 0; G.comboMul = 1;
   G.coinsRun = 0;
+  // 方环试炼状态复位（modeId 由选模式入口写入，这里只清局内）
+  G.square = null;
+  G._sqAtkT = 0;
+  G._sqPeak = 0;
+  G._sqSettled = false;
   G._adDoubleUsed = false;
   G.nodeBonus = 0;
   G.nodeHoldBonus = 0;
@@ -3144,6 +3163,15 @@ const UPGRADE_POOL = [
       if (G.fusions && G.fusions.length) { for (const f of G.fusions) f.cd *= 0.82; }
       else G.atk *= 1.10;
     } },
+  // —— 方环四姿态专精 ——
+  { id: "e_stance_wind", cls: "atk", ico: "风", t: "t-out", name: "听风专精", desc: "风姿态伤害 +15% · 弹射 +1", max: 3,
+    apply() { G._stanceMul = G._stanceMul || {}; G._stanceMul.wind = (G._stanceMul.wind || 1) * 1.15; } },
+  { id: "e_stance_rain", cls: "atk", ico: "雨", t: "t-out", name: "润物专精", desc: "雨姿态缓速加强 · DOT +20%", max: 3,
+    apply() { G._stanceMul = G._stanceMul || {}; G._stanceMul.rain = (G._stanceMul.rain || 1) * 1.2; } },
+  { id: "e_stance_thunder", cls: "atk", ico: "雷", t: "t-out", name: "惊蛰专精", desc: "雷姿态连锁 +1 · 麻痹 +5%", max: 3,
+    apply() { G._stanceMul = G._stanceMul || {}; G._stanceMul.thunder = (G._stanceMul.thunder || 1) * 1.15; } },
+  { id: "e_stance_bolt", cls: "atk", ico: "电", t: "t-out", name: "裂空专精", desc: "电姿态破壳 ×1.25 · 破甲 +5%", max: 3,
+    apply() { G._stanceMul = G._stanceMul || {}; G._stanceMul.bolt = (G._stanceMul.bolt || 1) * 1.25; } },
   { id: "u_pick", cls: "form", ico: "摄", t: "t-burst", name: "摄物诀", desc: "拾取范围 +40 · 经验 +10%", max: 3,
     apply() { G._altarPickup = (G._altarPickup || 0) + 40; G.xpMul *= 1.1; } },
   { id: "u_frenzy", cls: "form", ico: "狂", t: "t-burst", name: "狂血诀", desc: "狂血阈值 +8% · 持续 +1s", max: 3, rare: true,
@@ -6025,11 +6053,578 @@ function refreshWeaponHint() {
 }
 
 // ---------- Flow ----------
+// ---- 方环试炼（square_loop）接线：纯逻辑在 window.SquareLoop，这里只做 UI/步进/结算 ----
+let _modePick = null;
+function selectedModeId() {
+  if (_modePick) return _modePick;
+  try {
+    const lm = Meta.load().lastMode;
+    return lm === "square_loop" ? "square_loop" : "endless";
+  } catch (_) {
+    return "endless";
+  }
+}
+function syncModeCards() {
+  const id = selectedModeId();
+  const cards = document.querySelectorAll(".mode-card");
+  for (const c of cards) c.classList.toggle("on", c.dataset.mode === id);
+}
+function setModePick(id) {
+  _modePick = id === "square_loop" ? "square_loop" : "endless";
+  try {
+    const m = Meta.load();
+    m.lastMode = _modePick;
+    Meta.save(m);
+  } catch (_) {}
+  syncModeCards();
+}
+
+// 方环美术：位图失败回退几何
+const SquareArt = {
+  img: {},
+  load() {
+    const map = {
+      eternaut: "assets/eternaut_idle.png",
+      eternaut_crack: "assets/eternaut_crack1.png",
+      eternaut_shatter: "assets/eternaut_shatter.png",
+      toad: "assets/neutral_toad.png",
+      wood: "assets/neutral_wood.png",
+      box: "assets/neutral_box.png",
+    };
+    for (const k in map) {
+      try {
+        const im = new Image();
+        im.src = map[k];
+        this.img[k] = im;
+      } catch (_) {}
+    }
+  },
+  ok(id) {
+    const im = this.img[id];
+    return !!(im && im.complete && im.naturalWidth > 0);
+  },
+  draw(id, x, y, size) {
+    const im = this.img[id];
+    if (!im || !im.complete || im.naturalWidth <= 0) return false;
+    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(size) || size <= 0) return false;
+    try {
+      ctx.save();
+      ctx.drawImage(im, x - size / 2, y - size / 2, size, size);
+      ctx.restore();
+      return true;
+    } catch (_) {
+      try { ctx.restore(); } catch (_) {}
+      return false;
+    }
+  },
+};
+try { SquareArt.load(); } catch (_) {}
+
+const SQ_STANCE_UI = [
+  { id: "wind", el: () => ui.stanceWind },
+  { id: "rain", el: () => ui.stanceRain },
+  { id: "thunder", el: () => ui.stanceThunder },
+  { id: "bolt", el: () => ui.stanceBolt },
+];
+
+function squarePillars(st) {
+  const list = [];
+  for (let i = 0; i < 4; i++) {
+    const a = st.way[i];
+    const b = st.way[(i + 1) % 4];
+    const mx = (a.x + b.x) / 2;
+    const my = (a.y + b.y) / 2;
+    const dx = st.cx - mx;
+    const dy = st.cy - my;
+    const d = Math.hypot(dx, dy) || 1;
+    const sp = window.SquareLoop.STANCES[i];
+    list.push({
+      id: sp.id,
+      name: sp.name,
+      color: sp.color,
+      x: mx + (dx / d) * 28,
+      y: my + (dy / d) * 28,
+    });
+  }
+  return list;
+}
+
+function startSquareLoopRun(charId) {
+  const SL = window.SquareLoop;
+  if (!SL) {
+    G.modeId = "endless";
+    toast("方环模块未加载 · 已回退无尽", "red");
+    return;
+  }
+  G.modeId = "square_loop";
+  G.moveSpeed = 0;
+  G.px = 0; G.py = 0;
+  G.kbX = 0; G.kbY = 0;
+  G.square = SL.makeState({ cx: 0, cy: 0, atk: G.atk });
+  G.square.spawnQueue = SL.buildQueue(Math.max(1, G.wave || 1));
+  G.square.atk = G.atk;
+  G._sqAtkT = 0;
+  G._sqPeak = 0;
+  G._sqSettled = false;
+  G._sqHitT = 0;
+  if (ui.joyZone) ui.joyZone.classList.add("hidden");
+  if (ui.joystick) ui.joystick.classList.add("hidden");
+  if (ui.squareHud) ui.squareHud.classList.remove("hidden");
+  if (ui.goalBar) ui.goalBar.classList.add("hidden");
+  syncSquareStanceHud();
+  updateSquareHud();
+  toast(`${CHARS[charId]?.name || "修士"} · 方环试炼 · 点柱切换风雨雷电`);
+  try {
+    if (window.Analytics) Analytics.track("run_start", { mode: "square_loop", char_id: charId });
+    if (window.Analytics) Analytics.track("square_loop", { phase: "start", char_id: charId });
+  } catch (_) {}
+}
+
+function syncSquareStanceHud() {
+  const st = G.square;
+  if (!st) return;
+  for (const s of SQ_STANCE_UI) {
+    const el = s.el();
+    if (el) el.classList.toggle("active", st.stance === s.id);
+  }
+  const sp = window.SquareLoop.stanceById(st.stance);
+  if (ui.squareUltName && sp) ui.squareUltName.textContent = sp.ultName;
+}
+
+function setSquareStance(id) {
+  const st = G.square;
+  const SL = window.SquareLoop;
+  if (!st || !SL || st.over) return false;
+  if (!SL.setStance(st, id)) return false;
+  syncSquareStanceHud();
+  const sp = SL.stanceById(id);
+  try {
+    const el = document.querySelector(`.stance-btn[data-stance="${id}"]`);
+    if (el) { el.classList.remove("pillar-hit"); void el.offsetWidth; el.classList.add("pillar-hit"); }
+  } catch (_) {}
+  if (window.Analytics) Analytics.track("square_loop", { phase: "stance", stance: id });
+  if (sp) toast(sp.name, "cyan");
+  return true;
+}
+
+function updateSquareHud() {
+  const st = G.square;
+  const SL = window.SquareLoop;
+  if (!st || !SL) return;
+  const p = SL.pressureCount(st);
+  G._sqPeak = Math.max(G._sqPeak || 0, p);
+  const max = SL.PRESSURE_FAIL;
+  if (ui.pressureBar) ui.pressureBar.style.width = `${clamp((p / max) * 100, 0, 100)}%`;
+  if (ui.pressureText) ui.pressureText.textContent = `妖压 ${p}/${max}`;
+  const wrap = ui.pressureBar && ui.pressureBar.parentElement;
+  if (wrap) {
+    wrap.classList.toggle("warn1", p >= SL.PRESSURE_WARN1 && p < SL.PRESSURE_WARN2);
+    wrap.classList.toggle("warn2", p >= SL.PRESSURE_WARN2);
+  }
+  const charge = Math.floor(st.ultCharge || 0);
+  if (ui.squareUltPct) ui.squareUltPct.textContent = `${charge}%`;
+  if (ui.btnSquareUlt) {
+    ui.btnSquareUlt.disabled = charge < 60;
+    ui.btnSquareUlt.classList.toggle("ready", charge >= 100);
+  }
+  syncSquareStanceHud();
+}
+
+function updateSquareLoop(dt) {
+  const st = G.square;
+  const SL = window.SquareLoop;
+  if (!st || !SL) return;
+  if (G._sqHitT > 0) G._sqHitT = Math.max(0, G._sqHitT - dt);
+
+  // 自动普攻节拍 0.55s
+  st.stanceMul = G._stanceMul || st.stanceMul;
+  G._sqAtkT = (G._sqAtkT || 0) + dt;
+  while (G._sqAtkT >= 0.55 && !st.over) {
+    G._sqAtkT -= 0.55;
+    const killsBefore = st.kills;
+    try { SL.autoAttack(st); } catch (_) {}
+    if (st.kills > killsBefore) {
+      for (let i = 0; i < st.kills - killsBefore; i++) SL.addUltCharge(st, "kill");
+    }
+  }
+
+  const events = SL.tick(st, dt, { onKillCharge: false }) || [];
+  try { SL.tryAutoUlt(st, dt); } catch (_) {}
+
+  if (events.indexOf("win") >= 0 || st.win || st.fail || st.over) {
+    endSquareLoop();
+    return;
+  }
+  updateSquareHud();
+}
+
+function grantSquareNeutralReward(reward) {
+  if (!reward) return;
+  if (reward.type === "xp") {
+    try { gainXP(30 + Math.floor((G.square && G.square.time) || 0)); } catch (_) {}
+    toast("木精化悟性 · 破壳得道", "cyan");
+  } else if (reward.type === "treasure") {
+    try {
+      if (window.Treasure) {
+        const meta = Meta.load();
+        const t = Treasure.trialReward(meta.treasures);
+        const add = Treasure.addTreasure(meta.treasures, t);
+        meta.treasures = add.list;
+        Meta.save(meta);
+        if (add.ok) {
+          const ri = add.item || t;
+          const ti = Treasure.TIER[ri.tier] || Treasure.TIER[0];
+          const label = `${ti.name}·${Treasure.SLOT_NAME[ri.slot]}`;
+          toast(`玄匣开启 · ${label}`, "gold");
+          showBigBanner("玄匣开启", label, "gold");
+          if (window.Analytics) Analytics.track("treasure_drop", { tier: ri.tier, slot: ri.slot, source: "square_box", merged: !!add.merged });
+        } else {
+          toast("宝囊已满 · 请化去或合成", "red");
+        }
+      }
+    } catch (_) {}
+  } else if (reward.type === "coins" && reward.coins) {
+    toast(`金蟾吐灵 +${reward.coins}`, "gold");
+  }
+}
+
+function handleSquarePointer(e) {
+  const st = G.square;
+  const SL = window.SquareLoop;
+  if (!st || !SL || st.over || G.state !== "play") return;
+  const rect = canvas.getBoundingClientRect();
+  const sx = (e.clientX - rect.left);
+  const sy = (e.clientY - rect.top);
+  const wx = sx + G.px - view.w / 2;
+  const wy = sy + G.py - view.h / 2;
+
+  // 中立优先
+  for (const n of st.neutrals) {
+    if (!n || !n.alive) continue;
+    if (dist(wx, wy, n.x, n.y) <= 36) {
+      const res = SL.tapNeutral(st, n.id);
+      G._sqHitT = 0.2;
+      try { burst(n.x, n.y, "#f0c14b", 8, 120, 3); } catch (_) {}
+      if (res && res.broke) {
+        try { burst(n.x, n.y, "#fde68a", 18, 220, 5); } catch (_) {}
+        grantSquareNeutralReward(res.reward);
+        if (window.Analytics) Analytics.track("square_loop", { phase: "neutral_break", type: n.type });
+      }
+      updateSquareHud();
+      return;
+    }
+  }
+
+  // 四元素柱（热区 ≥56px）
+  const pillars = squarePillars(st);
+  for (const p of pillars) {
+    if (dist(wx, wy, p.x, p.y) <= 36) {
+      setSquareStance(p.id);
+      return;
+    }
+  }
+}
+
+function drawSquareLoop() {
+  const st = G.square;
+  const SL = window.SquareLoop;
+  if (!st || !SL) return;
+  const w = view.w, h = view.h;
+  try {
+    // 方形妖流路径
+    const pts = st.way.map((p) => w2s(p.x, p.y));
+    ctx.save();
+    ctx.strokeStyle = "rgba(92,225,230,0.28)";
+    ctx.lineWidth = 3;
+    ctx.setLineDash([10, 8]);
+    ctx.lineDashOffset = -G.time * 30;
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < 4; i++) ctx.lineTo(pts[i].x, pts[i].y);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+
+    // 中心法坛 · 玄铁傀儡（裂纹随妖压，碎裂+测定在结算）
+    const c = w2s(st.cx, st.cy);
+    const ultReady = (st.ultCharge || 0) >= 100;
+    const pCount = SL.pressureCount(st);
+    const etKey = pCount >= 170 ? "eternaut_shatter" : pCount >= 120 ? "eternaut_crack" : "eternaut";
+    try {
+      const bob = Math.sin(G.time * 2.2) * 3;
+      if (!SquareArt.draw(etKey, c.x, c.y + bob, 64)) {
+        ctx.save();
+        ctx.fillStyle = "rgba(92,225,230,0.18)";
+        ctx.strokeStyle = ultReady ? "#f0c14b" : "rgba(92,225,230,0.65)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, 28, 0, TAU);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = "#a5f3fc";
+        ctx.font = "12px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("法坛", c.x, c.y + 4);
+        ctx.restore();
+      }
+    } catch (_) {}
+    if (ultReady) {
+      ctx.save();
+      ctx.strokeStyle = "rgba(240,193,75,0.7)";
+      ctx.lineWidth = 3;
+      ctx.shadowColor = "#f0c14b";
+      ctx.shadowBlur = 16;
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, 38 + Math.sin(G.time * 8) * 3, 0, TAU);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // 四元素柱
+    const pillars = squarePillars(st);
+    for (const p of pillars) {
+      const s = w2s(p.x, p.y);
+      const on = st.stance === p.id;
+      const lift = ultReady ? -6 : 0;
+      ctx.save();
+      ctx.translate(s.x, s.y + lift);
+      ctx.strokeStyle = p.color;
+      ctx.fillStyle = on ? p.color : "rgba(10,14,22,0.75)";
+      ctx.globalAlpha = on ? 1 : 0.85;
+      ctx.lineWidth = on ? 3 : 2;
+      ctx.shadowColor = p.color;
+      ctx.shadowBlur = on ? 18 : 8;
+      const pw = 28, ph = 56;
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(-pw / 2, -ph / 2, pw, ph, 8);
+      else ctx.rect(-pw / 2, -ph / 2, pw, ph);
+      ctx.fill();
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = on ? "#070b12" : p.color;
+      ctx.font = "bold 14px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(p.id === "wind" ? "风" : p.id === "rain" ? "雨" : p.id === "thunder" ? "雷" : "电", 0, 0);
+      ctx.restore();
+    }
+
+    // 敌对（方环独有）
+    for (const e of st.enemies) {
+      if (!e || !e.alive || e.neutral) continue;
+      const s = w2s(e.x, e.y);
+      const r = e.kind === "elite" ? 16 : e.kind === "fast" ? 10 : 12;
+      ctx.save();
+      const col = e.kind === "elite" ? "#c084fc" : e.kind === "fast" ? "#fb923c" : e.kind === "horde" ? "#86efac" : "#f87171";
+      ctx.fillStyle = col;
+      ctx.globalAlpha = e.stunT > 0 ? 0.55 : 1;
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, r, 0, TAU);
+      ctx.fill();
+      if (e.slowT > 0) {
+        ctx.strokeStyle = "#67e8f9";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, r + 3, 0, TAU);
+        ctx.stroke();
+      }
+      // 血条
+      if (e.hp < e.hpMax) {
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = "rgba(0,0,0,0.55)";
+        ctx.fillRect(s.x - r, s.y - r - 8, r * 2, 3);
+        ctx.fillStyle = "#86efac";
+        ctx.fillRect(s.x - r, s.y - r - 8, r * 2 * clamp(e.hp / e.hpMax, 0, 1), 3);
+      }
+      ctx.restore();
+    }
+
+    // 中立壳
+    for (const n of st.neutrals) {
+      if (!n || !n.alive) continue;
+      const s = w2s(n.x, n.y);
+      const frac = n.shellMax > 0 ? n.shell / n.shellMax : 1;
+      let key = n.type;
+      if (n.type === "box" || frac < 0.25) key = n.type; // 壳型仍用中立图
+      let drew = false;
+      try {
+        if (n.type === "toad") drew = SquareArt.draw("toad", s.x, s.y, 44);
+        else if (n.type === "wood") drew = SquareArt.draw("wood", s.x, s.y, 44);
+        else drew = SquareArt.draw("box", s.x, s.y, 44);
+      } catch (_) { drew = false; }
+      if (!drew) {
+        ctx.save();
+        ctx.fillStyle = n.type === "toad" ? "#fbbf24" : n.type === "wood" ? "#86efac" : "#c084fc";
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, 18, 0, TAU);
+        ctx.fill();
+        ctx.restore();
+      }
+      // 中立壳用色环裂纹示意，不占用玄铁傀儡贴图
+      if (frac < 0.75) {
+        ctx.save();
+        ctx.strokeStyle = frac <= 0.25 ? "rgba(244,63,94,0.85)" : "rgba(240,193,75,0.75)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, 22, 0, TAU * clamp(1 - frac, 0.1, 1));
+        ctx.stroke();
+        ctx.restore();
+      }
+      ctx.save();
+      ctx.fillStyle = "rgba(0,0,0,0.55)";
+      ctx.fillRect(s.x - 20, s.y + 24, 40, 4);
+      ctx.fillStyle = frac > 0.5 ? "#86efac" : frac > 0.25 ? "#fbbf24" : "#f43f5e";
+      ctx.fillRect(s.x - 20, s.y + 24, 40 * clamp(frac, 0, 1), 4);
+      ctx.fillStyle = "rgba(255,255,255,0.75)";
+      ctx.font = "10px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText(n.type === "toad" ? "金蟾" : n.type === "wood" ? "木精" : "玄匣", s.x, s.y + 42);
+      ctx.restore();
+    }
+  } catch (_) {
+    try {
+      ctx.setTransform(view.dpr || 1, 0, 0, view.dpr || 1, 0, 0);
+      ctx.globalAlpha = 1;
+      ctx.shadowBlur = 0;
+      ctx.setLineDash([]);
+    } catch (_) {}
+    // 禁止 clearRect：保留上一帧
+  }
+}
+
+function endSquareLoop() {
+  if (G._sqSettled) return;
+  G._sqSettled = true;
+  const st = G.square;
+  const SL = window.SquareLoop;
+  if (!st || !SL) return;
+  st.over = true;
+  const result = SL.settle(st);
+  result.pressurePeak = Math.max(result.pressurePeak || 0, G._sqPeak || 0);
+  const coins = Math.max(0, Math.floor(result.coins || 0));
+  G.coinsRun = coins;
+
+  // 结算：只加不减；胜利赐宝，失败可 rollMobDrop 不倒扣
+  try {
+    const meta = Meta.load();
+    meta.coins = (meta.coins || 0) + coins;
+    meta.squareLoop = meta.squareLoop || { bestClearSec: 0, pressurePeak: 0, bestClears: 0 };
+    meta.squareLoop.pressurePeak = Math.max(meta.squareLoop.pressurePeak || 0, result.pressurePeak || 0);
+    if (result.win) {
+      meta.squareLoop.bestClears = (meta.squareLoop.bestClears || 0) + 1;
+      const cs = result.clearSec || st.time || 0;
+      const prev = meta.squareLoop.bestClearSec || 0;
+      meta.squareLoop.bestClearSec = prev > 0 ? Math.min(prev, cs) : cs;
+      setTimeout(() => showBigBanner("测定", "方环清场", "gold"), 280);
+    }
+    if (result.win && window.Treasure) {
+      const t = Treasure.trialReward(meta.treasures);
+      const add = Treasure.addTreasure(meta.treasures, t);
+      meta.treasures = add.list;
+      if (add.ok) {
+        const ri = add.item || t;
+        const ti = Treasure.TIER[ri.tier] || Treasure.TIER[0];
+        setTimeout(() => {
+          toast(`试炼赐宝 · ${ti.name}·${Treasure.SLOT_NAME[ri.slot]}`, "gold");
+          showBigBanner("方环通关", `${ti.name}·${Treasure.SLOT_NAME[ri.slot]}`, "gold");
+        }, 200);
+        if (window.Analytics) Analytics.track("treasure_drop", { tier: ri.tier, slot: ri.slot, source: "square_win", merged: !!add.merged });
+      }
+    } else if (!result.win && window.Treasure) {
+      const t = Treasure.rollMobDrop(Math.max(1, G.wave || 1));
+      if (t) {
+        const add = Treasure.addTreasure(meta.treasures, t);
+        meta.treasures = add.list;
+        if (add.ok) {
+          const ri = add.item || t;
+          const ti = Treasure.TIER[ri.tier] || Treasure.TIER[0];
+          setTimeout(() => toast(`战利 · ${ti.name}·${Treasure.SLOT_NAME[ri.slot]}`, "cyan"), 200);
+        }
+      }
+    }
+    Meta.save(meta);
+    G._metaCoinsCached = meta.coins;
+  } catch (_) {}
+
+  // 日课：square_loop 胜利计入（wave≥5 语义；不改 daily.js）
+  try {
+    if (window.Daily && Daily.applyRunResult) {
+      const dailyRes = Daily.applyRunResult(Meta.load(), {
+        win: !!result.win,
+        mode: "square_loop",
+        wave: result.win ? 5 : 0,
+        comboPeak: 0,
+        weaponKinds: 1,
+      });
+      Meta.save(dailyRes.meta);
+      if (dailyRes.grants && dailyRes.grants.length) {
+        for (const g of dailyRes.grants) {
+          toast(g.msg, "gold");
+          if (window.Analytics) Analytics.track("daily_complete", { id: g.id, coins: g.coins });
+        }
+        G._metaCoinsCached = dailyRes.meta.coins;
+      }
+    }
+  } catch (_) {}
+
+  try {
+    if (window.Weekly) {
+      const wr = Weekly.applyRun(Meta.load(), { wave: result.win ? 5 : 0, kills: result.kills, comboPeak: 0 });
+      Meta.save(wr.meta);
+      if (wr.newly) {
+        const wch = (Weekly.CHALLENGES || []).find((c) => c.id === wr.challengeId);
+        toast(`本周挑战达成 · ${wch ? wch.name : wr.challengeId}`, "gold");
+      }
+    }
+  } catch (_) {}
+
+  try {
+    if (window.Analytics) {
+      Analytics.track("square_loop", {
+        phase: "settle",
+        win: !!result.win,
+        fail: !!result.fail,
+        kills: result.kills,
+        seconds: Math.round(result.time || 0),
+        coins,
+        pressure_peak: result.pressurePeak || 0,
+        stance: st.stance,
+      });
+    }
+  } catch (_) {}
+
+  G.state = "over";
+  releaseJoystick();
+  releaseWakeLock();
+  if (ui.joyZone) ui.joyZone.classList.add("hidden");
+  if (ui.squareHud) ui.squareHud.classList.add("hidden");
+  ui.hud.classList.add("hidden");
+  ui.levelModal.classList.add("hidden");
+  ui.comboBadge.classList.add("hidden");
+
+  ui.overWave.textContent = result.win ? "通关" : "未竟";
+  ui.overKills.textContent = result.kills;
+  ui.overTime.textContent = formatTime(result.time || 0);
+  ui.overCombo.textContent = G._sqPeak || 0;
+  ui.overLevel.textContent = G.level;
+  ui.overCoins.textContent = "+" + coins;
+  ui.overTitle.textContent = result.win ? "方环试炼 · 清净" : "方环试炼 · 妖压崩盘";
+  ui.overMsg.textContent = result.win
+    ? `妖流全灭 · 用时 ${formatTime(result.time || 0)} · 妖压峰值 ${result.pressurePeak || 0}。灵石+${coins}，已入帐。`
+    : `敌对持续 ≥188 超 2 秒判负 · 妖压峰值 ${result.pressurePeak || 0} · 斩 ${result.kills}。不扣灵石，可再战。`;
+  ui.overScreen.classList.remove("hidden");
+  setMenuBg(true);
+  refreshShellUI();
+}
+
 function startRun(charId) {
   AudioSys.init();
   const id = charId || Meta.load().selectedChar || "sword";
   const m = Meta.load();
   m.selectedChar = id;
+  G.modeId = selectedModeId() === "square_loop" ? "square_loop" : "endless";
+  m.lastMode = G.modeId;
   Meta.save(m);
   resetRun(id);
   G.state = "play";
@@ -6047,6 +6642,14 @@ function startRun(charId) {
   stoneHudSync();
   forgeBtnSync();
   resHudSync();
+  if (G.modeId === "square_loop") {
+    startSquareLoopRun(id);
+    return;
+  }
+  // 回到无尽：恢复摇杆层
+  if (ui.joyZone) ui.joyZone.classList.remove("hidden");
+  if (ui.joystick) ui.joystick.classList.remove("hidden");
+  if (ui.squareHud) ui.squareHud.classList.add("hidden");
   toast(`${CHARS[id]?.name || "修士"} · 御剑清妖`);
   try {
     if (window.Analytics) Analytics.track("run_start", { mode: "endless", char_id: id });
@@ -6380,6 +6983,11 @@ function update(dt) {
   if (G.state === "menu" || G.state === "over" || G.state === "shop" || G.state === "pause" || G.state === "codex") return;
   if (G.state === "level" || G.state === "job" || G.state === "forge") return;
   if (G.state === "altar") { updateHUD(); return; }
+  // 方环试炼：独立步进，不进无尽波次/摇杆/飞剑
+  if (G.modeId === "square_loop" && G.square) {
+    updateSquareLoop(dt);
+    return;
+  }
   tickActs();
   tickUlt(dt);
   if (G.anim) {
@@ -6880,9 +7488,11 @@ function drawInner() {
   ctx.save();
   ctx.translate(ox, oy);
   const camX = G.px, camY = G.py;
-  drawBackground(camX, camY);
+  try { drawBackground(camX, camY); } catch (_) { try { ctx.restore(); } catch (_) {} ctx.save(); ctx.translate(ox, oy); }
   if (G.state === "menu" || G.state === "shop" || G.state === "codex") {
     drawMenuAmbient();
+  } else if (G.modeId === "square_loop" && G.square) {
+    drawSquareLoop();
   } else {
     drawNodes(camX, camY);
     drawZones();
@@ -9045,11 +9655,15 @@ function showMenu() {
   ui.codexScreen.classList.add("hidden");
   if (ui.forgeModal) ui.forgeModal.classList.add("hidden");
   ui.comboBadge.classList.add("hidden");
+  if (ui.squareHud) ui.squareHud.classList.add("hidden");
+  if (ui.joyZone) ui.joyZone.classList.remove("hidden");
+  if (ui.joystick) ui.joystick.classList.remove("hidden");
   ui.startScreen.classList.remove("hidden");
   setMenuBg(true);
   refreshMetaUI();
   renderChars();
   refreshShellUI();
+  syncModeCards();
 }
 
 // ---------- 暂停 / 全屏 / 屏幕常亮 / 触感 ----------
@@ -9187,6 +9801,55 @@ ui.btnRetry.addEventListener("click", () => {
 });
 ui.btnHome.addEventListener("click", showMenu);
 
+// ---- 方环试炼：模式卡 / 站桩键 / 大招 / 场上点击 ----
+(function bindSquareLoop() {
+  const bindMode = (el, id) => {
+    if (!el) return;
+    el.addEventListener("click", () => {
+      AudioSys.init();
+      setModePick(id);
+    });
+  };
+  bindMode(ui.btnModeEndless, "endless");
+  bindMode(ui.btnModeSquare, "square_loop");
+  syncModeCards();
+
+  for (const s of SQ_STANCE_UI) {
+    const el = s.el();
+    if (el) el.addEventListener("click", (e) => {
+      e.stopPropagation();
+      setSquareStance(s.id);
+    });
+  }
+  if (ui.btnSquareUlt) {
+    ui.btnSquareUlt.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const st = G.square;
+      const SL = window.SquareLoop;
+      if (!st || !SL || st.over) return;
+      if ((st.ultCharge || 0) < 60) return;
+      const res = SL.castUlt(st, st.ultCharge / 100);
+      if (res && window.Analytics) {
+        Analytics.track("square_loop", { phase: "ult_manual", name: res.name, scale: res.scale, dealt: Math.round(res.dealt || 0) });
+      }
+      updateSquareHud();
+    });
+  }
+  // joyZone 隐藏后由 canvas 收点击（柱 / 中立）
+  if (canvas) {
+    const onDown = (e) => {
+      if (G.modeId !== "square_loop" || G.state !== "play") return;
+      e.preventDefault();
+      handleSquarePointer(e);
+    };
+    if (window.PointerEvent) canvas.addEventListener("pointerdown", onDown);
+    else canvas.addEventListener("touchstart", (ev) => {
+      const t = ev.changedTouches && ev.changedTouches[0];
+      if (t) onDown({ clientX: t.clientX, clientY: t.clientY, preventDefault: () => ev.preventDefault() });
+    }, { passive: false });
+  }
+})();
+
 // Sprint B 壳：签到 / 分享
 (function bindShell() {
   const ultHud = document.getElementById("ultHud");
@@ -9295,7 +9958,7 @@ ui.btnHome.addEventListener("click", showMenu);
       else toast("分享未完成，可稍后再试");
     });
   }
-  try { if (window.Analytics) Analytics.track("app_open", { build: "v7.8.17-treasures" }); } catch (_) {}
+  try { if (window.Analytics) Analytics.track("app_open", { build: "v7.8.18-stance-loop" }); } catch (_) {}
 
   const btnAdDouble = document.getElementById("btnAdDouble");
   if (btnAdDouble) {
@@ -9581,6 +10244,9 @@ window.__XTJ__ = {
   spawnTrial, updateTrial, endTrial, trialHudSync,
   // v7.5 健壮性探针（无副作用，仅供无头体检 tools/robustness-suite.js 调用）
   resetRun, resize, spawnAtEdge, equipRec, ULT, ACTS, actForWave, castUlt, fireUlt, addUltCharge, softCollide,
+  // 方环试炼（square_loop）
+  selectedModeId, setModePick, syncModeCards, startSquareLoopRun, updateSquareLoop, endSquareLoop,
+  setSquareStance, updateSquareHud, handleSquarePointer, drawSquareLoop, squarePillars, SquareArt,
   ENEMY_STRENGTH_MUL, HORDE_STRENGTH_MUL, enemyHP, enemyATK, trialHPFor,
   TRIAL_GRADES, TRIAL_GRADE_TIME, TRIAL_GRADE_RATIO, trialGrade, showTrialResult, hideTrialCard,
   // v7.6 好玩性改造：试炼 2.0 / 深度系统触达 / 悟道便签

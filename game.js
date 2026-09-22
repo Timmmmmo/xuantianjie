@@ -1152,7 +1152,7 @@ const TRIAL_TIME = 45;                 // 试炼时长（秒）P1-C
 // v7.6 重标定：原第 3 波 5000 血是按「后期 build」拍的，实测第 3 波对桩只有 ~47 DPS，
 //   60 秒只能啃掉 56% —— 玩家第一次接触这个卖点就吃到「D·凡品」，第一印象直接砸掉。
 //   血量按「实测 DPS × 目标用时」重标定，让「打碎」成为大概率事件：过了是应该，过了多久才是评级。
-const TRIAL_HP = { 3: 2200, 15: 180000, 30: 950000 };
+const TRIAL_HP = { 3: 22000, 15: 1800000, 30: 9500000 }; // ×10 伤害测试者
 // v7.6「玄铁崩解」：最后 15 秒桩体自行崩解，每秒流失最大生命 4%（15 秒共 60%）。
 //   设计取舍：纯测输出的话，build 差的玩家会干打 60 秒看着血条纹丝不动 —— 那不是考验，是折磨。
 //   前 45 秒是纯净的输出对账（崩解不参与、不计入 dealt，DPS 数字依然可信），
@@ -1282,9 +1282,10 @@ function updateTrial(dt) {
 // 门槛按实测标定（tools/playability-sim.js 逐波真实对局采样），不是拍脑袋。
 // v7.6 随血量重标定同步下调门槛（血量降了，还用旧门槛会人人天品，评级就没有区分度了）
 const TRIAL_GRADE_TIME = {      // 击碎用时门槛（秒）：[天品, 上品, 中品, 下品]，超出即凡品
-  3: [26, 36, 46, 56],
-  15: [22, 34, 46, 58],
-  30: [22, 34, 46, 58],
+  // ×10 硬度 + 45s 上限：上四档压进 45s 内，避免「下品」永不可达
+  3: [18, 28, 36, 43],
+  15: [20, 30, 38, 44],
+  30: [22, 32, 40, 44],
 };
 const TRIAL_GRADE_RATIO = [0.85, 0.62, 0.38, 0.18];   // 没打碎时按「打掉几成」评：中品 / 下品 / 凡品 / 劣品
 const TRIAL_GRADES = [
@@ -4218,6 +4219,8 @@ function earlyEnemyAtkMul(wave) {
 // 配比说明：压力主要来自 ATK（制造"会被打死"的威胁），HP 只温和上涨。
 // 试过 HP 系数 0.028 —— 40 波妖王要砍 119 刀，等于把 v6.1 修掉的撞墙又请回来了。
 const ENDGAME_FROM = 26;          // 从第几波开始施加终局压力
+const ENEMY_STRENGTH_MUL = 3;     // v7.8.16 敌方整体强度（HP/ATK）
+const HORDE_STRENGTH_MUL = 2.5;   // 尸潮稍降，避免纯堵门
 function endgameHpMul(wave) {
   if (wave <= ENDGAME_FROM) return 1;
   return 1 + 0.012 * Math.pow(wave - ENDGAME_FROM, 1.35);
@@ -4227,10 +4230,10 @@ function endgameAtkMul(wave) {
   return 1 + 0.022 * (wave - ENDGAME_FROM);
 }
 function enemyHP(base, wave) {
-  return base * (1 + 0.18 * wave) * (1 + 0.02 * Math.pow(wave, 1.25)) * endgameHpMul(wave);
+  return base * (1 + 0.18 * wave) * (1 + 0.02 * Math.pow(wave, 1.25)) * endgameHpMul(wave) * ENEMY_STRENGTH_MUL;
 }
 function enemyATK(base, wave) {
-  return base * (1 + 0.12 * wave) * endgameAtkMul(wave) * earlyEnemyAtkMul(wave);
+  return base * (1 + 0.12 * wave) * endgameAtkMul(wave) * earlyEnemyAtkMul(wave) * ENEMY_STRENGTH_MUL;
 }
 
 function spawnEnemy(typeId, x, y, wave, opts) {
@@ -4238,13 +4241,14 @@ function spawnEnemy(typeId, x, y, wave, opts) {
   const o = opts || {};
   const wm = G._waveMod || null;
   const isTrash = !t.boss && !t.elite && typeId !== "dummy";
-  const hpMod = (isTrash && wm) ? (wm.hpMul || 1) : 1;
+  const hpMulMod = (isTrash && wm) ? (wm.hpMul || 1) : 1;
   const spdMod = wm ? (wm.spdMul || 1) : 1;
-  const hp = enemyHP(t.hp, wave) * (o.hpMul || 1) * hpMod;
+  const str = o.horde ? (HORDE_STRENGTH_MUL / ENEMY_STRENGTH_MUL) : 1;
+  const hp = enemyHP(t.hp, wave) * (o.hpMul || 1) * hpMulMod * str;
   const e = {
     id: Math.random().toString(36).slice(2),
     type: typeId, name: t.name, x, y, r: t.r,
-    hp, hpMax: hp, atk: enemyATK(t.atk, wave),
+    hp, hpMax: hp, atk: enemyATK(t.atk, wave) * str,
     // v6.1 平衡：经验随波次小幅上涨（原固定值 ⇒ 后期三波才升一级）
     speed: t.speed * rand(0.9, 1.1) * spdMod, xp: Math.round(t.xp * (1 + (wave || 0) * 0.07)), color: t.color, shape: t.shape,
     elite: !!t.elite, boss: !!t.boss, splits: !!t.splits, summon: !!t.summon, slam: !!t.slam,
@@ -9138,7 +9142,7 @@ ui.btnHome.addEventListener("click", showMenu);
       else toast("分享未完成，可稍后再试");
     });
   }
-  try { if (window.Analytics) Analytics.track("app_open", { build: "v7.8.15-fun-p0p1" }); } catch (_) {}
+  try { if (window.Analytics) Analytics.track("app_open", { build: "v7.8.16-balance-x3" }); } catch (_) {}
 
   const btnAdDouble = document.getElementById("btnAdDouble");
   if (btnAdDouble) {
@@ -9424,6 +9428,7 @@ window.__XTJ__ = {
   spawnTrial, updateTrial, endTrial, trialHudSync,
   // v7.5 健壮性探针（无副作用，仅供无头体检 tools/robustness-suite.js 调用）
   resetRun, resize, spawnAtEdge, equipRec, ULT, ACTS, actForWave, castUlt, fireUlt, addUltCharge, softCollide,
+  ENEMY_STRENGTH_MUL, HORDE_STRENGTH_MUL, enemyHP, enemyATK, trialHPFor,
   TRIAL_GRADES, TRIAL_GRADE_TIME, TRIAL_GRADE_RATIO, trialGrade, showTrialResult, hideTrialCard,
   // v7.6 好玩性改造：试炼 2.0 / 深度系统触达 / 悟道便签
   TRIAL_COLLAPSE_AT, TRIAL_COLLAPSE_RATE, TRIAL_CRACKS, trialCrack,

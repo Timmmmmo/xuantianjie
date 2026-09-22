@@ -101,6 +101,8 @@ const ArtSprites = {
       bat: "assets/sprites/enemy-bat.png",
       moth: "assets/sprites/enemy-moth.png",
       dust: "assets/sprites/enemy-dust.png",
+      spring: "assets/sprites/prop-spring.png",
+      swordtomb: "assets/sprites/prop-swordtomb.png",
     };
     for (const k in map) {
       try {
@@ -109,6 +111,11 @@ const ArtSprites = {
         this.img[k] = im;
       } catch (_) {}
     }
+    try {
+      const bg = new Image();
+      bg.src = "assets/bg-arena.png";
+      this.img.arena = bg;
+    } catch (_) {}
     this.ready = true;
   },
   ok(id) {
@@ -6566,6 +6573,38 @@ function drawInner() {
 
 let bgGrad = null;
 function drawBackground(camX, camY) {
+  // 精美战场底图优先；失败必须落入程序化地面
+  const arena = ArtSprites.img && ArtSprites.img.arena;
+  if (arena && arena.complete && arena.naturalWidth > 0 && arena.naturalHeight > 0) {
+    try {
+      const scale = Math.max(view.w / arena.naturalWidth, view.h / arena.naturalHeight) * 1.35;
+      const dw = arena.naturalWidth * scale;
+      const dh = arena.naturalHeight * scale;
+      if (Number.isFinite(dw) && Number.isFinite(dh) && dw > 0 && dh > 0) {
+        ctx.save();
+        ctx.fillStyle = "#070b12";
+        ctx.fillRect(0, 0, view.w, view.h);
+        const px = (-camX * 0.03) % dw;
+        const py = (-camY * 0.03) % dh;
+        ctx.globalAlpha = 0.92;
+        for (let ix = -1; ix <= 1; ix++) {
+          for (let iy = -1; iy <= 1; iy++) {
+            ctx.drawImage(arena, px - dw / 2 + view.w / 2 + ix * dw, py - dh / 2 + view.h / 2 + iy * dh, dw, dh);
+          }
+        }
+        ctx.globalAlpha = 1;
+        const vg = ctx.createRadialGradient(view.w / 2, view.h / 2, view.w * 0.2, view.w / 2, view.h / 2, Math.max(view.w, view.h) * 0.7);
+        vg.addColorStop(0, "rgba(7,11,18,0)");
+        vg.addColorStop(1, "rgba(7,11,18,0.55)");
+        ctx.fillStyle = vg;
+        ctx.fillRect(0, 0, view.w, view.h);
+        ctx.restore();
+        return;
+      }
+    } catch (_) {
+      try { ctx.restore(); } catch (_) {}
+    }
+  }
   if (!bgGrad) {
     bgGrad = ctx.createRadialGradient(view.w / 2, view.h * 0.4, 20, view.w / 2, view.h * 0.5, Math.max(view.w, view.h) * 0.7);
     bgGrad.addColorStop(0, "#152033");
@@ -8695,7 +8734,7 @@ ui.btnHome.addEventListener("click", showMenu);
       else toast("分享未完成，可稍后再试");
     });
   }
-  try { if (window.Analytics) Analytics.track("app_open", { build: "v7.8.10-trial-fix" }); } catch (_) {}
+  try { if (window.Analytics) Analytics.track("app_open", { build: "v7.8.11-premium-art" }); } catch (_) {}
 
   const btnAdDouble = document.getElementById("btnAdDouble");
   if (btnAdDouble) {

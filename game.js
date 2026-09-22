@@ -2927,6 +2927,7 @@ const G = {
   _blinkT: 0,                       // C：瞬步残影生成计时
   _chainDepth: 0, _chainKills: 0,   // B2：连锁击杀
   act: 0, ultCharge: 0, ultStock: 2, ultCasting: 0,
+  kbX: 0, kbY: 0,
 };
 
 function resetRun(charId) {
@@ -2971,6 +2972,7 @@ function resetRun(charId) {
   G.aoeCD = 4; G.aoeCDLeft = 0;
   G.swordTimer = 0; G.swordPhase = 0; G.invuln = 0; G.flash = 0; G.shake = 0; G.goldFlash = 0;
   G.anim = { movePhase: 0, atkT: 0, dashT: 0 };
+  G.kbX = 0; G.kbY = 0;
   G.enemies = []; G.projectiles = []; G.particles = []; G.floaters = []; G.pickups = [];
   G.bossBanner = 0; G.arenaR = 1400; G.slash = null; G.pendingLevel = 0;
   G.waveBanner = 0; G.waveBannerText = "";
@@ -4573,6 +4575,71 @@ function tickUlt(dt) {
 }
 
 // ---------- Combat ----------
+/** 软碰撞分离：圆体重叠推开，不穿模（无伤害） */
+function softCollide() {
+  const list = [];
+  for (const e of G.enemies) {
+    if (e.dead) continue;
+    if (!Number.isFinite(e.x) || !Number.isFinite(e.y)) { e.dead = true; continue; }
+    if (e._colT > 0) e._colT = Math.max(0, e._colT - 0.016);
+    list.push(e);
+  }
+  const n = list.length;
+  if (!n) return;
+  const near = n > 60
+    ? list.slice().sort((a, b) => dist(a.x, a.y, G.px, G.py) - dist(b.x, b.y, G.px, G.py)).slice(0, 24)
+    : list;
+  let fixes = 0;
+  const MAX_FIX = 40;
+  const norm = (dx, dy, seed) => {
+    let d = Math.hypot(dx, dy);
+    if (!(d > 0.5) || !Number.isFinite(d)) {
+      const a = (seed || 0) * 12.9898;
+      d = 1;
+      return { nx: Math.cos(a), ny: Math.sin(a), d: 0 };
+    }
+    return { nx: dx / d, ny: dy / d, d };
+  };
+  // 玩家 vs 敌（玩家 35% / 对方 65%；试炼桩不推玩家）
+  for (const e of near) {
+    if (fixes >= MAX_FIX) break;
+    const { nx, ny, d } = norm(G.px - e.x, G.py - e.y, e.r + (e.phase || 0));
+    const min = e.r + G.pr + 2;
+    if (d < min) {
+      const pen = min - d;
+      let eK = 0.65, pK = 0.35;
+      if (e.boss) { eK = 0.65 * 0.85; pK = 1 - eK; }
+      if (e.isDummy) {
+        if (e.isChaser) { eK = 0.5 * 0.65; pK = 1 - eK; }
+        else { eK = 0; pK = 0; } // 静止试炼桩：不推玩家
+      }
+      G.px += nx * pen * pK;
+      G.py += ny * pen * pK;
+      if (eK > 0) {
+        e.x -= nx * pen * eK;
+        e.y -= ny * pen * eK;
+      }
+      fixes++;
+    }
+  }
+  // 敌 vs 敌
+  for (let i = 0; i < near.length; i++) {
+    for (let j = i + 1; j < near.length; j++) {
+      if (fixes >= MAX_FIX) return;
+      const a = near[i], b = near[j];
+      const { nx, ny, d } = norm(b.x - a.x, b.y - a.y, a.r + b.r);
+      const min = a.r + b.r + 2;
+      if (d < min) {
+        const pen = (min - d) * 0.5;
+        const wa = a.boss ? 0.3 : 0.5, wb = 1 - wa;
+        a.x -= nx * pen * wa; a.y -= ny * pen * wa;
+        b.x += nx * pen * wb; b.y += ny * pen * wb;
+        fixes++;
+      }
+    }
+  }
+}
+
 function comboMul() {
   return 1 + Math.min(G.combo, 40) * 0.03;
 }
@@ -5474,7 +5541,7 @@ function applyHit(e, dmg, opts = {}) {
   feelHit(e, d, isCrit);
   // v6.0 A 词缀 · 荆棘：玩家打它会被反弹
   if (e.mods && e.mods.indexOf("thorns") >= 0 && d > 0) damagePlayer(d * 0.18);
-  e.flash = 0.1;
+  e.flash = Math.max(e.flash || 0, 0.1);
   if (opts.burn) { e.burn = opts.burn; e.burnDmg = opts.burnDmg; }
   if (opts.slow) { e.slow = opts.slow; e.slowMul = opts.slowMul || 0.55; }
   gemOnHit(e, d);                    // 流派宝石的特殊攻击效果
@@ -6278,10 +6345,15 @@ function update(dt) {
   for (const z of G.zones) {
     if (z.kind === "slow" && dist(z.x, z.y, G.px, G.py) < z.r) { speed *= z.mul; break; }
   }
-  G.px += mv.x * speed * dt;
-  G.py += mv.y * speed * dt;
+  G.px += mv.x * speed * dt + (G.kbX || 0) * dt;
+  G.py += mv.y * speed * dt + (G.kbY || 0) * dt;
+  if (!Number.isFinite(G.px) || !Number.isFinite(G.py)) { G.px = 0; G.py = 0; G.kbX = 0; G.kbY = 0; }
+  if (!Number.isFinite(G.kbX)) G.kbX = 0;
+  if (!Number.isFinite(G.kbY)) G.kbY = 0;
+  if (G.kbX) G.kbX *= Math.pow(0.001, dt);
+  if (G.kbY) G.kbY *= Math.pow(0.001, dt);
   const dFromOrigin = Math.hypot(G.px, G.py);
-  if (dFromOrigin > G.arenaR) {
+  if (Number.isFinite(dFromOrigin) && dFromOrigin > G.arenaR) {
     const s = G.arenaR / dFromOrigin;
     G.px *= s; G.py *= s;
   }
@@ -6358,12 +6430,7 @@ function update(dt) {
 
     // v7.4 玄铁试炼桩：钉死在场上
     if (e.isDummy) {
-      e.flash = Math.max(0, e.flash - dt);
-      if (e.hitT > 0) e.hitT = Math.max(0, e.hitT - dt);
-      if (e.atkT > 0) e.atkT = Math.max(0, e.atkT - dt);
-      // v7.5 第 3 波的「伤害测试者」是活的：一路追着玩家跑，但 atk=0 永不还手。
-      //   追的意义是「贴脸逼你打」——站着不动的桩在前期会被玩家遗忘在角落，
-      //   60 秒到了才发现自己一直在打小怪，测出来的是站位不是输出。
+      // flash/hitT/atkT 已在上文统一递减，这里只处理追猎
       if (e.isChaser) {
         const ca = angleTo(e.x, e.y, G.px, G.py);
         const cs = (e.speed || TRIAL_CHASE_SPEED) * (e.slowMul || 1);
@@ -6424,15 +6491,31 @@ function update(dt) {
     }
 
     if (dist(e.x, e.y, G.px, G.py) < e.r + G.pr) {
-      // v7.1：原来是 e.atk*dt*3.2 的持续 DPS（单只贴身 ≈ 29 DPS，三只即秒杀），
-      //       改成「一次接触一次伤害」，配合 damagePlayer 的 0.5s 受击间隔 ≈ 单只 5~6 DPS
+      // 接触伤害 + 碰撞反馈（_colT 内只结算一次冲击）
       damagePlayer(e.atk * 0.28);
-      const push = angleTo(G.px, G.py, e.x, e.y);
-      e.x += Math.cos(push) * 40 * dt;
-      e.y += Math.sin(push) * 40 * dt;
+      const firstHit = (e._colT || 0) <= 0;
+      e._colT = 0.2;
+      if (firstHit) {
+        const ca = angleTo(e.x, e.y, G.px, G.py);
+        const heavy = e.boss ? 1.6 : 1;
+        if (!Number.isFinite(G.kbX)) G.kbX = 0;
+        if (!Number.isFinite(G.kbY)) G.kbY = 0;
+        G.kbX += Math.cos(ca) * 160 * heavy;
+        G.kbY += Math.sin(ca) * 160 * heavy;
+        e.x -= Math.cos(ca) * 18 * heavy;
+        e.y -= Math.sin(ca) * 18 * heavy;
+        G.particles.push({
+          x: (e.x + G.px) / 2, y: (e.y + G.py) / 2,
+          vx: 0, vy: 0, life: 0.18, max: 0.18,
+          color: "#fff7ed", size: 3, ring: { r0: 4, r1: 22 },
+        });
+        hitStop(25);
+        G.shake = Math.max(G.shake, 2);
+      }
     }
   }
   G.enemies = G.enemies.filter((e) => !e.dead);
+  softCollide();
 
   // v6.0 A 冰霜力场衰减 / v7.0 A 合击力场（冰封剑狱 · 冰火两仪）
   for (const z of G.zones) {
@@ -8938,7 +9021,7 @@ ui.btnHome.addEventListener("click", showMenu);
       else toast("分享未完成，可稍后再试");
     });
   }
-  try { if (window.Analytics) Analytics.track("app_open", { build: "v7.8.13-unit-anim" }); } catch (_) {}
+  try { if (window.Analytics) Analytics.track("app_open", { build: "v7.8.14-collision" }); } catch (_) {}
 
   const btnAdDouble = document.getElementById("btnAdDouble");
   if (btnAdDouble) {
@@ -9223,7 +9306,7 @@ window.__XTJ__ = {
   TRIAL_WAVES, TRIAL_TIME, TRIAL_HP, TRIAL_CHASE, trialHPFor, trialIsWave, trialTitle,
   spawnTrial, updateTrial, endTrial, trialHudSync,
   // v7.5 健壮性探针（无副作用，仅供无头体检 tools/robustness-suite.js 调用）
-  resetRun, resize, spawnAtEdge, equipRec, ULT, ACTS, actForWave, castUlt, fireUlt, addUltCharge,
+  resetRun, resize, spawnAtEdge, equipRec, ULT, ACTS, actForWave, castUlt, fireUlt, addUltCharge, softCollide,
   TRIAL_GRADES, TRIAL_GRADE_TIME, TRIAL_GRADE_RATIO, trialGrade, showTrialResult, hideTrialCard,
   // v7.6 好玩性改造：试炼 2.0 / 深度系统触达 / 悟道便签
   TRIAL_COLLAPSE_AT, TRIAL_COLLAPSE_RATE, TRIAL_CRACKS, trialCrack,

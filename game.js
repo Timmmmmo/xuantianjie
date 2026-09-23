@@ -9962,7 +9962,7 @@ ui.btnHome.addEventListener("click", showMenu);
       else toast("分享未完成，可稍后再试");
     });
   }
-  try { if (window.Analytics) Analytics.track("app_open", { build: "v7.8.20-corner-stance" }); } catch (_) {}
+  try { if (window.Analytics) Analytics.track("app_open", { build: "v7.8.21-corner-stance" }); } catch (_) {}
 
   const btnAdDouble = document.getElementById("btnAdDouble");
   if (btnAdDouble) {

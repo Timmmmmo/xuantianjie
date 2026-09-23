@@ -157,6 +157,11 @@
       pendingPick: false,
       picksTaken: 0,
       queueTotal: 0,
+      pendingChallenge: false,
+      challengeT: 0,
+      challengesOffered: 0,
+      challengesTaken: 0,
+      act3Hasted: false,
       aspdAdd: 1,
       shellMul: 1,
       spawnEdge: 0,
@@ -531,6 +536,9 @@
     }
     maybeOfferPick(st);
     if (st.pendingPick) return events;
+    maybeOfferChallenge(st);
+    tickChallenge(st, dt);
+    if (st.pendingChallenge) return events;
 
     const pressure = pressureCount(st);
     if (pressure > st.pressurePeak) st.pressurePeak = pressure;
@@ -607,6 +615,66 @@
     return false;
   }
 
+  /** 幕间挑战：act 边界弹出，10s 窗 */
+  function maybeOfferChallenge(st) {
+    if (st.pendingChallenge || st.pendingPick || st.over) return false;
+    const total = st.queueTotal || 0;
+    if (!total) return false;
+    const marks = [0.35, 0.75];
+    const offered = st.challengesOffered || 0;
+    if (offered >= marks.length) return false;
+    if (st.kills + (st.spawnEdge || 0) >= total * marks[offered] || (1 - st.spawnQueue.length / total) >= marks[offered]) {
+      const prog = total ? 1 - st.spawnQueue.length / total : 0;
+      if (prog < marks[offered]) return false;
+      st.pendingChallenge = true;
+      st.challengeT = 10;
+      st.challengesOffered = offered + 1;
+      if (prog >= 0.7 && !st.act3Hasted) {
+        st.act3Hasted = true;
+        st.spawnEvery = Math.max(0.5, st.spawnEvery * 0.8);
+      }
+      return true;
+    }
+    return false;
+  }
+
+  function acceptChallenge(st) {
+    if (!st || !st.pendingChallenge) return false;
+    st.pendingChallenge = false;
+    st.challengeT = 0;
+    st.challengesTaken = (st.challengesTaken || 0) + 1;
+    const p = pathPoint(st.way, st.spawnEdge % 4, st.side || SIDE);
+    const hp = 260 + Math.floor((st.wave || 1) * 25);
+    st.enemies.push({
+      id: "chal" + st.time + "_" + Math.floor(rnd(999)),
+      pathT: (st.spawnEdge || 0) % 4,
+      speed: 18 * (st.speedMul || 1),
+      hp, hpMax: hp,
+      kind: "challenger",
+      alive: true,
+      slowT: 0, stunT: 0, shred: 0, rainDotT: 0,
+      x: p.x, y: p.y,
+      neutral: false,
+    });
+    return true;
+  }
+
+  function declineChallenge(st) {
+    if (!st || !st.pendingChallenge) return false;
+    st.pendingChallenge = false;
+    st.challengeT = 0;
+    return true;
+  }
+
+  function tickChallenge(st, dt) {
+    if (!st.pendingChallenge) return;
+    st.challengeT -= dt;
+    if (st.challengeT <= 0) {
+      st.pendingChallenge = false;
+      st.challengeT = 0;
+    }
+  }
+
   function settle(st) {
     const peak = st.pressurePeak || pressureCount(st);
     const t = st.time || 0;
@@ -644,5 +712,6 @@
     pickTargets, hitMult, applyHit, autoAttack, addUltCharge, tryAutoUlt, castUlt,
     tapNeutral, maybeSpawnNeutral, tick, settle,
     PICK_POOL, rollPicks, applyPick, maybeOfferPick,
+    maybeOfferChallenge, acceptChallenge, declineChallenge, tickChallenge,
   };
 })();

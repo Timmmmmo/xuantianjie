@@ -6329,7 +6329,7 @@ function drawSquareLoop() {
   if (!st || !SL) return;
   const w = view.w, h = view.h;
   try {
-    // 方形妖流路径
+    // 方形妖流路径（外环 + 内环）
     const pts = st.way.map((p) => w2s(p.x, p.y));
     ctx.save();
     ctx.strokeStyle = "rgba(92,225,230,0.28)";
@@ -6341,6 +6341,15 @@ function drawSquareLoop() {
     for (let i = 1; i < 4; i++) ctx.lineTo(pts[i].x, pts[i].y);
     ctx.closePath();
     ctx.stroke();
+    if (st.innerWay && st.innerWay.length === 4) {
+      const ip = st.innerWay.map((p) => w2s(p.x, p.y));
+      ctx.strokeStyle = "rgba(240,193,75,0.22)";
+      ctx.beginPath();
+      ctx.moveTo(ip[0].x, ip[0].y);
+      for (let i = 1; i < 4; i++) ctx.lineTo(ip[i].x, ip[i].y);
+      ctx.closePath();
+      ctx.stroke();
+    }
     ctx.setLineDash([]);
     ctx.restore();
 
@@ -10039,7 +10048,7 @@ ui.btnHome.addEventListener("click", showMenu);
       else toast("分享未完成，可稍后再试");
     });
   }
-  try { if (window.Analytics) Analytics.track("app_open", { build: "v7.8.24-mobile-port" }); } catch (_) {}
+  try { if (window.Analytics) Analytics.track("app_open", { build: "v7.8.25-dual-ring" }); } catch (_) {}
 
   const btnAdDouble = document.getElementById("btnAdDouble");
   if (btnAdDouble) {

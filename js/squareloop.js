@@ -119,16 +119,17 @@
     const o = opts || {};
     const cx = o.cx || 195;
     const cy = o.cy || 360;
-    const way = squarePath(cx, cy, o.side || SIDE, o.cornerOut);
-    return {
+    const side = o.side || SIDE;
+    const way = squarePath(cx, cy, side, o.cornerOut);
+    const st = {
       stance: "wind",
       onPillar: "wind",
       px: 0,
       py: 0,
       ultCharge: 0,
-      enemies: [],          // {id,x,y,pathT,speed,hp,hpMax,kind,alive,slowT,stunT}
-      neutrals: [],         // {id,type,shell,shellMax,x,y,alive}
-      spawnQueue: [],       // 有限队列：{kind,tier}
+      enemies: [],
+      neutrals: [],
+      spawnQueue: [],
       spawnT: 0,
       spawnEvery: SPAWN_EVERY,
       pressureT: 0,
@@ -145,7 +146,7 @@
       ultWarning: false,
       pressurePeak: 0,
       spawnEdge: 0,
-      side: o.side || SIDE,
+      side,
       way,
       cx, cy,
       speedMul: 1,

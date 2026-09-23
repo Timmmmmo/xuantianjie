@@ -6301,7 +6301,9 @@ function handleSquarePointer(e) {
     if (!n || !n.alive) continue;
     if (dist(wx, wy, n.x, n.y) <= 36) {
       const res = SL.tapNeutral(st, n.id);
-      G._sqHitT = 0.2;
+      G._sqHitT = 0.28;
+      G.shake = Math.max(G.shake || 0, 5);
+      G.hitStop = Math.max(G.hitStop || 0, 0.03);
       try { burst(n.x, n.y, "#f0c14b", 8, 120, 3); } catch (_) {}
       if (res && res.broke) {
         try { burst(n.x, n.y, "#fde68a", 18, 220, 5); } catch (_) {}
@@ -10048,7 +10050,7 @@ ui.btnHome.addEventListener("click", showMenu);
       else toast("分享未完成，可稍后再试");
     });
   }
-  try { if (window.Analytics) Analytics.track("app_open", { build: "v7.8.25-dual-ring" }); } catch (_) {}
+  try { if (window.Analytics) Analytics.track("app_open", { build: "v7.8.26-ui-feel" }); } catch (_) {}
 
   const btnAdDouble = document.getElementById("btnAdDouble");
   if (btnAdDouble) {

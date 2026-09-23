@@ -3402,6 +3402,12 @@ body.orange-pause #app::after {
 }
 .square-hud.hidden { display: none !important; }
 
+.square-pick{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(8,12,20,.92);z-index:30;gap:12px}
+.pick-title{color:#f0c14b;font-size:16px;letter-spacing:2px}
+.pick-row{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+.pick-card{min-width:96px;min-height:88px;border:1px solid rgba(240,193,75,.55);border-radius:12px;background:#121826;color:#e5e7eb;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:10px}
+.pick-card b{color:#f0c14b;font-size:14px}
+.pick-card span{font-size:11px;color:#a5f3fc}
 .pressure-wrap {
   pointer-events: none;
   display: flex;

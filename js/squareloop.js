@@ -122,6 +122,8 @@
     const cy = Number.isFinite(o.cy) ? o.cy : 0;
     const side = Number.isFinite(o.side) && o.side > 0 ? o.side : SIDE;
     const way = squarePath(cx, cy, side, o.cornerOut);
+    const innerSide = Math.max(120, side * 0.55);
+    const innerWay = squarePath(cx, cy, innerSide, Math.max(8, (o.cornerOut || CORNER_OUT) * 0.4));
     const st = {
       stance: "wind",
       onPillar: "wind",
@@ -167,6 +169,7 @@
       spawnEdge: 0,
       side,
       way,
+      innerWay,
       cx, cy,
       speedMul: 1,
       tapDmgBase: TAP_BASE,
@@ -268,7 +271,9 @@
     st.spawnEdge++;
     for (let i = 0; i < n; i++) {
       const spec = st.spawnQueue.shift();
-      const p = pathPoint(st.way, corner, st.side || SIDE);
+      const ring = Math.random() < 0.35 ? 1 : 0;
+      const path = ring === 1 && st.innerWay ? st.innerWay : st.way;
+      const p = pathPoint(path, corner, (st.side || SIDE) * (ring === 1 ? 0.55 : 1));
       const kind = spec.kind;
       const hp = kind === "boss" ? 420 + Math.floor((st.wave || 1) * 35)
         : kind === "elite" ? 90 : kind === "fast" ? 35 : kind === "horde" ? 28 : 40;
@@ -278,6 +283,7 @@
         speed: (kind === "boss" ? 16 : kind === "fast" ? 42 : kind === "elite" ? 22 : SPEED0) * st.speedMul,
         hp, hpMax: hp,
         kind,
+        ring,
         alive: true,
         slowT: 0,
         stunT: 0,
@@ -298,8 +304,11 @@
       if (e.stunT > 0) { e.stunT -= dt; continue; }
       const slow = e.slowT > 0 ? 0.75 : 1;
       if (e.slowT > 0) e.slowT -= dt;
-      e.pathT += (e.speed * slow * dt) / (side / 4);
-      const p = pathPoint(st.way, e.pathT, side);
+      const ring = e.ring === 1 && st.innerWay ? 1 : 0;
+      const path = ring === 1 ? st.innerWay : st.way;
+      const seg = (ring === 1 ? side * 0.55 : side) / 4;
+      e.pathT += (e.speed * slow * dt) / seg;
+      const p = pathPoint(path, e.pathT, ring === 1 ? side * 0.55 : side);
       e.x = p.x; e.y = p.y;
     }
   }

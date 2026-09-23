@@ -6154,6 +6154,7 @@ function startSquareLoopRun(charId) {
   const fitSide = Math.max(240, Math.min(420, Math.floor(Math.min(view.w, view.h) * 0.72)));
   G.square = SL.makeState({ cx: 0, cy: 0, side: fitSide, atk: G.atk });
   G.square.spawnQueue = SL.buildQueue(Math.max(1, G.wave || 1));
+  G.square.queueTotal = G.square.spawnQueue.length;
   G.square.atk = G.atk;
   G._sqAtkT = 0;
   G._sqPeak = 0;
@@ -6244,6 +6245,7 @@ function updateSquareLoop(dt) {
 
   const events = SL.tick(st, dt, { onKillCharge: false }) || [];
   try { SL.tryAutoUlt(st, dt); } catch (_) {}
+  if (st.pendingPick) { openSquarePick(); return; }
 
   if (events.indexOf("win") >= 0 || st.win || st.fail || st.over) {
     endSquareLoop();
@@ -6498,6 +6500,41 @@ function drawSquareLoop() {
   }
 }
 
+function betterRank(a, b) {
+  const o = { S: 4, A: 3, B: 2, C: 1 };
+  return (o[b] || 0) > (o[a] || 0) ? b : (a || b || "C");
+}
+
+function openSquarePick() {
+  const st = G.square;
+  const SL = window.SquareLoop;
+  if (!st || !SL || !st.pendingPick || G._sqPickOpen) return;
+  G._sqPickOpen = true;
+  const picks = SL.rollPicks();
+  const box = document.getElementById("squarePick");
+  const list = document.getElementById("squarePickList");
+  if (!box || !list) {
+    if (picks[0]) SL.applyPick(st, picks[0].id);
+    G._sqPickOpen = false;
+    return;
+  }
+  list.innerHTML = "";
+  picks.forEach((p) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "pick-card";
+    b.innerHTML = "<b>" + p.name + "</b><span>" + p.desc + "</span>";
+    b.addEventListener("click", () => {
+      SL.applyPick(st, p.id);
+      G._sqPickOpen = false;
+      box.classList.add("hidden");
+      toast("习得 · " + p.name, "gold");
+    });
+    list.appendChild(b);
+  });
+  box.classList.remove("hidden");
+}
+
 function endSquareLoop() {
   if (G._sqSettled) return;
   G._sqSettled = true;
@@ -6521,7 +6558,8 @@ function endSquareLoop() {
       const cs = result.clearSec || st.time || 0;
       const prev = meta.squareLoop.bestClearSec || 0;
       meta.squareLoop.bestClearSec = prev > 0 ? Math.min(prev, cs) : cs;
-      setTimeout(() => showBigBanner("测定", "方环清场", "gold"), 280);
+      meta.squareLoop.bestRank = betterRank(meta.squareLoop.bestRank, result.rank);
+      setTimeout(() => showBigBanner("测定 " + result.rank, "方环清场", "gold"), 280);
     }
     if (result.win && window.Treasure) {
       const t = Treasure.trialReward(meta.treasures);
@@ -9963,7 +10001,7 @@ ui.btnHome.addEventListener("click", showMenu);
       else toast("分享未完成，可稍后再试");
     });
   }
-  try { if (window.Analytics) Analytics.track("app_open", { build: "v7.8.22-arena-center" }); } catch (_) {}
+  try { if (window.Analytics) Analytics.track("app_open", { build: "v7.8.23-fun-loop" }); } catch (_) {}
 
   const btnAdDouble = document.getElementById("btnAdDouble");
   if (btnAdDouble) {

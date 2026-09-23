@@ -6091,6 +6091,10 @@ const SquareArt = {
       stance_rain: "assets/stance_rain.png",
       stance_thunder: "assets/stance_thunder.png",
       stance_bolt: "assets/stance_bolt.png",
+      enemy_fox: "assets/enemy_fox.png",
+      enemy_wolf: "assets/enemy_wolf.png",
+      enemy_golem: "assets/enemy_golem.png",
+      boss_yaowang: "assets/boss_yaowang.png",
       toad: "assets/neutral_toad.png",
       wood: "assets/neutral_wood.png",
       box: "assets/neutral_box.png",
@@ -6132,21 +6136,8 @@ const SQ_STANCE_UI = [
 ];
 
 function squarePillars(st) {
-  // 中心簇：风北 / 雨东 / 雷南 / 电西，半径 64 —— 四柱必须在地图中间
-  const R = 64;
-  const angs = [-Math.PI / 2, 0, Math.PI / 2, Math.PI];
-  const list = [];
-  for (let i = 0; i < 4; i++) {
-    const sp = window.SquareLoop.STANCES[i];
-    list.push({
-      id: sp.id,
-      name: sp.name,
-      color: sp.color,
-      x: st.cx + Math.cos(angs[i]) * R,
-      y: st.cy + Math.sin(angs[i]) * R,
-    });
-  }
-  return list;
+  // 攻击区域四角站桩（风西北/雨东北/雷东南/电西南）
+  return window.SquareLoop.pillarSpots(st);
 }
 
 function startSquareLoopRun(charId) {
@@ -6236,11 +6227,13 @@ function updateSquareLoop(dt) {
   if (!st || !SL) return;
   if (G._sqHitT > 0) G._sqHitT = Math.max(0, G._sqHitT - dt);
 
-  // 自动普攻节拍 0.55s
+  // 自动普攻节拍（踩风柱加速）
   st.stanceMul = G._stanceMul || st.stanceMul;
+  const aspd = (SL.atkSpeedMul && SL.atkSpeedMul(st)) || 1;
+  const atkEvery = 0.55 / aspd;
   G._sqAtkT = (G._sqAtkT || 0) + dt;
-  while (G._sqAtkT >= 0.55 && !st.over) {
-    G._sqAtkT -= 0.55;
+  while (G._sqAtkT >= atkEvery && !st.over) {
+    G._sqAtkT -= atkEvery;
     const killsBefore = st.kills;
     try { SL.autoAttack(st); } catch (_) {}
     if (st.kills > killsBefore) {
@@ -6315,7 +6308,7 @@ function handleSquarePointer(e) {
     }
   }
 
-  // 四元素柱（热区 ≥56px，中心簇）
+  // 四元素柱（热区 ≥56px，攻击区域四角）
   const pillars = squarePillars(st);
   for (const p of pillars) {
     if (dist(wx, wy, p.x, p.y) <= 36) {
@@ -6346,12 +6339,13 @@ function drawSquareLoop() {
     ctx.setLineDash([]);
     ctx.restore();
 
-    // 中心法坛 · 当前姿态角色立绘（妖压裂纹仍给玄铁傀儡；激活态优先角色）
-    const c = w2s(st.cx, st.cy);
+    // 玩家站在所选站桩上 · 当前姿态角色立绘
+    const pxy = w2s(st.px != null ? st.px : st.cx, st.py != null ? st.py : st.cy);
     const ultReady = (st.ultCharge || 0) >= 100;
     const pCount = SL.pressureCount(st);
     const etKey = pCount >= 170 ? "eternaut_shatter" : pCount >= 120 ? "eternaut_crack" : "eternaut";
     const stanceKey = "stance_" + (st.stance || "wind");
+    const c = pxy;
     try {
       const bob = Math.sin(G.time * 2.2) * 3;
       const drewStance = SquareArt.draw(stanceKey, c.x, c.y + bob, 72);
@@ -6383,7 +6377,7 @@ function drawSquareLoop() {
       ctx.restore();
     }
 
-    // 四元素柱（中心簇 · 角色立绘）
+    // 四元素柱（攻击区域四角 · 角色立绘）
     const pillars = squarePillars(st);
     for (const p of pillars) {
       const s = w2s(p.x, p.y);
@@ -6416,18 +6410,22 @@ function drawSquareLoop() {
       ctx.restore();
     }
 
-    // 敌对（方环独有）
+    // 敌对（方环独有 · 立绘优先）
     for (const e of st.enemies) {
       if (!e || !e.alive || e.neutral) continue;
       const s = w2s(e.x, e.y);
       const r = e.kind === "elite" ? 16 : e.kind === "fast" ? 10 : 12;
       ctx.save();
       const col = e.kind === "elite" ? "#c084fc" : e.kind === "fast" ? "#fb923c" : e.kind === "horde" ? "#86efac" : "#f87171";
-      ctx.fillStyle = col;
       ctx.globalAlpha = e.stunT > 0 ? 0.55 : 1;
-      ctx.beginPath();
-      ctx.arc(s.x, s.y, r, 0, TAU);
-      ctx.fill();
+      const eKey = e.kind === "elite" ? "boss_yaowang" : e.kind === "fast" ? "enemy_wolf" : e.kind === "horde" ? "enemy_golem" : "enemy_fox";
+      const artE = SquareArt.draw(eKey, s.x, s.y, r * (e.kind === "elite" ? 3.2 : 2.4));
+      if (!artE) {
+        ctx.fillStyle = col;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, r, 0, TAU);
+        ctx.fill();
+      }
       if (e.slowT > 0) {
         ctx.strokeStyle = "#67e8f9";
         ctx.lineWidth = 2;
@@ -9964,7 +9962,7 @@ ui.btnHome.addEventListener("click", showMenu);
       else toast("分享未完成，可稍后再试");
     });
   }
-  try { if (window.Analytics) Analytics.track("app_open", { build: "v7.8.19-stance-art" }); } catch (_) {}
+  try { if (window.Analytics) Analytics.track("app_open", { build: "v7.8.20-corner-stance" }); } catch (_) {}
 
   const btnAdDouble = document.getElementById("btnAdDouble");
   if (btnAdDouble) {

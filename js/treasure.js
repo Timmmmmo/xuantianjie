@@ -56,10 +56,12 @@
     return AFFIX_KEYS[Math.min(3, Math.floor(r * 4))];
   }
 
+  let _uidN = 0;
   function makeTreasure(slot, tier) {
     const t0 = clampTier(tier);
+    _uidN = (_uidN + 1) % 1e6;
     return {
-      uid: "t" + Date.now().toString(36) + Math.floor(Math.random() * 999).toString(36),
+      uid: "t" + Date.now().toString(36) + "_" + _uidN + "_" + Math.floor(Math.random() * 9999).toString(36),
       slot,
       tier: t0,
       power: Math.round(10 * TIER[t0].mult),

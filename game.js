@@ -6151,7 +6151,8 @@ function startSquareLoopRun(charId) {
   G.moveSpeed = 0;
   G.px = 0; G.py = 0;
   G.kbX = 0; G.kbY = 0;
-  G.square = SL.makeState({ cx: 0, cy: 0, atk: G.atk });
+  const fitSide = Math.max(240, Math.min(420, Math.floor(Math.min(view.w, view.h) * 0.72)));
+  G.square = SL.makeState({ cx: 0, cy: 0, side: fitSide, atk: G.atk });
   G.square.spawnQueue = SL.buildQueue(Math.max(1, G.wave || 1));
   G.square.atk = G.atk;
   G._sqAtkT = 0;
@@ -9962,7 +9963,7 @@ ui.btnHome.addEventListener("click", showMenu);
       else toast("分享未完成，可稍后再试");
     });
   }
-  try { if (window.Analytics) Analytics.track("app_open", { build: "v7.8.21-corner-stance" }); } catch (_) {}
+  try { if (window.Analytics) Analytics.track("app_open", { build: "v7.8.22-arena-center" }); } catch (_) {}
 
   const btnAdDouble = document.getElementById("btnAdDouble");
   if (btnAdDouble) {

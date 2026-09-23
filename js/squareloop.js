@@ -56,6 +56,13 @@
   const HORDE_CHARGE_CD = 8;
   const ULT_WARN = 0.4;
   const NEUTRAL_SPAWN_CD = 6;
+  const PILLAR_INSET = 36;
+  const STANCE_BUFF = {
+    wind: { id: "wind", name: "疾风", atkSpeed: 1.25, desc: "攻速 +25%" },
+    rain: { id: "rain", name: "润物", slowBoost: 0.35, desc: "缓速强化" },
+    thunder: { id: "thunder", name: "惊蛰", dmg: 1.2, desc: "伤害 +20%" },
+    bolt: { id: "bolt", name: "裂空", single: 1.25, desc: "对单/破壳 ×1.25" },
+  };
   const STANCE_IDS = STANCES.map((s) => s.id);
 
   function clamp(n, a, b) { return Math.max(a, Math.min(b, n)); }
@@ -72,6 +79,29 @@
       { x: cx + h, y: cy + h },
       { x: cx - h, y: cy + h },
     ];
+  }
+
+  /** 攻击区域四角站桩（风西北/雨东北/雷东南/电西南），角内收 */
+  function pillarSpots(st) {
+    const way = st.way && st.way.length === 4 ? st.way : squarePath(st.cx, st.cy, st.side || SIDE);
+    const inset = PILLAR_INSET;
+    return way.map((c, i) => {
+      const dx = st.cx - c.x;
+      const dy = st.cy - c.y;
+      const d = Math.hypot(dx, dy) || 1;
+      const sp = STANCES[i];
+      return {
+        id: sp.id,
+        name: sp.name,
+        color: sp.color,
+        x: c.x + (dx / d) * inset,
+        y: c.y + (dy / d) * inset,
+      };
+    });
+  }
+
+  function stanceBuff(stanceId) {
+    return STANCE_BUFF[stanceId] || null;
   }
 
   /** 沿正方形路径取点：t∈[0,4) 边序 + 边内进度 */
@@ -92,6 +122,9 @@
     const way = squarePath(cx, cy, o.side || SIDE, o.cornerOut);
     return {
       stance: "wind",
+      onPillar: "wind",
+      px: 0,
+      py: 0,
       ultCharge: 0,
       enemies: [],          // {id,x,y,pathT,speed,hp,hpMax,kind,alive,slowT,stunT}
       neutrals: [],         // {id,type,shell,shellMax,x,y,alive}
@@ -119,6 +152,12 @@
       tapDmgBase: TAP_BASE,
       atk: o.atk || 10,
     };
+    const spots0 = pillarSpots(st);
+    st.px = spots0[0].x;
+    st.py = spots0[0].y;
+    st.onPillar = "wind";
+    st.stance = "wind";
+    return st;
   }
 
   function stanceById(id) {
@@ -128,6 +167,10 @@
   function setStance(st, id) {
     if (STANCE_IDS.indexOf(id) < 0) return false;
     st.stance = id;
+    st.onPillar = id;
+    const spots = pillarSpots(st);
+    const p = spots.find((x) => x.id === id);
+    if (p) { st.px = p.x; st.py = p.y; }
     return true;
   }
 
@@ -225,21 +268,25 @@
     return sorted.slice(0, sp.basic.targets || 1);
   }
 
-  function hitMult(stanceId, target) {
+  function hitMult(stanceId, target, st) {
     const isNeutral = target && (target.neutral || target.shell != null);
     const isElite = target && target.kind === "elite";
     let m = 1;
     if (stanceId === "bolt") m *= isNeutral ? BOLT_NEUTRAL_MUL : BOLT_ENEMY_MUL;
     if (stanceId === "wind" && isElite) m *= 0.8;
+    const buf = st && st.onPillar === stanceId ? stanceBuff(stanceId) : null;
+    if (buf && buf.single && !isElite) m *= buf.single;
     return m;
   }
 
   function applyHit(st, target, dmg, stanceId) {
     if (!target) return 0;
-    const m = hitMult(stanceId, target);
+    const m = hitMult(stanceId, target, st);
     const shred = 1 + (target.shred || 0);
     const d = dmg * m * shred;
     const sp = stanceById(stanceId);
+    const buf = st && st.onPillar === stanceId ? stanceBuff(stanceId) : null;
+    const slow = sp.basic.slow ? Math.min(0.7, sp.basic.slow + (buf && buf.slowBoost ? buf.slowBoost * 0.3 : 0)) : 0;
     if (target.shell != null) {
       target.shell = Math.max(0, target.shell - d);
       if (sp.basic.armorShred) target.shred = (target.shred || 0) + sp.basic.armorShred;
@@ -252,7 +299,7 @@
       target.alive = false;
       st.kills++;
     } else {
-      if (sp.basic.slow) { target.slowT = Math.max(target.slowT, sp.basic.slowT || 1.5); }
+      if (slow) { target.slowT = Math.max(target.slowT, sp.basic.slowT || 1.5); }
       if (sp.basic.stunChance && Math.random() < sp.basic.stunChance) {
         target.stunT = Math.max(target.stunT, sp.basic.stunT || 0.6);
       }
@@ -261,8 +308,16 @@
   }
 
   function stanceMul(st) {
-    const m = st.stanceMul && st.stanceMul[st.stance];
-    return Number.isFinite(m) && m > 0 ? m : 1;
+    let m = st.stanceMul && st.stanceMul[st.stance];
+    m = Number.isFinite(m) && m > 0 ? m : 1;
+    const buf = st.onPillar === st.stance ? stanceBuff(st.stance) : null;
+    if (buf && buf.dmg) m *= buf.dmg;
+    return m;
+  }
+
+  function atkSpeedMul(st) {
+    const buf = st.onPillar === st.stance ? stanceBuff(st.stance) : null;
+    return buf && buf.atkSpeed ? buf.atkSpeed : 1;
   }
 
   /** 一次自动普攻 */
@@ -450,13 +505,13 @@
   }
 
   window.SquareLoop = {
-    STANCES, NEUTRAL,
+    STANCES, NEUTRAL, STANCE_BUFF,
     PRESSURE_FAIL, PRESSURE_HOLD, PRESSURE_WARN1, PRESSURE_WARN2,
     NEUTRAL_MAX, NEUTRAL_CD, TAP_BASE, TAP_ATK,
     BOLT_NEUTRAL_MUL, BOLT_ENEMY_MUL, SIDE, SPEED0, COIN_MUL, WIN_BONUS,
-    HORDE_CHARGE_CD, ULT_WARN,
+    HORDE_CHARGE_CD, ULT_WARN, PILLAR_INSET,
     STANCE_IDS,
-    squarePath, pathPoint, makeState, stanceById, setStance, buildQueue, stanceMul,
+    squarePath, pillarSpots, pathPoint, makeState, stanceById, setStance, buildQueue, stanceMul, atkSpeedMul, stanceBuff,
     pressureCount, hostiles, isSquareClear, spawnFromQueue, tickMove,
     pickTargets, hitMult, applyHit, autoAttack, addUltCharge, tryAutoUlt, castUlt,
     tapNeutral, maybeSpawnNeutral, tick, settle,

@@ -6087,6 +6087,10 @@ const SquareArt = {
       eternaut: "assets/eternaut_idle.png",
       eternaut_crack: "assets/eternaut_crack1.png",
       eternaut_shatter: "assets/eternaut_shatter.png",
+      stance_wind: "assets/stance_wind.png",
+      stance_rain: "assets/stance_rain.png",
+      stance_thunder: "assets/stance_thunder.png",
+      stance_bolt: "assets/stance_bolt.png",
       toad: "assets/neutral_toad.png",
       wood: "assets/neutral_wood.png",
       box: "assets/neutral_box.png",
@@ -6128,22 +6132,18 @@ const SQ_STANCE_UI = [
 ];
 
 function squarePillars(st) {
+  // 中心簇：风北 / 雨东 / 雷南 / 电西，半径 64 —— 四柱必须在地图中间
+  const R = 64;
+  const angs = [-Math.PI / 2, 0, Math.PI / 2, Math.PI];
   const list = [];
   for (let i = 0; i < 4; i++) {
-    const a = st.way[i];
-    const b = st.way[(i + 1) % 4];
-    const mx = (a.x + b.x) / 2;
-    const my = (a.y + b.y) / 2;
-    const dx = st.cx - mx;
-    const dy = st.cy - my;
-    const d = Math.hypot(dx, dy) || 1;
     const sp = window.SquareLoop.STANCES[i];
     list.push({
       id: sp.id,
       name: sp.name,
       color: sp.color,
-      x: mx + (dx / d) * 28,
-      y: my + (dy / d) * 28,
+      x: st.cx + Math.cos(angs[i]) * R,
+      y: st.cy + Math.sin(angs[i]) * R,
     });
   }
   return list;
@@ -6315,7 +6315,7 @@ function handleSquarePointer(e) {
     }
   }
 
-  // 四元素柱（热区 ≥56px）
+  // 四元素柱（热区 ≥56px，中心簇）
   const pillars = squarePillars(st);
   for (const p of pillars) {
     if (dist(wx, wy, p.x, p.y) <= 36) {
@@ -6346,14 +6346,16 @@ function drawSquareLoop() {
     ctx.setLineDash([]);
     ctx.restore();
 
-    // 中心法坛 · 玄铁傀儡（裂纹随妖压，碎裂+测定在结算）
+    // 中心法坛 · 当前姿态角色立绘（妖压裂纹仍给玄铁傀儡；激活态优先角色）
     const c = w2s(st.cx, st.cy);
     const ultReady = (st.ultCharge || 0) >= 100;
     const pCount = SL.pressureCount(st);
     const etKey = pCount >= 170 ? "eternaut_shatter" : pCount >= 120 ? "eternaut_crack" : "eternaut";
+    const stanceKey = "stance_" + (st.stance || "wind");
     try {
       const bob = Math.sin(G.time * 2.2) * 3;
-      if (!SquareArt.draw(etKey, c.x, c.y + bob, 64)) {
+      const drewStance = SquareArt.draw(stanceKey, c.x, c.y + bob, 72);
+      if (!drewStance && !SquareArt.draw(etKey, c.x, c.y + bob, 64)) {
         ctx.save();
         ctx.fillStyle = "rgba(92,225,230,0.18)";
         ctx.strokeStyle = ultReady ? "#f0c14b" : "rgba(92,225,230,0.65)";
@@ -6381,7 +6383,7 @@ function drawSquareLoop() {
       ctx.restore();
     }
 
-    // 四元素柱
+    // 四元素柱（中心簇 · 角色立绘）
     const pillars = squarePillars(st);
     for (const p of pillars) {
       const s = w2s(p.x, p.y);
@@ -6395,18 +6397,22 @@ function drawSquareLoop() {
       ctx.lineWidth = on ? 3 : 2;
       ctx.shadowColor = p.color;
       ctx.shadowBlur = on ? 18 : 8;
-      const pw = 28, ph = 56;
+      const pw = 36, ph = 56;
       ctx.beginPath();
       if (ctx.roundRect) ctx.roundRect(-pw / 2, -ph / 2, pw, ph, 8);
       else ctx.rect(-pw / 2, -ph / 2, pw, ph);
       ctx.fill();
       ctx.stroke();
       ctx.shadowBlur = 0;
-      ctx.fillStyle = on ? "#070b12" : p.color;
-      ctx.font = "bold 14px sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(p.id === "wind" ? "风" : p.id === "rain" ? "雨" : p.id === "thunder" ? "雷" : "电", 0, 0);
+      ctx.globalAlpha = on ? 1 : 0.88;
+      const artOk = SquareArt.draw("stance_" + p.id, 0, -4, on ? 44 : 36);
+      if (!artOk) {
+        ctx.fillStyle = on ? "#070b12" : p.color;
+        ctx.font = "bold 14px sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(p.id === "wind" ? "风" : p.id === "rain" ? "雨" : p.id === "thunder" ? "雷" : "电", 0, 0);
+      }
       ctx.restore();
     }
 
@@ -9958,7 +9964,7 @@ ui.btnHome.addEventListener("click", showMenu);
       else toast("分享未完成，可稍后再试");
     });
   }
-  try { if (window.Analytics) Analytics.track("app_open", { build: "v7.8.18-stance-loop" }); } catch (_) {}
+  try { if (window.Analytics) Analytics.track("app_open", { build: "v7.8.19-stance-art" }); } catch (_) {}
 
   const btnAdDouble = document.getElementById("btnAdDouble");
   if (btnAdDouble) {

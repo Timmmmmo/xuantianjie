@@ -3391,24 +3391,30 @@ body.orange-pause #app::after {
 .square-hud {
   position: absolute;
   left: 50%;
-  bottom: calc(118px + env(safe-area-inset-bottom, 0px));
+  bottom: 0;
   transform: translateX(-50%);
   z-index: 8;
   display: flex;
   flex-direction: column;
+  justify-content: flex-end;
   gap: 8px;
-  width: min(420px, calc(100% - 24px));
+  width: 100%;
+  max-width: 520px;
+  padding: 8px 10px calc(10px + env(safe-area-inset-bottom, 0px));
   pointer-events: none;
+  box-sizing: border-box;
 }
+.square-hud .stance-row{pointer-events:auto;display:flex;gap:8px;justify-content:center}
+.square-hud .stance-btn{min-width:64px;min-height:56px;touch-action:manipulation}
 .square-hud.hidden { display: none !important; }
 
-.square-challenge{position:absolute;left:8%;right:8%;bottom:18%;display:flex;flex-direction:column;align-items:center;gap:10px;background:rgba(8,12,20,.92);z-index:28;border-radius:14px;padding:14px}
-.square-challenge .challenge-go{min-height:56px;min-width:200px;border-radius:12px;border:1px solid rgba(240,193,75,.7);background:#1a2233;color:#f0c14b;font-size:16px;font-weight:700}
-.square-challenge .challenge-skip{min-height:44px;min-width:120px;border-radius:10px;border:1px solid rgba(148,163,184,.5);background:transparent;color:#94a3b8;font-size:13px}
-.square-pick{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(8,12,20,.92);z-index:30;gap:12px}
+.square-challenge{position:absolute;left:8%;right:8%;bottom:18%;display:flex;flex-direction:column;align-items:center;gap:10px;background:rgba(8,12,20,.92);z-index:28;border-radius:14px;padding:14px;pointer-events:auto}
+.square-challenge .challenge-go{min-height:56px;min-width:200px;border-radius:12px;border:1px solid rgba(240,193,75,.7);background:#1a2233;color:#f0c14b;font-size:16px;font-weight:700;pointer-events:auto;touch-action:manipulation;cursor:pointer}
+.square-challenge .challenge-skip{min-height:44px;min-width:120px;border-radius:10px;border:1px solid rgba(148,163,184,.5);background:transparent;color:#94a3b8;font-size:13px;pointer-events:auto;touch-action:manipulation;cursor:pointer}
+.square-pick{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(8,12,20,.92);z-index:30;gap:12px;pointer-events:auto}
 .pick-title{color:#f0c14b;font-size:16px;letter-spacing:2px}
-.pick-row{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
-.pick-card{min-width:96px;min-height:88px;border:1px solid rgba(240,193,75,.55);border-radius:12px;background:#121826;color:#e5e7eb;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:10px}
+.pick-row{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;pointer-events:auto}
+.pick-card{min-width:104px;min-height:72px;border:1px solid rgba(240,193,75,.55);border-radius:12px;background:#121826;color:#e5e7eb;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:12px;pointer-events:auto;touch-action:manipulation;cursor:pointer}
 .pick-card b{color:#f0c14b;font-size:14px}
 .pick-card span{font-size:11px;color:#a5f3fc}
 .pressure-wrap {

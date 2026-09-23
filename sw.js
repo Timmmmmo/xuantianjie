@@ -1,6 +1,6 @@
 /* 玄天劫 · 离线缓存 Service Worker — v7.8 合并版
    代码类网络优先（保证热更到达），图片缓存优先（省流量秒开） */
-const CACHE = "xuantianjie-v7.8.18-stance-loop";
+const CACHE = "xuantianjie-v7.8.19-stance-art";
 const ASSETS = [
   "./",
   "./index.html",
@@ -35,6 +35,10 @@ const ASSETS = [
   "./assets/eternaut_idle.png",
   "./assets/eternaut_crack1.png",
   "./assets/eternaut_shatter.png",
+  "./assets/stance_wind.png",
+  "./assets/stance_rain.png",
+  "./assets/stance_thunder.png",
+  "./assets/stance_bolt.png",
   "./assets/neutral_toad.png",
   "./assets/neutral_wood.png",
   "./assets/neutral_box.png",

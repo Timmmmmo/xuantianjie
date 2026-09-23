@@ -6095,6 +6095,7 @@ const SquareArt = {
       enemy_wolf: "assets/enemy_wolf.png",
       enemy_golem: "assets/enemy_golem.png",
       boss_yaowang: "assets/boss_yaowang.png",
+      challenge_yaojiang: "assets/challenge_yaojiang.png",
       toad: "assets/neutral_toad.png",
       wood: "assets/neutral_wood.png",
       box: "assets/neutral_box.png",
@@ -6246,6 +6247,7 @@ function updateSquareLoop(dt) {
   const events = SL.tick(st, dt, { onKillCharge: false }) || [];
   try { SL.tryAutoUlt(st, dt); } catch (_) {}
   if (st.pendingPick) { openSquarePick(); return; }
+  if (st.pendingChallenge) { openSquareChallenge(); return; }
 
   if (events.indexOf("win") >= 0 || st.win || st.fail || st.over) {
     endSquareLoop();
@@ -6421,7 +6423,7 @@ function drawSquareLoop() {
       ctx.save();
       const col = e.kind === "elite" ? "#c084fc" : e.kind === "fast" ? "#fb923c" : e.kind === "horde" ? "#86efac" : "#f87171";
       ctx.globalAlpha = e.stunT > 0 ? 0.55 : 1;
-      const eKey = e.kind === "elite" ? "boss_yaowang" : e.kind === "fast" ? "enemy_wolf" : e.kind === "horde" ? "enemy_golem" : "enemy_fox";
+      const eKey = e.kind === "challenger" ? "challenge_yaojiang" : e.kind === "boss" ? "boss_yaowang" : e.kind === "elite" ? "boss_yaowang" : e.kind === "fast" ? "enemy_wolf" : e.kind === "horde" ? "enemy_golem" : "enemy_fox";
       const artE = SquareArt.draw(eKey, s.x, s.y, r * (e.kind === "elite" ? 3.2 : 2.4));
       if (!artE) {
         ctx.fillStyle = col;
@@ -6532,6 +6534,42 @@ function openSquarePick() {
     });
     list.appendChild(b);
   });
+  box.classList.remove("hidden");
+}
+
+function openSquareChallenge() {
+  const st = G.square;
+  const SL = window.SquareLoop;
+  if (!st || !SL || !st.pendingChallenge || G._sqChalOpen) return;
+  G._sqChalOpen = true;
+  const box = document.getElementById("squareChallenge");
+  const tEl = document.getElementById("challengeT");
+  const go = document.getElementById("btnChallengeGo");
+  const skip = document.getElementById("btnChallengeSkip");
+  if (!box || !go) {
+    SL.acceptChallenge(st);
+    G._sqChalOpen = false;
+    return;
+  }
+  if (tEl) tEl.textContent = String(Math.max(0, Math.ceil(st.challengeT || 10)));
+  const close = () => {
+    G._sqChalOpen = false;
+    box.classList.add("hidden");
+    go.onclick = null;
+    if (skip) skip.onclick = null;
+  };
+  go.onclick = () => {
+    SL.acceptChallenge(st);
+    close();
+    toast("挑战妖将现身 · 战！", "gold");
+  };
+  if (skip) {
+    skip.onclick = () => {
+      SL.declineChallenge(st);
+      close();
+      toast("挑战未竟 · 可再战", "cyan");
+    };
+  }
   box.classList.remove("hidden");
 }
 
@@ -10001,7 +10039,7 @@ ui.btnHome.addEventListener("click", showMenu);
       else toast("分享未完成，可稍后再试");
     });
   }
-  try { if (window.Analytics) Analytics.track("app_open", { build: "v7.8.23-fun-loop" }); } catch (_) {}
+  try { if (window.Analytics) Analytics.track("app_open", { build: "v7.8.24-mobile-port" }); } catch (_) {}
 
   const btnAdDouble = document.getElementById("btnAdDouble");
   if (btnAdDouble) {

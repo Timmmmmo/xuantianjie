@@ -117,15 +117,21 @@
 
   function makeState(opts) {
     const o = opts || {};
-    const cx = o.cx || 195;
-    const cy = o.cy || 360;
-    const side = o.side || SIDE;
+    // 0 是合法坐标：禁止 `x || default`
+    const cx = Number.isFinite(o.cx) ? o.cx : 0;
+    const cy = Number.isFinite(o.cy) ? o.cy : 0;
+    const side = Number.isFinite(o.side) && o.side > 0 ? o.side : SIDE;
     const way = squarePath(cx, cy, side, o.cornerOut);
     const st = {
       stance: "wind",
       onPillar: "wind",
       px: 0,
       py: 0,
+      tx: 0,
+      ty: 0,
+      moveT: 0,
+      moveFromX: 0,
+      moveFromY: 0,
       ultCharge: 0,
       enemies: [],
       neutrals: [],
@@ -156,6 +162,11 @@
     const spots0 = pillarSpots(st);
     st.px = spots0[0].x;
     st.py = spots0[0].y;
+    st.tx = st.px;
+    st.ty = st.py;
+    st.moveT = 0;
+    st.moveFromX = st.px;
+    st.moveFromY = st.py;
     st.onPillar = "wind";
     st.stance = "wind";
     return st;
@@ -168,11 +179,31 @@
   function setStance(st, id) {
     if (STANCE_IDS.indexOf(id) < 0) return false;
     st.stance = id;
-    st.onPillar = id;
     const spots = pillarSpots(st);
     const p = spots.find((x) => x.id === id);
-    if (p) { st.px = p.x; st.py = p.y; }
+    if (!p) return false;
+    st.tx = p.x;
+    st.ty = p.y;
+    st.moveFromX = Number.isFinite(st.px) ? st.px : p.x;
+    st.moveFromY = Number.isFinite(st.py) ? st.py : p.y;
+    st.moveT = 0.35;
+    st.onPillar = null;
     return true;
+  }
+
+  function tickPlayerMove(st, dt) {
+    if (!(st.moveT > 0)) return;
+    st.moveT -= dt;
+    const t = 1 - Math.max(0, st.moveT) / 0.35;
+    const e = t * t * (3 - 2 * t);
+    st.px = st.moveFromX + (st.tx - st.moveFromX) * e;
+    st.py = st.moveFromY + (st.ty - st.moveFromY) * e;
+    if (st.moveT <= 0) {
+      st.px = st.tx;
+      st.py = st.ty;
+      st.onPillar = st.stance;
+      st.moveT = 0;
+    }
   }
 
   /** 有限刷怪队列：约 3–5 分钟 */
@@ -452,6 +483,7 @@
     }
 
     tickMove(st, dt);
+    tickPlayerMove(st, dt);
 
     // 雨大招 DOT
     for (const e of st.enemies) {
@@ -512,7 +544,7 @@
     BOLT_NEUTRAL_MUL, BOLT_ENEMY_MUL, SIDE, SPEED0, COIN_MUL, WIN_BONUS,
     HORDE_CHARGE_CD, ULT_WARN, PILLAR_INSET,
     STANCE_IDS,
-    squarePath, pillarSpots, pathPoint, makeState, stanceById, setStance, buildQueue, stanceMul, atkSpeedMul, stanceBuff,
+    squarePath, pillarSpots, pathPoint, makeState, stanceById, setStance, tickPlayerMove, buildQueue, stanceMul, atkSpeedMul, stanceBuff,
     pressureCount, hostiles, isSquareClear, spawnFromQueue, tickMove,
     pickTargets, hitMult, applyHit, autoAttack, addUltCharge, tryAutoUlt, castUlt,
     tapNeutral, maybeSpawnNeutral, tick, settle,

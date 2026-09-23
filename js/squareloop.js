@@ -151,6 +151,14 @@
       ultWarnT: 0,
       ultWarning: false,
       pressurePeak: 0,
+      combo: 0,
+      comboT: 0,
+      comboPeak: 0,
+      pendingPick: false,
+      picksTaken: 0,
+      queueTotal: 0,
+      aspdAdd: 1,
+      shellMul: 1,
       spawnEdge: 0,
       side,
       way,
@@ -209,16 +217,27 @@
   /** 有限刷怪队列：约 3–5 分钟 */
   function buildQueue(wave, rndFn) {
     const r = rndFn || Math.random;
-    const total = 40 + Math.floor(wave * 4);
+    const total = 36 + Math.floor(wave * 3);
     const q = [];
     for (let i = 0; i < total; i++) {
+      const t = total <= 1 ? 0 : i / (total - 1);
       const roll = r();
       let kind = "mob";
-      if (roll > 0.92) kind = "elite";
-      else if (roll > 0.78) kind = "fast";
-      else if (roll > 0.68) kind = "horde";
-      q.push({ kind, tier: 0 });
+      if (t < 0.35) {
+        if (roll > 0.95) kind = "fast";
+        else if (roll > 0.88) kind = "horde";
+      } else if (t < 0.75) {
+        if (roll > 0.9) kind = "elite";
+        else if (roll > 0.72) kind = "fast";
+        else if (roll > 0.55) kind = "horde";
+      } else {
+        if (roll > 0.85) kind = "elite";
+        else if (roll > 0.65) kind = "fast";
+        else if (roll > 0.45) kind = "horde";
+      }
+      q.push({ kind, act: t < 0.35 ? 1 : t < 0.75 ? 2 : 3 });
     }
+    q.push({ kind: "boss", act: 3 });
     return q;
   }
 
@@ -246,11 +265,12 @@
       const spec = st.spawnQueue.shift();
       const p = pathPoint(st.way, corner, st.side || SIDE);
       const kind = spec.kind;
-      const hp = kind === "elite" ? 90 : kind === "fast" ? 35 : kind === "horde" ? 28 : 40;
+      const hp = kind === "boss" ? 420 + Math.floor((st.wave || 1) * 35)
+        : kind === "elite" ? 90 : kind === "fast" ? 35 : kind === "horde" ? 28 : 40;
       st.enemies.push({
         id: "e" + st.time + "_" + i + "_" + Math.floor(rnd(999)),
         pathT: corner + rnd(0.15),
-        speed: (kind === "fast" ? 42 : kind === "elite" ? 22 : SPEED0) * st.speedMul,
+        speed: (kind === "boss" ? 16 : kind === "fast" ? 42 : kind === "elite" ? 22 : SPEED0) * st.speedMul,
         hp, hpMax: hp,
         kind,
         alive: true,
@@ -313,7 +333,8 @@
 
   function applyHit(st, target, dmg, stanceId) {
     if (!target) return 0;
-    const m = hitMult(stanceId, target, st);
+    let m = hitMult(stanceId, target, st);
+    if (target.shell != null && st.shellMul) m *= st.shellMul;
     const shred = 1 + (target.shred || 0);
     const d = dmg * m * shred;
     const sp = stanceById(stanceId);
@@ -330,6 +351,9 @@
     if (target.hp <= 0) {
       target.alive = false;
       st.kills++;
+      st.combo = (st.combo || 0) + 1;
+      st.comboT = 2.0;
+      if (st.combo > (st.comboPeak || 0)) st.comboPeak = st.combo;
     } else {
       if (slow) { target.slowT = Math.max(target.slowT, sp.basic.slowT || 1.5); }
       if (sp.basic.stunChance && Math.random() < sp.basic.stunChance) {
@@ -348,8 +372,11 @@
   }
 
   function atkSpeedMul(st) {
+    let m = 1;
     const buf = st.onPillar === st.stance ? stanceBuff(st.stance) : null;
-    return buf && buf.atkSpeed ? buf.atkSpeed : 1;
+    if (buf && buf.atkSpeed) m *= buf.atkSpeed;
+    if (st.aspdAdd) m *= st.aspdAdd;
+    return m;
   }
 
   /** 一次自动普攻 */
@@ -476,7 +503,7 @@
     if (st.neutralCd > 0) st.neutralCd -= dt;
 
     st.spawnT -= dt;
-    if (st.spawnT <= 0 && st.spawnQueue.length) {
+    if (!st.pendingPick && st.spawnT <= 0 && st.spawnQueue.length) {
       spawnFromQueue(st);
       st.spawnT = st.spawnEvery;
       events.push("spawn");
@@ -490,8 +517,20 @@
       if (!e.alive || e.neutral || !(e.rainDotT > 0)) continue;
       e.rainDotT -= dt;
       e.hp = Math.max(0, e.hp - (st.atk || 10) * 0.35 * dt);
-      if (e.hp <= 0) { e.alive = false; st.kills++; }
+      if (e.hp <= 0) {
+        e.alive = false;
+        st.kills++;
+        st.combo = (st.combo || 0) + 1;
+        st.comboT = 2.0;
+        if (st.combo > (st.comboPeak || 0)) st.comboPeak = st.combo;
+      }
     }
+    if (st.comboT > 0) {
+      st.comboT -= dt;
+      if (st.comboT <= 0) st.combo = 0;
+    }
+    maybeOfferPick(st);
+    if (st.pendingPick) return events;
 
     const pressure = pressureCount(st);
     if (pressure > st.pressurePeak) st.pressurePeak = pressure;
@@ -525,15 +564,71 @@
     return events;
   }
 
+  const PICK_POOL = [
+    { id: "p_dmg", name: "罡气灌注", desc: "伤害 +18%", apply(st) { st.atk = (st.atk || 10) * 1.18; } },
+    { id: "p_aspd", name: "疾风连击", desc: "攻速 +15%", apply(st) { st.aspdAdd = (st.aspdAdd || 1) * 1.15; } },
+    { id: "p_shell", name: "破壳专精", desc: "破壳伤害 +35%", apply(st) { st.shellMul = (st.shellMul || 1) * 1.35; } },
+    { id: "e_stance_wind", name: "听风专精", desc: "风伤害 +15%", apply(st) { st.stanceMul = st.stanceMul || {}; st.stanceMul.wind = (st.stanceMul.wind || 1) * 1.15; } },
+    { id: "e_stance_rain", name: "润物专精", desc: "雨伤害 +15%", apply(st) { st.stanceMul = st.stanceMul || {}; st.stanceMul.rain = (st.stanceMul.rain || 1) * 1.15; } },
+    { id: "e_stance_thunder", name: "惊蛰专精", desc: "雷伤害 +15%", apply(st) { st.stanceMul = st.stanceMul || {}; st.stanceMul.thunder = (st.stanceMul.thunder || 1) * 1.15; } },
+    { id: "e_stance_bolt", name: "裂空专精", desc: "电伤害 +15%", apply(st) { st.stanceMul = st.stanceMul || {}; st.stanceMul.bolt = (st.stanceMul.bolt || 1) * 1.15; } },
+  ];
+
+  function rollPicks(rndFn) {
+    const r = rndFn || Math.random;
+    const bag = PICK_POOL.slice();
+    const out = [];
+    while (out.length < 3 && bag.length) {
+      out.push(bag.splice(Math.min(bag.length - 1, Math.floor(r() * bag.length)), 1)[0]);
+    }
+    return out;
+  }
+
+  function applyPick(st, id) {
+    const p = PICK_POOL.find((x) => x.id === id);
+    if (!p || !st) return false;
+    p.apply(st);
+    st.pendingPick = false;
+    st.picksTaken = (st.picksTaken || 0) + 1;
+    return true;
+  }
+
+  function maybeOfferPick(st) {
+    if (st.pendingPick || st.over) return false;
+    const total = st.queueTotal || 0;
+    if (!total) return false;
+    const marks = [0.25, 0.5, 0.75];
+    const taken = st.picksTaken || 0;
+    if (taken >= marks.length) return false;
+    if (st.kills >= total * marks[taken]) {
+      st.pendingPick = true;
+      return true;
+    }
+    return false;
+  }
+
   function settle(st) {
+    const peak = st.pressurePeak || pressureCount(st);
+    const t = st.time || 0;
+    let rank = "C";
+    if (st.win) {
+      if (t <= 70 && peak <= 120 && (st.comboPeak || 0) >= 8) rank = "S";
+      else if (t <= 110 && peak <= 150) rank = "A";
+      else rank = "B";
+    } else {
+      rank = st.kills >= 20 ? "B" : "C";
+    }
+    const comboMul = Math.min(1.5, 1 + (st.comboPeak || 0) * 0.02);
     return {
       win: !!st.win,
       fail: !!st.fail,
       kills: st.kills,
-      coins: Math.round(st.coinsRun),
-      time: st.time,
-      pressurePeak: st.pressurePeak || pressureCount(st),
-      clearSec: st.win ? st.time : null,
+      coins: Math.round((st.coinsRun || 0) * comboMul),
+      time: t,
+      pressurePeak: peak,
+      clearSec: st.win ? t : null,
+      comboPeak: st.comboPeak || 0,
+      rank,
     };
   }
 
@@ -548,5 +643,6 @@
     pressureCount, hostiles, isSquareClear, spawnFromQueue, tickMove,
     pickTargets, hitMult, applyHit, autoAttack, addUltCharge, tryAutoUlt, castUlt,
     tapNeutral, maybeSpawnNeutral, tick, settle,
+    PICK_POOL, rollPicks, applyPick, maybeOfferPick,
   };
 })();

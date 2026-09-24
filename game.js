@@ -4404,13 +4404,15 @@ function updateWaves(dt) {
   if (G.waveTimer <= 0) {
     if (G.wave < 40) {
       G.wave += 1;
+      enterWaveMod(G.wave);
+      G._finalBoss = false;
     } else {
       G.wave = 40;
       G.waveTimer = 8;
+      enterWaveMod(G.wave);
     }
-    enterWaveMod(G.wave);
     // v7.1：前 3 波 16 秒一波（25 秒太长，第 1 波 8 秒就清完了，剩下 17 秒在发呆）
-    G.waveTimer = G.wave <= 3 ? 16 : G.waveInterval;
+    G.waveTimer = (G.wave >= 40) ? 8 : (G.wave <= 3 ? 16 : G.waveInterval);
     // v7.1：波间喘息 —— 每波结束回 12% 最大气血。
     //   没有回血手段 + 持续磨血 = 必定在 30 秒左右被耗死（探针实测 31s 阵亡），
     //   这不是难度，是数学上的必死局。
@@ -4419,7 +4421,9 @@ function updateWaves(dt) {
       G.hp = Math.min(G.hpMax, G.hp + heal);
       spawnFloater(G.px, G.py - G.pr - 16, `妖潮暂歇 +${Math.round(heal)}`, "#86efac", 13);
     }
-    G.spawnQueue = buildWave(G.wave);
+    G.spawnQueue = (G.wave >= 40 && G._finalBoss)
+      ? Array.from({ length: 4 }, (_, i) => ({ type: "hordeling", delay: i * 0.4 }))
+      : buildWave(G.wave);
     // v7.6 道途感悟：每 4 波一次兵器保底成长（让双兵合击从「运气」变成「节奏」）
     if (G.wave >= INSIGHT_EVERY && G.wave % INSIGHT_EVERY === 0) grantWeaponInsight();
     // v7.6 本命灵石自动入槽（攒够 3 颗同派系就上，玩家仍可手动换）
@@ -6775,7 +6779,7 @@ function endSquareLoop() {
   else { try { if (SL.Sfx) SL.Sfx.lose(); } catch (_) {} }
   ui.overMsg.textContent = result.win
     ? `妖流全灭 · 用时 ${formatTime(result.time || 0)} · 妖压峰值 ${result.pressurePeak || 0}。灵石+${coins}，已入帐。`
-    : `敌对持续 ≥188 超 2 秒判负 · 妖压峰值 ${result.pressurePeak || 0} · 斩 ${result.kills}。不扣灵石，可再战。`;
+    : `法坛碎裂 · 妖压峰值 ${result.pressurePeak || 0} · 斩 ${result.kills}。不扣灵石，可再战。`;
   ui.overScreen.classList.remove("hidden");
   setMenuBg(true);
   refreshShellUI();
@@ -6857,7 +6861,8 @@ function endRun(opts) {
   releaseWakeLock();
   const base = G.wave * 3 + G.kills * 0.4 + G.comboPeak * 1.5 + (win ? 40 : 0);
   const coins = Math.max(0, Math.floor(base * (1 + (G._shopCoin || 0))));
-  const prevBest = best.bestWave;
+  let prevBest = 0;
+  try { prevBest = (Meta.load().bestWave || 0); } catch (_) {}
   const best = Meta.endRun(G.wave, G.kills, G.time, G.comboPeak, coins, "endless", win);
   G.coinsRun = coins;
   G._metaCoinsCached = best.coins;
@@ -6894,7 +6899,7 @@ function endRun(opts) {
         combo_peak: G.comboPeak,
         coins,
         win: win ? 1 : 0,
-        death_cause: win ? (o.cause || "final_boss") : "over",
+        death_cause: win ? (o.cause || "final_boss") : (G.deathCause || "over"),
       });
     }
   } catch (_) {}

@@ -53,6 +53,23 @@
   const SPAWN_MAX = 5;
   const COIN_MUL = 0.8;
   const WIN_BONUS = 80;
+  const TOWER_HP = 60;
+  function lapDmg(kind) {
+    if (kind === "boss") return 13;
+    if (kind === "challenger") return 9;
+    if (kind === "elite") return 6;
+    if (kind === "horde") return 4;
+    return 3;
+  }
+  const MOB_HP_MUL = 1.35;
+  const MOB_SPD_MUL = 1.1;
+  const ELITE_HP_MUL = 1.15;
+  
+  
+  
+  
+  
+  
   const HORDE_CHARGE_CD = 8;
   const ULT_WARN = 0.4;
   const NEUTRAL_SPAWN_CD = 6;
@@ -153,6 +170,8 @@
       ultWarnT: 0,
       ultWarning: false,
       pressurePeak: 0,
+      towerHp: TOWER_HP,
+      towerHpMax: TOWER_HP,
       combo: 0,
       comboT: 0,
       comboPeak: 0,
@@ -275,12 +294,13 @@
       const path = ring === 1 && st.innerWay ? st.innerWay : st.way;
       const p = pathPoint(path, corner, (st.side || SIDE) * (ring === 1 ? 0.55 : 1));
       const kind = spec.kind;
-      const hp = kind === "boss" ? 420 + Math.floor((st.wave || 1) * 35)
+      let hp = kind === "boss" ? 420 + Math.floor((st.wave || 1) * 35)
         : kind === "elite" ? 90 : kind === "fast" ? 35 : kind === "horde" ? 28 : 40;
+      hp = Math.round(hp * MOB_HP_MUL * ((kind === "boss" || kind === "elite") ? ELITE_HP_MUL : 1));
       st.enemies.push({
         id: "e" + st.time + "_" + i + "_" + Math.floor(rnd(999)),
         pathT: corner + rnd(0.15),
-        speed: (kind === "boss" ? 16 : kind === "fast" ? 42 : kind === "elite" ? 22 : SPEED0) * st.speedMul,
+        speed: (kind === "boss" ? 16 : kind === "fast" ? 42 : kind === "elite" ? 22 : SPEED0) * st.speedMul * MOB_SPD_MUL,
         hp, hpMax: hp,
         kind,
         ring,
@@ -299,6 +319,7 @@
 
   function tickMove(st, dt) {
     const side = st.side || SIDE;
+    if (!Number.isFinite(st.towerHp)) st.towerHp = TOWER_HP;
     for (const e of st.enemies) {
       if (!e.alive || e.neutral) continue;
       if (e.stunT > 0) { e.stunT -= dt; continue; }
@@ -307,7 +328,15 @@
       const ring = e.ring === 1 && st.innerWay ? 1 : 0;
       const path = ring === 1 ? st.innerWay : st.way;
       const seg = (ring === 1 ? side * 0.55 : side) / 4;
+      const beforeLap = Math.floor(e.pathT);
       e.pathT += (e.speed * slow * dt) / seg;
+      const afterLap = Math.floor(e.pathT);
+      if (afterLap > beforeLap) {
+        e.laps = (e.laps || 0) + (afterLap - beforeLap);
+        st.towerHp -= lapDmg(e.kind) * (afterLap - beforeLap);
+        if (st.towerHp < 0) st.towerHp = 0;
+        st.towerHitT = 0.35;
+      }
       const p = pathPoint(path, e.pathT, ring === 1 ? side * 0.55 : side);
       e.x = p.x; e.y = p.y;
     }
@@ -554,10 +583,10 @@
     if (pressure >= PRESSURE_FAIL) st.pressureT += dt;
     else st.pressureT = 0;
 
-    if (st.pressureT >= PRESSURE_HOLD) {
+    if (st.towerHp <= 0) {
       st.over = true;
       st.fail = true;
-      events.push("fail_pressure");
+      events.push("fail_tower");
       return events;
     }
 
@@ -653,11 +682,11 @@
     st.challengeT = 0;
     st.challengesTaken = (st.challengesTaken || 0) + 1;
     const p = pathPoint(st.way, st.spawnEdge % 4, st.side || SIDE);
-    const hp = 260 + Math.floor((st.wave || 1) * 25);
+    const hp = Math.round((260 + Math.floor((st.wave || 1) * 25)) * MOB_HP_MUL * ELITE_HP_MUL);
     st.enemies.push({
       id: "chal" + st.time + "_" + Math.floor(rnd(999)),
       pathT: (st.spawnEdge || 0) % 4,
-      speed: 18 * (st.speedMul || 1),
+      speed: 18 * (st.speedMul || 1) * MOB_SPD_MUL,
       hp, hpMax: hp,
       kind: "challenger",
       alive: true,
@@ -699,6 +728,8 @@
     return {
       win: !!st.win,
       fail: !!st.fail,
+      towerHp: Number.isFinite(st.towerHp) ? st.towerHp : TOWER_HP,
+      towerHpMax: st.towerHpMax || TOWER_HP,
       kills: st.kills,
       coins: Math.round((st.coinsRun || 0) * comboMul),
       time: t,
@@ -709,7 +740,77 @@
     };
   }
 
+  /** WebAudio 合成音效（零文件） */
+  const Sfx = {
+    ctx: null,
+    muted: false,
+    unlock() {
+      try {
+        if (!this.ctx) {
+          const AC = window.AudioContext || window.webkitAudioContext;
+          if (!AC) return;
+          this.ctx = new AC();
+        }
+        if (this.ctx.state === "suspended") this.ctx.resume();
+      } catch (_) {}
+    },
+    _tone(freq, dur, type, gain) {
+      try {
+        if (this.muted || !this.ctx) return;
+        const t = this.ctx.currentTime;
+        const o = this.ctx.createOscillator();
+        const g = this.ctx.createGain();
+        o.type = type || "triangle";
+        o.frequency.setValueAtTime(freq, t);
+        g.gain.setValueAtTime(gain || 0.04, t);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+        o.connect(g); g.connect(this.ctx.destination);
+        o.start(t); o.stop(t + dur + 0.02);
+      } catch (_) {}
+    },
+    _noise(dur, gain) {
+      try {
+        if (this.muted || !this.ctx) return;
+        const t = this.ctx.currentTime;
+        const n = this.ctx.createBufferSource();
+        const len = Math.max(1, Math.floor(this.ctx.sampleRate * dur));
+        const buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
+        n.buffer = buf;
+        const g = this.ctx.createGain();
+        g.gain.setValueAtTime(gain || 0.03, t);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+        n.connect(g); g.connect(this.ctx.destination);
+        n.start(t);
+      } catch (_) {}
+    },
+    hit() { this._noise(0.08, 0.025); this._tone(180, 0.05, "square", 0.02); },
+    crit() { this._noise(0.12, 0.04); this._tone(420, 0.1, "sawtooth", 0.03); },
+    kill() { this._noise(0.15, 0.035); this._tone(240, 0.12, "triangle", 0.03); },
+    ult() {
+      if (this.muted || !this.ctx) return;
+      try {
+        const t = this.ctx.currentTime;
+        const o = this.ctx.createOscillator();
+        const g = this.ctx.createGain();
+        o.type = "sawtooth";
+        o.frequency.setValueAtTime(120, t);
+        o.frequency.exponentialRampToValueAtTime(880, t + 0.45);
+        g.gain.setValueAtTime(0.05, t);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
+        o.connect(g); g.connect(this.ctx.destination);
+        o.start(t); o.stop(t + 0.55);
+      } catch (_) {}
+    },
+    pick() { this._tone(520, 0.08, "sine", 0.03); this._tone(780, 0.12, "sine", 0.02); },
+    challenge() { this._tone(200, 0.15, "square", 0.035); this._tone(300, 0.2, "triangle", 0.03); },
+    win() { this._tone(523, 0.12, "sine", 0.04); this._tone(659, 0.14, "sine", 0.035); this._tone(784, 0.2, "sine", 0.03); },
+    lose() { this._tone(220, 0.25, "sawtooth", 0.03); this._tone(147, 0.4, "triangle", 0.03); },
+  };
+
   window.SquareLoop = {
+    TOWER_HP, lapDmg, MOB_HP_MUL, MOB_SPD_MUL, ELITE_HP_MUL,
     STANCES, NEUTRAL, STANCE_BUFF,
     PRESSURE_FAIL, PRESSURE_HOLD, PRESSURE_WARN1, PRESSURE_WARN2,
     NEUTRAL_MAX, NEUTRAL_CD, TAP_BASE, TAP_ATK,
@@ -722,5 +823,6 @@
     tapNeutral, maybeSpawnNeutral, tick, settle,
     PICK_POOL, rollPicks, applyPick, maybeOfferPick,
     maybeOfferChallenge, acceptChallenge, declineChallenge, tickChallenge,
+    Sfx,
   };
 })();

@@ -6168,6 +6168,14 @@ function startSquareLoopRun(charId) {
   syncSquareStanceHud();
   updateSquareHud();
   toast(`${CHARS[charId]?.name || "修士"} · 方环试炼 · 点柱切换风雨雷电`);
+  try { if (SL.Sfx) SL.Sfx.unlock(); } catch (_) {}
+  
+  
+  
+  
+  
+  
+  
   try {
     if (window.Analytics) Analytics.track("run_start", { mode: "square_loop", char_id: charId });
     if (window.Analytics) Analytics.track("square_loop", { phase: "start", char_id: charId });
@@ -6239,7 +6247,10 @@ function updateSquareLoop(dt) {
     G._sqAtkT -= atkEvery;
     const killsBefore = st.kills;
     try { SL.autoAttack(st); } catch (_) {}
+    try { if (SL.Sfx) SL.Sfx.hit(); } catch (_) {}
     if (st.kills > killsBefore) {
+      try { if (SL.Sfx) SL.Sfx.kill(); } catch (_) {}
+      try { burst(st.px || G.px, st.py || G.py, "#f0c14b", 8, 120, 3); } catch (_) {}
       for (let i = 0; i < st.kills - killsBefore; i++) SL.addUltCharge(st, "kill");
     }
   }
@@ -6600,15 +6611,20 @@ function endSquareLoop() {
   try {
     const meta = Meta.load();
     meta.coins = (meta.coins || 0) + coins;
-    meta.squareLoop = meta.squareLoop || { bestClearSec: 0, pressurePeak: 0, bestClears: 0 };
+    meta.squareLoop = meta.squareLoop || { bestClearSec: 0, pressurePeak: 0, bestClears: 0, bestRank: "", comboPeak: 0, streak: 0 };
     meta.squareLoop.pressurePeak = Math.max(meta.squareLoop.pressurePeak || 0, result.pressurePeak || 0);
     if (result.win) {
       meta.squareLoop.bestClears = (meta.squareLoop.bestClears || 0) + 1;
+      meta.squareLoop.streak = (meta.squareLoop.streak || 0) + 1;
       const cs = result.clearSec || st.time || 0;
       const prev = meta.squareLoop.bestClearSec || 0;
       meta.squareLoop.bestClearSec = prev > 0 ? Math.min(prev, cs) : cs;
       meta.squareLoop.bestRank = betterRank(meta.squareLoop.bestRank, result.rank);
-      setTimeout(() => showBigBanner("测定 " + result.rank, "方环清场", "gold"), 280);
+      meta.squareLoop.comboPeak = Math.max(meta.squareLoop.comboPeak || 0, result.comboPeak || 0);
+      setTimeout(() => showBigBanner("测定 " + result.rank, "方环清场 · 连胜 " + meta.squareLoop.streak, "gold"), 280);
+      if (prev === 0 || cs < prev) setTimeout(() => toast("新纪录 " + cs.toFixed(1) + "s", "gold"), 700);
+    } else {
+      meta.squareLoop.streak = 0;
     }
     if (result.win && window.Treasure) {
       const t = Treasure.trialReward(meta.treasures);
@@ -10050,7 +10066,7 @@ ui.btnHome.addEventListener("click", showMenu);
       else toast("分享未完成，可稍后再试");
     });
   }
-  try { if (window.Analytics) Analytics.track("app_open", { build: "v7.8.26-ui-feel" }); } catch (_) {}
+  try { if (window.Analytics) Analytics.track("app_open", { build: "v7.8.27-top3" }); } catch (_) {}
 
   const btnAdDouble = document.getElementById("btnAdDouble");
   if (btnAdDouble) {

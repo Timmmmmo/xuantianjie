@@ -3417,6 +3417,38 @@ body.orange-pause #app::after {
 .pick-card{min-width:104px;min-height:72px;border:1px solid rgba(240,193,75,.55);border-radius:12px;background:#121826;color:#e5e7eb;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:12px;pointer-events:auto;touch-action:manipulation;cursor:pointer}
 .pick-card b{color:#f0c14b;font-size:14px}
 .pick-card span{font-size:11px;color:#a5f3fc}
+.tower-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.tower-track {
+  flex: 1;
+  height: 8px;
+  background: #1f1a12;
+  border: 1px solid #5b4a22;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.tower-bar {
+  display: block;
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, #b8860b, #f0c14b);
+  transition: width 0.15s linear;
+}
+.tower-wrap.warn1 .tower-bar { background: linear-gradient(90deg, #b45309, #fbbf24); }
+.tower-wrap.warn2 .tower-bar { background: linear-gradient(90deg, #7f1d1d, #f87171); }
+.tower-wrap.hit .tower-bar { filter: brightness(1.4); }
+.tower-text {
+  font-size: 11px;
+  color: #f0c14b;
+  min-width: 72px;
+  text-align: right;
+}
+.tower-wrap.warn1 .tower-text { color: var(--gold-hi); }
+.tower-wrap.warn2 .tower-text { color: #fda4af; }
 .pressure-wrap {
   pointer-events: none;
   display: flex;

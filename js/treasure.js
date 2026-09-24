@@ -187,11 +187,16 @@
     return (list || []).filter((t) => t && t.uid !== uid);
   }
 
+  /** 剔除：0 灵石删除该件 */
+  function discard(list, uid) {
+    return removeByUid(list, uid);
+  }
+
   window.Treasure = {
     MAX, DROP_MOB, TIER, SLOTS, SLOT_NAME, WAVE_WEIGHTS, AFFIX,
     waveBucket, rollTier, rollSlot, makeTreasure, clampTier, bestTier,
     rollMobDrop, trialReward, combatBonus,
     canMerge, merge, upgradeCost, canUpgrade, upgrade,
-    scrapValue, addTreasure, autoMergeAll, removeByUid,
+    scrapValue, addTreasure, autoMergeAll, removeByUid, discard,
   };
 })();

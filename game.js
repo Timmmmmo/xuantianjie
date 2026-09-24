@@ -369,7 +369,7 @@ const Meta = {
     }
     return s;
   },
-  endRun(wave, kills, time, comboPeak, coinsEarned) {
+  endRun(wave, kills, time, comboPeak, coinsEarned, mode, win) {
     const d = this.load();
     d.bestWave = Math.max(d.bestWave, wave);
     d.bestKills = Math.max(d.bestKills, kills);

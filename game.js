@@ -32,6 +32,7 @@ const ui = {
   overWave: $("overWave"), overKills: $("overKills"), overTime: $("overTime"),
   overCombo: $("overCombo"), overLevel: $("overLevel"), overCoins: $("overCoins"),
   overTitle: $("overTitle"), overMsg: $("overMsg"),
+  towerBar: $("towerBar"), towerText: $("towerText"),
   toast: $("toast"),
   joystick: $("joystick"), joyKnob: $("joyKnob"), joyZone: $("joyZone"),
   btnSkill1: $("btnSkill1"), btnSkill2: $("btnSkill2"),
@@ -259,7 +260,7 @@ function normalizeMetaDraft(d) {
     daily,
     signin,
     tutorialDone: !!src.tutorialDone,
-    modeStats: src.modeStats || { quickWins: 0, endlessBestWave: 0 },
+    modeStats: src.modeStats || { quickWins: 0, endlessBestWave: 0, endlessWins: 0 },
     lastMode: src.lastMode || "endless",
     squareLoop: {
       bestClearSec: (src.squareLoop && Number(src.squareLoop.bestClearSec)) || 0,
@@ -375,8 +376,9 @@ const Meta = {
     d.bestTime = Math.max(d.bestTime, Math.floor(time));
     d.bestCombo = Math.max(d.bestCombo, comboPeak);
     d.coins += coinsEarned;
-    d.modeStats = d.modeStats || { quickWins: 0, endlessBestWave: 0 };
+    d.modeStats = d.modeStats || { quickWins: 0, endlessBestWave: 0, endlessWins: 0 };
     d.modeStats.endlessBestWave = Math.max(d.modeStats.endlessBestWave || 0, wave);
+    if (win) d.modeStats.endlessWins = (d.modeStats.endlessWins || 0) + 1;
     this.save(d);
     return d;
   },
@@ -2966,6 +2968,7 @@ function resetRun(charId) {
   G.spawnQueue = []; G._trickle = 0;
   // v7.4 玄铁试炼桩状态复位（否则上一局的试炼进度会带进新一局）
   G.trial = null; G.trialResult = null; G._trialWave = 0; G._trialCardT = 0;
+  G._finalBoss = false; G._runWin = false;
   G._trialCrackT = 0; G._insightWp = {}; G._insightHinted = false; G._jobAnnounced = false;   // v7.6
   // v7.6 悟道便签：上一局残留的便签必须清干净，否则新一局开局就糊着旧卡
   if (G._autoNotes && G._autoNotes.length) {
@@ -3773,10 +3776,21 @@ function renderInvDetail() {
     }).join("")}
     <div class="det-actions">
       ${tier.equipable ? `<button class="btn-equip" id="btnEquipNow">装备到${slotDef.name}槽</button>` : `<button class="btn-equip" disabled style="opacity:0.4">白/绿/蓝不可装</button>`}
+      <button class="btn-equip btn-discard" id="btnDiscardEq" style="background:#7f1d1d;border-color:#f87171">丢弃</button>
     </div>`;
   const btn = ui.invDetail.querySelector("#btnEquipNow");
   if (btn) btn.onclick = () => {
     if (equipTo(eq.uid)) { _invSelectedUid = null; renderInventory(); invHudSync(); }
+  };
+  const btnD = ui.invDetail.querySelector("#btnDiscardEq");
+  if (btnD) btnD.onclick = () => {
+    if (!confirm(`真要丢弃？${eq.name} 将化为乌有（0 金）`)) return;
+    const i = G.inventory.findIndex((e) => e.uid === eq.uid);
+    if (i >= 0) G.inventory.splice(i, 1);
+    _invSelectedUid = null;
+    toast(`已丢弃 · ${eq.name}`, "warn");
+    if (window.Analytics) Analytics.track("equip_discard", { tier: eq.tier });
+    renderInventory(); invHudSync();
   };
 }
 function openInventory() {
@@ -4248,7 +4262,7 @@ function earlyEnemyAtkMul(wave) {
 // 配比说明：压力主要来自 ATK（制造"会被打死"的威胁），HP 只温和上涨。
 // 试过 HP 系数 0.028 —— 40 波妖王要砍 119 刀，等于把 v6.1 修掉的撞墙又请回来了。
 const ENDGAME_FROM = 26;          // 从第几波开始施加终局压力
-const ENEMY_STRENGTH_MUL = 3;     // v7.8.16 敌方整体强度（HP/ATK）
+const ENEMY_STRENGTH_MUL = 3.4;   // v7.8.28 敌方整体强度（HP/ATK）· 小兵难度小升
 const HORDE_STRENGTH_MUL = 2.5;   // 尸潮稍降，避免纯堵门
 function endgameHpMul(wave) {
   if (wave <= ENDGAME_FROM) return 1;
@@ -4285,6 +4299,7 @@ function spawnEnemy(typeId, x, y, wave, opts) {
     burn: 0, burnDmg: 0, slow: 0, slowMul: 1, dead: false,
     elem: t.elem || waveElemKey(),   // 五行属性：随波轮转
     horde: !!o.horde,                // v7.0 B 尸潮怪标记（用于统计与清场）
+    finalBoss: !!o.finalBoss,
   };
   // v7.0 B：尸潮怪不参与词缀与精英 toast，避免刷屏
   e.mods = (e.elite || e.boss) ? rollEnemyMods(e, wave) : [];
@@ -4387,7 +4402,12 @@ function updateWaves(dt) {
   }
   G.waveTimer -= dt;
   if (G.waveTimer <= 0) {
-    G.wave += 1;
+    if (G.wave < 40) {
+      G.wave += 1;
+    } else {
+      G.wave = 40;
+      G.waveTimer = 8;
+    }
     enterWaveMod(G.wave);
     // v7.1：前 3 波 16 秒一波（25 秒太长，第 1 波 8 秒就清完了，剩下 17 秒在发呆）
     G.waveTimer = G.wave <= 3 ? 16 : G.waveInterval;
@@ -4419,6 +4439,20 @@ function updateWaves(dt) {
     }
     // v7.4 玄铁试炼桩：第 15 / 30 波丢下伤害测试者，给 60 秒打桩
     if (trialIsWave(G.wave)) spawnTrial(G.wave);
+
+    // 无尽终局：第40波劫主·傀神 —— 击杀即胜利
+    if (G.wave >= 40 && !G._finalBoss) {
+      G._finalBoss = true;
+      const fb = spawnEnemy("bossGolem", G.px + 220, G.py - 160, 40, { hpMul: 2.2, finalBoss: true });
+      if (fb) {
+        fb.finalBoss = true;
+        fb.name = "劫主·傀神";
+        showBigBanner("劫主降临", "击杀即渡劫成功", "red");
+        G.waveBanner = 2.2;
+        G.waveBannerText = "第 40 波 · 劫主·傀神";
+        if (window.Analytics) Analytics.track("final_boss_spawn", { wave: 40 });
+      }
+    }
   }
   if (G.spawnQueue.length) {
     for (const item of G.spawnQueue) item.delay -= dt;
@@ -5050,7 +5084,7 @@ function damagePlayer(amount) {
       if (c.onDeathCheck && c.onDeathCheck()) { revived = true; break; }
     }
     if (revived) return;
-    G.hp = 0; endRun();
+    G.hp = 0; endRun({ win: false, cause: "妖爪" });
   }
 }
 
@@ -5119,6 +5153,13 @@ function burst(x, y, color, n = 8, speed = 120, size = 3) {
 function killEnemy(e, byPlayer = true) {
   if (e.dead) return;
   e.dead = true;
+  // 无尽终局：第40波劫主伏诛 = 胜利
+  if (e.finalBoss && G.modeId !== "square_loop") {
+    G.kills += 1;
+    burst(e.x, e.y, "#fbbf24", 48, 360, 8);
+    endRun({ win: true, cause: "劫主伏诛" });
+    return;
+  }
   G.kills += 1;
   // v7.4 玄铁试炼桩：打碎即通过 —— 不发普通战利品，奖励统一在 endTrial 里按成绩给
   if (e.isDummy) {
@@ -6218,6 +6259,18 @@ function updateSquareHud() {
   const max = SL.PRESSURE_FAIL;
   if (ui.pressureBar) ui.pressureBar.style.width = `${clamp((p / max) * 100, 0, 100)}%`;
   if (ui.pressureText) ui.pressureText.textContent = `妖压 ${p}/${max}`;
+  // 法坛塔血（v7.8.28）
+  const th = Number.isFinite(st.towerHp) ? st.towerHp : (SL.TOWER_HP || 60);
+  const thMax = st.towerHpMax || SL.TOWER_HP || 60;
+  if (ui.towerBar) ui.towerBar.style.width = `${clamp((th / thMax) * 100, 0, 100)}%`;
+  if (ui.towerText) ui.towerText.textContent = `法坛 ${Math.max(0, Math.ceil(th))}/${thMax}`;
+  const tWrap = ui.towerBar && ui.towerBar.parentElement;
+  if (tWrap) {
+    tWrap.classList.toggle("warn1", th / thMax <= 0.30 && th / thMax > 0.15);
+    tWrap.classList.toggle("warn2", th / thMax <= 0.15);
+    tWrap.classList.toggle("hit", (st.towerHitT || 0) > 0);
+  }
+  if (st.towerHitT > 0) st.towerHitT = Math.max(0, st.towerHitT - 0.016);
   const wrap = ui.pressureBar && ui.pressureBar.parentElement;
   if (wrap) {
     wrap.classList.toggle("warn1", p >= SL.PRESSURE_WARN1 && p < SL.PRESSURE_WARN2);
@@ -6717,7 +6770,9 @@ function endSquareLoop() {
   ui.overCombo.textContent = G._sqPeak || 0;
   ui.overLevel.textContent = G.level;
   ui.overCoins.textContent = "+" + coins;
-  ui.overTitle.textContent = result.win ? "方环试炼 · 清净" : "方环试炼 · 妖压崩盘";
+  ui.overTitle.textContent = result.win ? "方环试炼 · 清净" : "方环试炼 · 法坛碎裂";
+  if (result.win) { try { if (SL.Sfx) SL.Sfx.win(); } catch (_) {} }
+  else { try { if (SL.Sfx) SL.Sfx.lose(); } catch (_) {} }
   ui.overMsg.textContent = result.win
     ? `妖流全灭 · 用时 ${formatTime(result.time || 0)} · 妖压峰值 ${result.pressurePeak || 0}。灵石+${coins}，已入帐。`
     : `敌对持续 ≥188 超 2 秒判负 · 妖压峰值 ${result.pressurePeak || 0} · 斩 ${result.kills}。不扣灵石，可再战。`;
@@ -6789,18 +6844,21 @@ if (ui.tutOverlay) {
   });
 }
 
-function endRun() {
+function endRun(opts) {
+  const o = opts || {};
+  const win = !!o.win;
   if (G.state === "over") return;
+  G._runWin = win;
   // v7.5：死在试炼里也要收场 —— 否则试炼计时器会挂到下一局，进新局第一帧就弹评定卡
   if (G.trial && G.trial.active) endTrial(false, "力竭");
   hideTrialCard();
   G.state = "over";
   releaseJoystick();
   releaseWakeLock();
-  const base = G.wave * 3 + G.kills * 0.4 + G.comboPeak * 1.5;
+  const base = G.wave * 3 + G.kills * 0.4 + G.comboPeak * 1.5 + (win ? 40 : 0);
   const coins = Math.max(0, Math.floor(base * (1 + (G._shopCoin || 0))));
   const prevBest = best.bestWave;
-  const best = Meta.endRun(G.wave, G.kills, G.time, G.comboPeak, coins);
+  const best = Meta.endRun(G.wave, G.kills, G.time, G.comboPeak, coins, "endless", win);
   G.coinsRun = coins;
   G._metaCoinsCached = best.coins;
 
@@ -6810,7 +6868,7 @@ function endRun() {
       let weaponKinds = 0;
       try { weaponKinds = Daily.countWeaponKinds(G.weapons); } catch (_) { weaponKinds = 0; }
       const dailyRes = Daily.applyRunResult(Meta.load(), {
-        win: false,
+        win: !!win,
         mode: "endless",
         wave: G.wave,
         comboPeak: G.comboPeak,
@@ -6835,7 +6893,8 @@ function endRun() {
         seconds: Math.round(G.time),
         combo_peak: G.comboPeak,
         coins,
-        death_cause: "over",
+        win: win ? 1 : 0,
+        death_cause: win ? (o.cause || "final_boss") : "over",
       });
     }
   } catch (_) {}
@@ -6881,8 +6940,13 @@ function endRun() {
   ui.overCombo.textContent = G.comboPeak;
   ui.overLevel.textContent = G.level;
   ui.overCoins.textContent = "+" + coins;
-  ui.overTitle.textContent = `${RealmTitle(G.level)}境 · ${CHARS[G.charId]?.name || ""}`;
+  ui.overTitle.textContent = win
+    ? "渡劫成功 · 傀神陨落"
+    : `${RealmTitle(G.level)}境 · ${CHARS[G.charId]?.name || ""}`;
   ui.overMsg.textContent = (() => {
+    if (win) {
+      return `第 ${G.wave} 波 · ${o.cause || "劫主伏诛"}。天地清明，灵石可强化后再战。`;
+    }
     const causeMap = { swarm: "妖潮围杀", slam: "大妖砸击", shock: "精英震地", unknown: "力竭" };
     const cause = causeMap[G.deathCause] || causeMap.unknown;
     const oldBest = Number.isFinite(prevBest) ? prevBest : best.bestWave;
@@ -9604,7 +9668,8 @@ function renderTreasures() {
         <div class="s-desc">${(t.affixes || []).map((a) => (Treasure.AFFIX[a] ? Treasure.AFFIX[a].name : a)).join(" · ") || "无词缀"} · ${Treasure.canUpgrade(t) ? `淬炼 ◆${Treasure.upgradeCost(t.tier)}` : "已至史诗"}</div>
       </div>
       <button class="shop-buy" data-up="${t.uid}" ${Treasure.canUpgrade(t) ? "" : "disabled"}>淬炼</button>
-      <button class="shop-buy" data-scrap="${t.uid}">化去 ◆${Treasure.scrapValue(t)}</button>`;
+      <button class="shop-buy" data-scrap="${t.uid}">化去 ◆${Treasure.scrapValue(t)}</button>
+      <button class="shop-buy" data-discard="${t.uid}" style="background:#7f1d1d;border-color:#f87171">丢弃</button>`;
     box.appendChild(row);
   });
   box.querySelectorAll("[data-up]").forEach((btn) => {
@@ -9628,8 +9693,7 @@ function renderTreasures() {
       refreshMetaUI();
     });
   });
-  box.querySelectorAll("[data-scrap]").forEach((btn) => {
-    btn.addEventListener("click", () => {
+  box.querySelectorAll("[data-scrap]").forEach((btn) => {    btn.addEventListener("click", () => {
       const uid = btn.getAttribute("data-scrap");
       const meta2 = Meta.load();
       const item = (meta2.treasures || []).find((x) => x.uid === uid);
@@ -9640,6 +9704,21 @@ function renderTreasures() {
       Meta.save(meta2);
       toast(`化去宝物 · +${val} 灵石`);
       if (window.Analytics) Analytics.track("treasure_scrap", { tier: item.tier, coins: val });
+      renderTreasures();
+      refreshMetaUI();
+    });
+  });
+  box.querySelectorAll("[data-discard]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const uid = btn.getAttribute("data-discard");
+      const meta2 = Meta.load();
+      const item = (meta2.treasures || []).find((x) => x.uid === uid);
+      if (!item) return;
+      if (!confirm("真要丢弃？（0 灵石）")) return;
+      meta2.treasures = Treasure.discard ? Treasure.discard(meta2.treasures, uid) : Treasure.removeByUid(meta2.treasures, uid);
+      Meta.save(meta2);
+      toast("已丢弃宝物", "warn");
+      if (window.Analytics) Analytics.track("treasure_discard", { tier: item.tier });
       renderTreasures();
       refreshMetaUI();
     });
@@ -10066,7 +10145,7 @@ ui.btnHome.addEventListener("click", showMenu);
       else toast("分享未完成，可稍后再试");
     });
   }
-  try { if (window.Analytics) Analytics.track("app_open", { build: "v7.8.27-top3" }); } catch (_) {}
+  try { if (window.Analytics) Analytics.track("app_open", { build: "v7.8.28-tower" }); } catch (_) {}
 
   const btnAdDouble = document.getElementById("btnAdDouble");
   if (btnAdDouble) {

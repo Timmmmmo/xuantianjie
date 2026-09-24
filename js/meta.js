@@ -36,10 +36,11 @@
       shop: {},
       selectedChar: "sword",
       daily: emptyDaily(),
-      modeStats: { quickWins: 0, endlessBestWave: 0 },
+      modeStats: { quickWins: 0, endlessBestWave: 0, endlessWins: 0 },
       lastMode: "endless",
       signin: emptySignin(),
       tutorialDone: false,
+      treasures: [],
       version: 3,
     };
   }
@@ -59,7 +60,7 @@
         shop: d.shop || {},
         selectedChar: d.selectedChar || "sword",
         daily: emptyDaily(),
-        modeStats: { quickWins: 0, endlessBestWave: base.bestWave },
+        modeStats: { quickWins: 0, endlessBestWave: base.bestWave, endlessWins: 0 },
         lastMode: "endless",
         signin: emptySignin(),
         tutorialDone: false,
@@ -85,6 +86,7 @@
             daily: { ...emptyDaily(), ...(d.daily || {}) },
             modeStats: { ...base.modeStats, ...(d.modeStats || {}) },
             signin: { ...emptySignin(), ...(d.signin || {}) },
+            treasures: Array.isArray(d.treasures) ? d.treasures.slice(0, 40) : [],
             tutorialDone: !!d.tutorialDone,
             version: 3,
           };
@@ -135,7 +137,7 @@
       }
       return s;
     },
-    endRun(wave, kills, time, comboPeak, coinsEarned, mode) {
+    endRun(wave, kills, time, comboPeak, coinsEarned, mode, win) {
       const d = this.load();
       d.bestWave = Math.max(d.bestWave, wave);
       d.bestKills = Math.max(d.bestKills, kills);
@@ -143,7 +145,10 @@
       d.bestCombo = Math.max(d.bestCombo, comboPeak);
       d.coins += coinsEarned;
       if (mode === "quick") d.modeStats.quickWins = d.modeStats.quickWins; // wins counted by caller
-      if (mode === "endless") d.modeStats.endlessBestWave = Math.max(d.modeStats.endlessBestWave || 0, wave);
+      if (mode === "endless") {
+        d.modeStats.endlessBestWave = Math.max(d.modeStats.endlessBestWave || 0, wave);
+        if (win) d.modeStats.endlessWins = (d.modeStats.endlessWins || 0) + 1;
+      }
       this.save(d);
       return d;
     },

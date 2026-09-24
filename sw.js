@@ -1,6 +1,6 @@
 /* 玄天劫 · 离线缓存 Service Worker — v7.8 合并版
    代码类网络优先（保证热更到达），图片缓存优先（省流量秒开） */
-const CACHE = "xuantianjie-v7.8.27-top3";
+const CACHE = "xuantianjie-v7.8.28-tower";
 const ASSETS = [
   "./",
   "./index.html",

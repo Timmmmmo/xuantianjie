@@ -282,54 +282,97 @@ function normalizeMetaDraft(d) {
   };
 }
 function readMetaRaw() {
-  try {
-    const parse = (k) => {
+  // QA-001：单键 parse 独立容错——坏一端不得拖垮另一端
+  const parse = (k) => {
+    try {
       const raw = localStorage.getItem(k);
       if (!raw) return null;
-      return JSON.parse(raw) || null;
-    };
-    const v3 = parse(META_KEY);
-    const v2 = parse(META_KEY_LEGACY);
-    if (v3 && v2) {
-      // 双键深合并：v2 的图鉴/契约不得因 Sprint B 写过 v3 而丢失
-      return {
-        ...v2,
-        ...v3,
-        shop: { ...(v2.shop || {}), ...(v3.shop || {}) },
-        coins: (v3.coins != null ? v3.coins : v2.coins) || 0,
-        bestWave: Math.max(v2.bestWave || 0, v3.bestWave || 0),
-        bestKills: Math.max(v2.bestKills || 0, v3.bestKills || 0),
-        bestTime: Math.max(v2.bestTime || 0, v3.bestTime || 0),
-        bestCombo: Math.max(v2.bestCombo || 0, v3.bestCombo || 0),
-        selectedChar: v3.selectedChar || v2.selectedChar || "sword",
-        codex: {
-          artifacts: { ...((v2.codex && v2.codex.artifacts) || {}), ...((v3.codex && v3.codex.artifacts) || {}) },
-          beasts: { ...((v2.codex && v2.codex.beasts) || {}), ...((v3.codex && v3.codex.beasts) || {}) },
-        },
-        contract: v3.contract != null ? v3.contract : (v2.contract || null),
-        daily: v3.daily || v2.daily,
-        signin: v3.signin || v2.signin,
-        weekly: v3.weekly || v2.weekly || null,
-        premium: v3.premium || v2.premium,
-        adUsage: v3.adUsage || v2.adUsage,
-        tutorialDone: !!(v3.tutorialDone || v2.tutorialDone),
-      };
+      const obj = JSON.parse(raw);
+      return obj && typeof obj === "object" ? obj : null;
+    } catch (_) {
+      return null;
     }
-    return v3 || v2 || {};
-  } catch (_) {}
-  return {};
+  };
+  const v3 = parse(META_KEY);
+  const v2 = parse(META_KEY_LEGACY);
+  if (v3 && v2) {
+    // QA-002：字段级合并，v3 默认 stub 不得抹掉 v2 真实进度
+    const maxN = (a, b) => Math.max(Number(a) || 0, Number(b) || 0);
+    const signin = {
+      nextDay: maxN(v2.signin && v2.signin.nextDay, v3.signin && v3.signin.nextDay) || 1,
+      lastClaimDate: (v3.signin && v3.signin.lastClaimDate) || (v2.signin && v2.signin.lastClaimDate) || "",
+      claims: maxN(v2.signin && v2.signin.claims, v3.signin && v3.signin.claims),
+    };
+    if (signin.nextDay < 1 || signin.nextDay > 7) signin.nextDay = 1;
+    const dailyProg = (d) => (d && d.progress) || {};
+    const dailyGrant = (d) => (d && d.granted) || {};
+    const dp2 = dailyProg(v2.daily), dp3 = dailyProg(v3.daily);
+    const dg2 = dailyGrant(v2.daily), dg3 = dailyGrant(v3.daily);
+    const daily = {
+      date: (v3.daily && v3.daily.date) || (v2.daily && v2.daily.date) || "",
+      progress: {
+        wave5: maxN(dp2.wave5, dp3.wave5),
+        combo: maxN(dp2.combo, dp3.combo),
+        arms: maxN(dp2.arms, dp3.arms),
+      },
+      granted: {
+        wave5: !!(dg2.wave5 || dg3.wave5),
+        combo: !!(dg2.combo || dg3.combo),
+        arms: !!(dg2.arms || dg3.arms),
+        all: !!(dg2.all || dg3.all),
+      },
+    };
+    const ad2 = v2.adUsage || {}, ad3 = v3.adUsage || {};
+    return {
+      ...v2,
+      ...v3,
+      shop: { ...(v2.shop || {}), ...(v3.shop || {}) },
+      coins: maxN(v3.coins, v2.coins),
+      bestWave: maxN(v2.bestWave, v3.bestWave),
+      bestKills: maxN(v2.bestKills, v3.bestKills),
+      bestTime: maxN(v2.bestTime, v3.bestTime),
+      bestCombo: maxN(v2.bestCombo, v3.bestCombo),
+      selectedChar: v3.selectedChar || v2.selectedChar || "sword",
+      codex: {
+        artifacts: { ...((v2.codex && v2.codex.artifacts) || {}), ...((v3.codex && v3.codex.artifacts) || {}) },
+        beasts: { ...((v2.codex && v2.codex.beasts) || {}), ...((v3.codex && v3.codex.beasts) || {}) },
+      },
+      contract: v3.contract != null ? v3.contract : (v2.contract || null),
+      daily,
+      signin,
+      weekly: v3.weekly || v2.weekly || null,
+      premium: {
+        noAds: !!((v3.premium && v3.premium.noAds) || (v2.premium && v2.premium.noAds)),
+        skins: Array.from(new Set([...((v2.premium && v2.premium.skins) || []), ...((v3.premium && v3.premium.skins) || [])])),
+      },
+      adUsage: {
+        date: ad3.date || ad2.date || "",
+        settle_double: maxN(ad2.settle_double, ad3.settle_double),
+        daily_refresh: maxN(ad2.daily_refresh, ad3.daily_refresh),
+      },
+      tutorialDone: !!(v3.tutorialDone || v2.tutorialDone),
+    };
+  }
+  return v3 || v2 || {};
 }
 
 const Meta = {
   key: META_KEY,
   load() {
     try {
-      const merged = normalizeMetaDraft(readMetaRaw());
-      // 双键合并后回写 v3，避免每次 load 重复合并
+      const raw = readMetaRaw();
+      const merged = normalizeMetaDraft(raw);
+      // 仅在确有 v2 待合并、或 v3 缺失时回写；禁止用空档覆盖已有 v3（QA-001）
       try {
         const hasV2 = !!localStorage.getItem(META_KEY_LEGACY);
         const hasV3 = !!localStorage.getItem(META_KEY);
-        if (hasV2 || !hasV3) this.save(merged);
+        const rawEmpty = !raw || (!raw.coins && !raw.bestWave && !raw.signin && !raw.premium && !raw.treasures);
+        if ((hasV2 || !hasV3) && !(hasV3 && rawEmpty)) {
+          this.save(merged);
+          if (hasV2) {
+            try { localStorage.removeItem(META_KEY_LEGACY); } catch (_) {}
+          }
+        }
       } catch (_) {}
       return merged;
     } catch (_) {
@@ -340,7 +383,20 @@ const Meta = {
     try {
       const payload = normalizeMetaDraft(d);
       localStorage.setItem(META_KEY, JSON.stringify(payload));
-    } catch (_) {}
+      return true;
+    } catch (_) {
+      // QA-003：静默失败会吞掉当局灵石/日课入账
+      try {
+        if (typeof toast === "function") toast("存档失败 · 浏览器存储不可用", "red");
+      } catch (_) {}
+      setTimeout(() => {
+        try {
+          const p = normalizeMetaDraft(d);
+          localStorage.setItem(META_KEY, JSON.stringify(p));
+        } catch (_) {}
+      }, 800);
+      return false;
+    }
   },
   shopLevel(id) { return this.load().shop[id] || 0; },
   shopCost(def) {
@@ -1226,6 +1282,16 @@ function spawnTrial(wave) {
   }
   G.spawnQueue.length = 0;
   G._trickle = 0;
+  // QA-005：试炼退散清掉尸潮怪时取消尸潮，避免白拿全额赏
+  if (G.horde && G.horde.active) {
+    G.horde.active = false;
+    try { rewardHorde(true); } catch (_) {}
+  }
+  // QA-005：试炼退散清掉尸潮怪时，取消尸潮结算，避免白拿全额赏
+  if (G.horde && G.horde.active) {
+    G.horde.active = false;
+    try { rewardHorde(true); } catch (_) {}
+  }
   if (cleared) toast(`群妖退散 · 场上只留测试者（清 ${cleared} 只）`, "gold");
   const title = trialTitle(wave);
   showBigBanner(chase ? "伤害测试者" : "玄铁试炼",
@@ -3803,6 +3869,18 @@ function closeInventory() {
   ui.invModal.classList.add("hidden");
   G.state = "play";
 }
+/** QA-006：结算/回菜单/恢复时统一收口局内弹层 */
+function hideRunModals() {
+  try { if (ui.invModal) ui.invModal.classList.add("hidden"); } catch (_) {}
+  ["altarModal", "forgeModal", "codexModal", "squareChallenge", "squarePick"].forEach((id) => {
+    try {
+      const el = document.getElementById(id);
+      if (el) el.classList.add("hidden");
+    } catch (_) {}
+  });
+  G._sqChalOpen = false;
+  G._sqPickOpen = false;
+}
 // 炼宝台里装备快览（3 槽位 + 总览）
 function renderEquipQuick() {
   if (!ui.forgeEquip) return;
@@ -5164,6 +5242,8 @@ function killEnemy(e, byPlayer = true) {
     endRun({ win: true, cause: "劫主伏诛" });
     return;
   }
+  // QA-004：自溃/清场（byPlayer=false）不给经验、连杀、悬赏收益
+  if (!byPlayer) return;
   G.kills += 1;
   // v7.4 玄铁试炼桩：打碎即通过 —— 不发普通战利品，奖励统一在 endTrial 里按成绩给
   if (e.isDummy) {
@@ -6282,6 +6362,11 @@ function updateSquareHud() {
   }
   const charge = Math.floor(st.ultCharge || 0);
   if (ui.squareUltPct) ui.squareUltPct.textContent = `${charge}%`;
+  // QA-011：挑战倒计时每帧刷新，避免数字卡住
+  if (st.pendingChallenge && G._sqChalOpen) {
+    const tEl = document.getElementById("challengeT");
+    if (tEl) tEl.textContent = String(Math.max(0, Math.ceil(st.challengeT || 0)));
+  }
   if (ui.btnSquareUlt) {
     ui.btnSquareUlt.disabled = charge < 60;
     ui.btnSquareUlt.classList.toggle("ready", charge >= 100);
@@ -6636,7 +6721,15 @@ function openSquareChallenge() {
     box.classList.add("hidden");
     go.onclick = null;
     if (skip) skip.onclick = null;
+    if (G._sqChalTimer) { clearTimeout(G._sqChalTimer); G._sqChalTimer = null; }
   };
+  // QA-007：超时必须收 UI，否则 _sqChalOpen 卡死导致世界冻结
+  if (G._sqChalTimer) clearTimeout(G._sqChalTimer);
+  G._sqChalTimer = setTimeout(() => {
+    if (!G._sqChalOpen) return;
+    try { SL.declineChallenge(st); } catch (_) {}
+    close();
+  }, Math.ceil((st.challengeT || 10) * 1000) + 250);
   go.onclick = () => {
     SL.acceptChallenge(st);
     close();
@@ -6655,6 +6748,7 @@ function openSquareChallenge() {
 function endSquareLoop() {
   if (G._sqSettled) return;
   G._sqSettled = true;
+  hideRunModals();
   const st = G.square;
   const SL = window.SquareLoop;
   if (!st || !SL) return;
@@ -6775,11 +6869,15 @@ function endSquareLoop() {
   ui.overLevel.textContent = G.level;
   ui.overCoins.textContent = "+" + coins;
   ui.overTitle.textContent = result.win ? "方环试炼 · 清净" : "方环试炼 · 法坛碎裂";
+  try {
+    const glow = document.getElementById("overGlow");
+    if (glow) glow.textContent = result.win ? "方环清净" : "法坛碎裂";
+  } catch (_) {}
   if (result.win) { try { if (SL.Sfx) SL.Sfx.win(); } catch (_) {} }
   else { try { if (SL.Sfx) SL.Sfx.lose(); } catch (_) {} }
   ui.overMsg.textContent = result.win
-    ? `妖流全灭 · 用时 ${formatTime(result.time || 0)} · 妖压峰值 ${result.pressurePeak || 0}。灵石+${coins}，已入帐。`
-    : `法坛碎裂 · 妖压峰值 ${result.pressurePeak || 0} · 斩 ${result.kills}。不扣灵石，可再战。`;
+    ? `妖流全灭 · 用时 ${formatTime(result.time || 0)} · 妖压峰值 ${result.pressurePeak || 0}。灵石+${coins}，已入账。`
+    : `法坛碎裂 · 妖压峰值 ${result.pressurePeak || 0} · 斩 ${result.kills}。灵石+${coins}，可再战。`;
   ui.overScreen.classList.remove("hidden");
   setMenuBg(true);
   refreshShellUI();
@@ -6857,6 +6955,7 @@ function endRun(opts) {
   if (G.trial && G.trial.active) endTrial(false, "力竭");
   hideTrialCard();
   G.state = "over";
+  hideRunModals();
   releaseJoystick();
   releaseWakeLock();
   const base = G.wave * 3 + G.kills * 0.4 + G.comboPeak * 1.5 + (win ? 40 : 0);
@@ -6948,6 +7047,11 @@ function endRun(opts) {
   ui.overTitle.textContent = win
     ? "渡劫成功 · 傀神陨落"
     : `${RealmTitle(G.level)}境 · ${CHARS[G.charId]?.name || ""}`;
+  // QA-011：胜利主标题不再误用「道消形散」
+  try {
+    const glow = document.getElementById("overGlow");
+    if (glow) glow.textContent = win ? "渡劫成功" : "道消形散";
+  } catch (_) {}
   ui.overMsg.textContent = (() => {
     if (win) {
       return `第 ${G.wave} 波 · ${o.cause || "劫主伏诛"}。天地清明，灵石可强化后再战。`;
@@ -9835,6 +9939,7 @@ function refreshShellUI() {
 }
 
 function showMenu() {
+  hideRunModals();
   G.state = "menu";
   releaseWakeLock();
   releaseJoystick();
@@ -9925,6 +10030,7 @@ function togglePause() {
 }
 function resumeGame() {
   if (G.state !== "pause") return;
+  hideRunModals();
   ui.pauseScreen.classList.add("hidden");
   G.state = "play";
   last = performance.now();
@@ -10150,7 +10256,7 @@ ui.btnHome.addEventListener("click", showMenu);
       else toast("分享未完成，可稍后再试");
     });
   }
-  try { if (window.Analytics) Analytics.track("app_open", { build: "v7.8.28-tower" }); } catch (_) {}
+  try { if (window.Analytics) Analytics.track("app_open", { build: "v7.8.29-qafix" }); } catch (_) {}
 
   const btnAdDouble = document.getElementById("btnAdDouble");
   if (btnAdDouble) {
